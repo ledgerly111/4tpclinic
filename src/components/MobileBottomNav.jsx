@@ -24,7 +24,7 @@ const moreNavItems = [
     { icon: Stethoscope, label: 'Services', path: '/services' },
     { icon: Package, label: 'Inventory', path: '/inventory' },
     { icon: LayoutDashboard, label: 'Reports', path: '/reports' },
-    { icon: Users, label: 'Staff', path: '/staff' },
+    { icon: Users, label: 'Supervision', path: '/staff' },
     { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 

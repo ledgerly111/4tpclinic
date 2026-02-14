@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { User, Bell, Shield, CreditCard, Mail, Smartphone, Moon, Sun, Globe, Save, X, ChevronLeft } from 'lucide-react';
+import { User, Bell, Shield, CreditCard, Mail, Smartphone, Moon, Sun, Globe, Save, X, ChevronLeft, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 
@@ -29,7 +31,7 @@ export function Settings() {
                                 <span className="text-white text-xl sm:text-2xl font-bold">DR</span>
                             </div>
                             <div className="flex-1">
-                                <button className={cn("w-full sm:w-auto px-4 py-2 rounded-xl transition-colors text-sm", 
+                                <button className={cn("w-full sm:w-auto px-4 py-2 rounded-xl transition-colors text-sm",
                                     isDark ? 'bg-[#0f0f0f] text-white hover:bg-[#252525]' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                                 )}>
                                     Change Avatar
@@ -44,7 +46,7 @@ export function Settings() {
                                 <input
                                     type="text"
                                     defaultValue="Dr. Smith"
-                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm", 
+                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm",
                                         isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
                                     )}
                                 />
@@ -54,7 +56,7 @@ export function Settings() {
                                 <input
                                     type="email"
                                     defaultValue="dr.smith@clinic.com"
-                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm", 
+                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm",
                                         isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
                                     )}
                                 />
@@ -64,7 +66,7 @@ export function Settings() {
                                 <input
                                     type="tel"
                                     defaultValue="555-0100"
-                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm", 
+                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm",
                                         isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
                                     )}
                                 />
@@ -74,7 +76,7 @@ export function Settings() {
                                 <input
                                     type="text"
                                     defaultValue="General Physician"
-                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm", 
+                                    className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors text-sm",
                                         isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'
                                     )}
                                 />
@@ -172,12 +174,12 @@ export function Settings() {
                             <h3 className={cn("font-medium text-sm", isDark ? 'text-white' : 'text-gray-900')}>Notification Types</h3>
                             {['New appointments', 'Appointment reminders', 'Patient cancellations', 'Low inventory alerts', 'System updates'].map((type) => (
                                 <label key={type} className="flex items-center gap-3 py-2 cursor-pointer">
-                                    <input 
-                                        type="checkbox" 
-                                        defaultChecked 
+                                    <input
+                                        type="checkbox"
+                                        defaultChecked
                                         className={cn("w-4 h-4 sm:w-5 sm:h-5 rounded focus:ring-[#ff7a6b]",
                                             isDark ? 'border-gray-600 bg-[#0f0f0f] text-[#ff7a6b]' : 'border-gray-300 bg-white text-[#ff7a6b]'
-                                        )} 
+                                        )}
                                     />
                                     <span className={cn("text-sm", isDark ? 'text-gray-300' : 'text-gray-700')}>{type}</span>
                                 </label>
@@ -290,6 +292,14 @@ export function Settings() {
         }
     };
 
+    const { logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
+
     return (
         <div className="space-y-4 sm:space-y-6">
             {/* Header */}
@@ -299,7 +309,7 @@ export function Settings() {
             </div>
 
             {/* Mobile Tab Selector */}
-            <div className="sm:hidden">
+            <div className="sm:hidden space-y-4">
                 <div className={cn("rounded-xl p-1 flex overflow-x-auto", isDark ? 'bg-[#1e1e1e]' : 'bg-gray-100')}>
                     {settingsTabs.map((tab) => (
                         <button
@@ -318,27 +328,52 @@ export function Settings() {
                         </button>
                     ))}
                 </div>
+                <button
+                    onClick={handleLogout}
+                    className={cn("w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-colors text-sm font-medium",
+                        isDark
+                            ? 'bg-[#1e1e1e] text-red-400 hover:bg-red-500/10'
+                            : 'bg-white text-red-500 hover:bg-red-50 border border-gray-200'
+                    )}
+                >
+                    <LogOut className="w-4 h-4" />
+                    <span>Log Out</span>
+                </button>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
                 {/* Desktop Sidebar Tabs */}
-                <div className="hidden sm:block w-64 space-y-2">
-                    {settingsTabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left",
-                                activeTab === tab.id
-                                    ? 'bg-[#ff7a6b] text-white'
-                                    : isDark
-                                        ? 'bg-[#1e1e1e] text-gray-400 hover:bg-[#252525] hover:text-white'
-                                        : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
-                            )}
-                        >
-                            <tab.icon className="w-5 h-5" />
-                            <span className="font-medium">{tab.label}</span>
-                        </button>
-                    ))}
+                <div className="hidden sm:block w-64 space-y-6">
+                    <div className="space-y-2">
+                        {settingsTabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left",
+                                    activeTab === tab.id
+                                        ? 'bg-[#ff7a6b] text-white'
+                                        : isDark
+                                            ? 'bg-[#1e1e1e] text-gray-400 hover:bg-[#252525] hover:text-white'
+                                            : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
+                                )}
+                            >
+                                <tab.icon className="w-5 h-5" />
+                                <span className="font-medium">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={handleLogout}
+                        className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left group",
+                            isDark
+                                ? 'bg-[#1e1e1e] text-gray-400 hover:bg-red-500/10 hover:text-red-400'
+                                : 'bg-white text-gray-600 hover:bg-red-50 hover:text-red-500 border border-gray-200 hover:border-red-200'
+                        )}
+                    >
+                        <LogOut className="w-5 h-5 group-hover:text-red-500 transition-colors" />
+                        <span className="font-medium">Log Out</span>
+                    </button>
                 </div>
 
                 {/* Content */}
@@ -346,12 +381,12 @@ export function Settings() {
                     <h2 className={cn("text-lg sm:text-xl font-bold mb-4 sm:mb-6", isDark ? 'text-white' : 'text-gray-900')}>
                         {settingsTabs.find(t => t.id === activeTab)?.label} Settings
                     </h2>
-                    
+
                     {renderTabContent()}
 
                     {/* Save Button */}
                     <div className={cn("pt-6 border-t mt-6 flex justify-end", isDark ? 'border-gray-800' : 'border-gray-200')}>
-                        <button className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] flex items-center justify-center gap-2 transition-colors">
+                        <button className="w-full sm:w-auto px-6 py-3 sm:py-2 bg-[#ff6b5b] text-white rounded-xl hover:bg-[#ff8f82] flex items-center justify-center gap-2 transition-colors">
                             <Save className="w-4 h-4" />
                             <span className="text-sm sm:text-base">Save Changes</span>
                         </button>

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useStore } from '../context/StoreContext';
+import { useAuth } from '../context/AuthContext';
 
 const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -24,7 +25,7 @@ const navItems = [
     { icon: CreditCard, label: 'Billing', path: '/billing' },
     { icon: Package, label: 'Inventory', path: '/inventory' },
     { icon: TrendingUp, label: 'Reports', path: '/reports' },
-    { icon: FileText, label: 'Staff', path: '/staff' },
+    { icon: FileText, label: 'Supervision', path: '/staff' },
 ];
 
 const bottomNavItems = [
@@ -35,102 +36,173 @@ const bottomNavItems = [
 export function Sidebar({ isOpen, onClose }) {
     const location = useLocation();
     const { theme } = useStore();
+    const { logout } = useAuth();
     const isDark = theme === 'dark';
 
     return (
         <>
-            {/* Desktop Sidebar - Always visible on lg+ */}
+            {/* Desktop Sidebar - Always visible on lg+ screens */}
             <aside className={cn(
-                "fixed left-0 top-0 z-50 hidden lg:flex h-screen w-20 flex-col border-r transition-colors duration-300",
+                "fixed left-0 top-0 z-40 hidden lg:flex h-screen w-20 flex-col items-center py-6 transition-all duration-300 sidebar-gradient",
                 isDark
-                    ? "border-[#1f1f1f] bg-[#0f0f0f]"
-                    : "border-gray-200 bg-white"
+                    ? "bg-[#0a0a0a] border-r border-[#1f1f1f]"
+                    : "bg-white border-r border-gray-200"
             )}>
-                {/* Logo Section */}
-                <div className="flex h-20 items-center justify-center">
-                    <div className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-xl text-emerald-400 shadow-sm transition-transform hover:scale-105",
-                        isDark ? 'bg-[#1f1f1f]' : 'bg-gray-100'
-                    )}>
-                        <Stethoscope className="h-6 w-6" />
+                {/* Scrollable Container */}
+                <div className="flex-1 w-full overflow-y-auto overflow-x-hidden scrollbar-thin flex flex-col items-center py-6">
+                    {/* Logo with glow effect */}
+                    <div className="mb-8 relative flex-shrink-0">
+                        <div className={cn(
+                            "w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-emerald-500/20",
+                            isDark ? 'bg-[#1f1f1f]' : 'bg-gray-100'
+                        )}>
+                            <Stethoscope className="w-6 h-6 text-emerald-400" />
+                        </div>
+                        {/* Logo glow effect */}
+                        <div className="absolute inset-0 rounded-2xl bg-emerald-500/20 blur-xl opacity-0 hover:opacity-100 transition-opacity duration-300 -z-10" />
                     </div>
-                </div>
 
-                {/* Main Navigation */}
-                <nav className="flex-1 space-y-3 overflow-y-auto px-4 py-6 scrollbar-none">
-                    {navItems.map((item) => {
-                        const isActive = location.pathname === item.path;
-                        return (
-                            <NavLink
-                                key={item.path}
-                                to={item.path}
-                                className={({ isActive }) => cn(
-                                    'group relative flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300 ease-out',
-                                    isActive
-                                        ? 'bg-[#3b82f6] text-white shadow-md shadow-blue-900/20'
-                                        : isDark
-                                            ? 'text-gray-500 hover:bg-[#1f1f1f] hover:text-gray-200'
-                                            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                                )}
-                            >
-                                <item.icon className={cn('h-5 w-5 transition-transform duration-300', isActive ? 'scale-100' : 'group-hover:scale-110')} />
+                    {/* Main Navigation Icons */}
+                    <nav className="flex flex-col items-center gap-3 w-full px-3 flex-shrink-0">
+                        {navItems.map((item, index) => {
+                            const isActive = location.pathname === item.path;
+                            return (
+                                <NavLink
+                                    key={item.path}
+                                    to={item.path}
+                                    className="group relative w-full sidebar-icon-enter flex-shrink-0"
+                                    style={{ animationDelay: `${index * 50}ms` }}
+                                >
+                                    <div className={cn(
+                                        "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300 relative overflow-hidden",
+                                        isActive
+                                            ? "bg-gradient-to-br from-[#ff7a6b] to-[#ff6b5b] text-white shadow-lg shadow-[#ff7a6b]/30 scale-105 sidebar-active-icon nav-active-pulse"
+                                            : isDark
+                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f] hover:scale-105"
+                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 hover:scale-105"
+                                    )}>
+                                        {/* Hover glow effect */}
+                                        {!isActive && (
+                                            <div className="absolute inset-0 bg-gradient-to-br from-[#ff7a6b]/0 to-[#ff7a6b]/0 group-hover:from-[#ff7a6b]/10 group-hover:to-transparent transition-all duration-300 rounded-2xl" />
+                                        )}
+                                        <item.icon className={cn(
+                                            "w-5 h-5 transition-all duration-300 relative z-10",
+                                            isActive ? "scale-110" : "group-hover:scale-110"
+                                        )} />
+                                    </div>
+                                    
+                                    {/* Tooltip with animation */}
+                                    <div className={cn(
+                                        "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
+                                        "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
+                                        "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
+                                        isDark 
+                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl" 
+                                            : "bg-white text-gray-900 border border-gray-200 shadow-xl"
+                                    )}>
+                                        {item.label}
+                                        {/* Arrow */}
+                                        <div className={cn(
+                                            "absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45",
+                                            isDark ? "bg-[#1f1f1f] border-l border-b border-gray-800" : "bg-white border-l border-b border-gray-200"
+                                        )} />
+                                    </div>
 
-                                {/* Tooltip */}
-                                <div className={cn(
-                                    "absolute left-14 z-50 ml-2 hidden rounded-md px-3 py-1.5 text-xs font-medium shadow-xl opacity-0 transition-opacity duration-200 group-hover:block group-hover:opacity-100 border whitespace-nowrap",
-                                    isDark 
-                                        ? "bg-[#1f1f1f] text-white border-gray-800" 
-                                        : "bg-white text-gray-900 border-gray-200"
-                                )}>
-                                    {item.label}
-                                </div>
-                            </NavLink>
-                        );
-                    })}
-                </nav>
+                                    {/* Active indicator dot */}
+                                    {isActive && (
+                                        <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#ff7a6b] shadow-lg shadow-[#ff7a6b]/50" />
+                                    )}
+                                </NavLink>
+                            );
+                        })}
+                    </nav>
 
-                {/* Bottom Actions */}
-                <div className={cn(
-                    "flex flex-col gap-3 p-4 border-t transition-colors duration-300",
-                    isDark ? 'border-[#1f1f1f]' : 'border-gray-200'
-                )}>
-                    {bottomNavItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={({ isActive }) => cn(
-                                'group relative flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300',
-                                isActive
-                                    ? isDark ? 'bg-[#1f1f1f] text-white' : 'bg-gray-100 text-gray-900'
-                                    : isDark
-                                        ? 'text-gray-500 hover:bg-[#1f1f1f] hover:text-gray-200'
-                                        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                            )}
+                    {/* Divider */}
+                    <div className={cn(
+                        "w-10 h-px my-4 flex-shrink-0",
+                        isDark ? "bg-gray-800" : "bg-gray-200"
+                    )} />
+
+                    {/* Bottom Navigation Icons (Settings, Help, Logout) */}
+                    <nav className="flex flex-col items-center gap-3 w-full px-3 flex-shrink-0 pb-4">
+                        {bottomNavItems.map((item) => {
+                            const isActive = location.pathname === item.path;
+                            return (
+                                <NavLink
+                                    key={item.path}
+                                    to={item.path}
+                                    className="group relative w-full flex-shrink-0"
+                                >
+                                    <div className={cn(
+                                        "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300 relative overflow-hidden",
+                                        isActive
+                                            ? isDark 
+                                                ? "bg-[#1f1f1f] text-white shadow-lg" 
+                                                : "bg-gray-200 text-gray-900 shadow-lg"
+                                            : isDark
+                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f] hover:scale-105"
+                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 hover:scale-105"
+                                    )}>
+                                        <item.icon className={cn(
+                                            "w-5 h-5 transition-all duration-300",
+                                            isActive ? "" : "group-hover:rotate-12"
+                                        )} />
+                                    </div>
+                                    
+                                    {/* Tooltip */}
+                                    <div className={cn(
+                                        "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
+                                        "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
+                                        "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
+                                        isDark 
+                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl" 
+                                            : "bg-white text-gray-900 border border-gray-200 shadow-xl"
+                                    )}>
+                                        {item.label}
+                                        <div className={cn(
+                                            "absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45",
+                                            isDark ? "bg-[#1f1f1f] border-l border-b border-gray-800" : "bg-white border-l border-b border-gray-200"
+                                        )} />
+                                    </div>
+                                </NavLink>
+                            );
+                        })}
+
+                        {/* Logout Button */}
+                        <button
+                            onClick={logout}
+                            className="group relative w-full mt-2 flex-shrink-0"
                         >
-                            <item.icon className="h-5 w-5 transition-transform group-hover:rotate-12" />
-                            {/* Tooltip - duplicated for bottom items for consistency */}
                             <div className={cn(
-                                "absolute left-14 z-50 ml-2 hidden rounded-md px-3 py-1.5 text-xs font-medium shadow-xl opacity-0 transition-opacity duration-200 group-hover:block group-hover:opacity-100 border whitespace-nowrap",
-                                isDark 
-                                    ? "bg-[#1f1f1f] text-white border-gray-800" 
-                                    : "bg-white text-gray-900 border-gray-200"
+                                "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300",
+                                isDark
+                                    ? "text-red-400 hover:bg-red-500/10 hover:scale-105"
+                                    : "text-red-500 hover:bg-red-50 hover:scale-105"
                             )}>
-                                {item.label}
+                                <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12" />
                             </div>
-                        </NavLink>
-                    ))}
-
-                    {/* User Profile */}
-                    <div className={cn(
-                        "mt-2 flex h-12 w-12 items-center justify-center rounded-full ring-2 cursor-pointer hover:ring-[#3b82f6] transition-all",
-                        isDark ? 'bg-[#1f1f1f] ring-black' : 'bg-gray-100 ring-gray-200'
-                    )}>
-                        <span className={cn("text-xs font-bold", isDark ? 'text-gray-300' : 'text-gray-600')}>DR</span>
-                    </div>
+                            
+                            {/* Tooltip */}
+                            <div className={cn(
+                                "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
+                                "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
+                                "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
+                                isDark 
+                                    ? "bg-[#1f1f1f] text-red-400 border border-gray-800 shadow-2xl" 
+                                    : "bg-white text-red-500 border border-gray-200 shadow-xl"
+                            )}>
+                                Logout
+                                <div className={cn(
+                                    "absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45",
+                                    isDark ? "bg-[#1f1f1f] border-l border-b border-gray-800" : "bg-white border-l border-b border-gray-200"
+                                )} />
+                            </div>
+                        </button>
+                    </nav>
                 </div>
             </aside>
 
-            {/* Mobile Sidebar Drawer */}
+            {/* Mobile/Tablet Sidebar Drawer */}
             <div className={cn(
                 "fixed inset-0 z-50 lg:hidden transition-opacity duration-300",
                 isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
@@ -143,43 +215,43 @@ export function Sidebar({ isOpen, onClose }) {
                 
                 {/* Drawer Panel */}
                 <aside className={cn(
-                    "absolute left-0 top-0 bottom-0 w-[280px] flex flex-col transition-transform duration-300 ease-out",
+                    "absolute left-0 top-0 bottom-0 w-[280px] flex flex-col transition-transform duration-300 ease-out shadow-2xl",
                     isOpen ? "translate-x-0" : "-translate-x-full",
                     isDark
                         ? "bg-[#0f0f0f]"
                         : "bg-white"
                 )}>
-                    {/* Mobile Header with Close */}
+                    {/* Header with Logo and Close */}
                     <div className={cn(
-                        "flex items-center justify-between p-4 border-b",
-                        isDark ? "border-gray-800" : "border-gray-200"
+                        "flex h-20 items-center justify-between px-6 border-b",
+                        isDark ? "border-[#1f1f1f]" : "border-gray-200"
                     )}>
                         <div className="flex items-center gap-3">
                             <div className={cn(
-                                "flex h-10 w-10 items-center justify-center rounded-xl text-emerald-400",
+                                "flex h-10 w-10 items-center justify-center rounded-xl text-emerald-400 shadow-sm",
                                 isDark ? 'bg-[#1f1f1f]' : 'bg-gray-100'
                             )}>
                                 <Stethoscope className="h-6 w-6" />
                             </div>
-                            <div>
-                                <h2 className={cn("font-bold", isDark ? "text-white" : "text-gray-900")}>Clinic Pro</h2>
-                                <p className={cn("text-xs", isDark ? "text-gray-500" : "text-gray-500")}>Dr. Smith</p>
-                            </div>
+                            <span className={cn(
+                                "text-lg font-bold",
+                                isDark ? "text-white" : "text-gray-900"
+                            )}>
+                                Clinic OS
+                            </span>
                         </div>
                         <button
                             onClick={onClose}
                             className={cn(
                                 "p-2 rounded-lg transition-colors",
-                                isDark 
-                                    ? "text-gray-400 hover:text-white hover:bg-[#1f1f1f]" 
-                                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                isDark ? "hover:bg-[#1f1f1f] text-gray-400" : "hover:bg-gray-100 text-gray-500"
                             )}
                         >
-                            <X className="w-6 h-6" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    {/* Mobile Navigation */}
+                    {/* Main Navigation */}
                     <nav className="flex-1 overflow-y-auto py-4 px-3">
                         <div className={cn("text-xs font-semibold uppercase tracking-wider mb-3 px-3", isDark ? "text-gray-500" : "text-gray-400")}>
                             Main Menu
@@ -193,26 +265,32 @@ export function Sidebar({ isOpen, onClose }) {
                                         to={item.path}
                                         onClick={onClose}
                                         className={cn(
-                                            "flex items-center gap-3 px-3 py-3 rounded-xl transition-colors",
+                                            "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200",
                                             active
-                                                ? isDark 
-                                                    ? "bg-[#3b82f6] text-white" 
-                                                    : "bg-blue-500 text-white"
+                                                ? isDark
+                                                    ? "bg-gradient-to-r from-[#ff7a6b] to-[#ff6b5b] text-white shadow-lg shadow-[#ff7a6b]/20"
+                                                    : "bg-[#ff7a6b] text-white shadow-lg"
                                                 : isDark
                                                     ? "text-gray-300 hover:bg-[#1f1f1f]"
                                                     : "text-gray-700 hover:bg-gray-100"
                                         )}
                                     >
-                                        <item.icon className="w-5 h-5" />
+                                        <div className={cn(
+                                            "w-10 h-10 rounded-xl flex items-center justify-center transition-transform duration-200",
+                                            active ? "bg-white/20" : isDark ? "bg-[#1f1f1f]" : "bg-gray-100"
+                                        )}>
+                                            <item.icon className="w-5 h-5" />
+                                        </div>
                                         <span className="font-medium">{item.label}</span>
                                         {active && (
-                                            <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />
+                                            <div className="ml-auto w-2 h-2 rounded-full bg-white animate-pulse" />
                                         )}
                                     </NavLink>
                                 );
                             })}
                         </div>
 
+                        {/* System Section with Settings */}
                         <div className={cn("text-xs font-semibold uppercase tracking-wider mt-6 mb-3 px-3", isDark ? "text-gray-500" : "text-gray-400")}>
                             System
                         </div>
@@ -225,17 +303,24 @@ export function Sidebar({ isOpen, onClose }) {
                                         to={item.path}
                                         onClick={onClose}
                                         className={cn(
-                                            "flex items-center gap-3 px-3 py-3 rounded-xl transition-colors",
+                                            "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200",
                                             active
-                                                ? isDark 
-                                                    ? "bg-[#1f1f1f] text-white" 
+                                                ? isDark
+                                                    ? "bg-[#1f1f1f] text-white"
                                                     : "bg-gray-200 text-gray-900"
                                                 : isDark
                                                     ? "text-gray-300 hover:bg-[#1f1f1f]"
                                                     : "text-gray-700 hover:bg-gray-100"
                                         )}
                                     >
-                                        <item.icon className="w-5 h-5" />
+                                        <div className={cn(
+                                            "w-10 h-10 rounded-xl flex items-center justify-center",
+                                            active 
+                                                ? isDark ? "bg-[#0f0f0f]" : "bg-white" 
+                                                : isDark ? "bg-[#1f1f1f]" : "bg-gray-100"
+                                        )}>
+                                            <item.icon className="w-5 h-5" />
+                                        </div>
                                         <span className="font-medium">{item.label}</span>
                                     </NavLink>
                                 );
@@ -243,19 +328,30 @@ export function Sidebar({ isOpen, onClose }) {
                         </div>
                     </nav>
 
-                    {/* Mobile Footer */}
+                    {/* Footer with Logout */}
                     <div className={cn(
                         "p-4 border-t",
-                        isDark ? "border-gray-800" : "border-gray-200"
+                        isDark ? "border-[#1f1f1f]" : "border-gray-200"
                     )}>
-                        <button className={cn(
-                            "flex items-center gap-3 w-full px-3 py-3 rounded-xl transition-colors",
-                            isDark 
-                                ? "text-red-400 hover:bg-red-500/10" 
-                                : "text-red-500 hover:bg-red-50"
-                        )}>
-                            <LogOut className="w-5 h-5" />
-                            <span className="font-medium">Sign Out</span>
+                        <button
+                            onClick={() => {
+                                logout();
+                                onClose();
+                            }}
+                            className={cn(
+                                "flex items-center gap-3 w-full px-3 py-3 rounded-xl transition-all duration-200",
+                                isDark 
+                                    ? "text-red-400 hover:bg-red-500/10" 
+                                    : "text-red-500 hover:bg-red-50"
+                            )}
+                        >
+                            <div className={cn(
+                                "w-10 h-10 rounded-xl flex items-center justify-center",
+                                isDark ? "bg-red-500/10" : "bg-red-50"
+                            )}>
+                                <LogOut className="w-5 h-5" />
+                            </div>
+                            <span className="font-medium">Logout</span>
                         </button>
                     </div>
                 </aside>

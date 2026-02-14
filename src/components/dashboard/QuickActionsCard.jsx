@@ -55,8 +55,8 @@ export function QuickActionsCard() {
                     {showDropdown && (
                         <div className={cn(
                             "absolute top-full right-0 mt-2 w-28 sm:w-32 rounded-xl shadow-xl z-50 overflow-hidden py-1 border",
-                            isDark 
-                                ? "bg-[#1e1e1e] border-gray-800" 
+                            isDark
+                                ? "bg-[#1e1e1e] border-gray-800"
                                 : "bg-white border-gray-200"
                         )}>
                             {['This Week', 'Today', 'This Month'].map((range) => (
@@ -68,8 +68,8 @@ export function QuickActionsCard() {
                                     }}
                                     className={cn(
                                         "w-full text-left px-3 py-2 text-[10px] sm:text-xs font-medium transition-colors",
-                                        isDark 
-                                            ? "text-gray-300 hover:bg-[#2a2a2a] hover:text-white" 
+                                        isDark
+                                            ? "text-gray-300 hover:bg-[#2a2a2a] hover:text-white"
                                             : "text-gray-700 hover:bg-gray-100"
                                     )}
                                 >
@@ -82,7 +82,7 @@ export function QuickActionsCard() {
             </div>
 
             {/* Action Buttons Grid */}
-            <div className="flex-1 grid grid-cols-4 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 relative z-10">
+            <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2 sm:gap-3 relative z-10">
                 {actions.map((action) => (
                     <button
                         key={action.label}

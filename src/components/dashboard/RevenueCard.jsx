@@ -11,7 +11,9 @@ export function RevenueCard() {
     const [showTimeDropdown, setShowTimeDropdown] = useState(false);
     const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
 
-    const maxRevenue = Math.max(...weeklyRevenue.map(d => d.amount));
+    const maxRevenue = weeklyRevenue.length > 0
+        ? Math.max(...weeklyRevenue.map((d) => d.amount))
+        : 0;
 
     return (
         <div className="bg-gradient-to-br from-[#ff7a6b] to-[#ff9a8b] rounded-2xl sm:rounded-3xl p-4 sm:p-5 h-full flex flex-col">
@@ -105,6 +107,11 @@ export function RevenueCard() {
             <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0">
                 {/* Bar Chart */}
                 <div className="flex-1 flex items-end justify-between gap-1 sm:gap-2 h-28 sm:h-32 lg:h-auto order-2 lg:order-1">
+                    {weeklyRevenue.length === 0 && (
+                        <div className="w-full h-full flex items-center justify-center text-white/80 text-xs sm:text-sm">
+                            No revenue data yet
+                        </div>
+                    )}
                     {weeklyRevenue.map((day, index) => {
                         const height = (day.amount / maxRevenue) * 100;
                         const isHighest = day.amount === maxRevenue;
