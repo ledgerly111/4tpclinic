@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Plus, Search, User, Phone, Mail, Clock, Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { useStore } from '../context/StoreContext';
+import { cn } from '../lib/utils';
 
 const staffList = [
     { id: '1', name: 'Dr. Sarah Smith', role: 'General Physician', email: 'sarah.smith@clinic.com', phone: '555-0101', status: 'on-duty', schedule: 'Mon-Fri 9AM-5PM' },
@@ -10,6 +12,8 @@ const staffList = [
 ];
 
 export function Staff() {
+    const { theme } = useStore();
+    const isDark = theme === 'dark';
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredStaff = staffList.filter(staff =>
@@ -24,8 +28,8 @@ export function Staff() {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Staff Management</h1>
-                    <p className="text-gray-400">Manage clinic staff and schedules</p>
+                    <h1 className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Staff Management</h1>
+                    <p className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>Manage clinic staff and schedules</p>
                 </div>
                 <button className="bg-[#ff7a6b] text-white px-4 py-2 rounded-xl hover:bg-[#ff6b5b] flex items-center gap-2 transition-colors">
                     <Plus className="w-4 h-4" />
@@ -35,42 +39,42 @@ export function Staff() {
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
                             <User className="w-5 h-5 text-blue-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Total Staff</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Staff</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">{staffList.length}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{staffList.length}</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
                             <CheckCircle className="w-5 h-5 text-green-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">On Duty</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>On Duty</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">{onDutyCount}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{onDutyCount}</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
                             <Clock className="w-5 h-5 text-purple-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Doctors</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Doctors</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">{staffList.filter(s => s.role.includes('Dr.')).length}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{staffList.filter(s => s.role.includes('Dr.')).length}</p>
                 </div>
             </div>
 
             {/* Search */}
-            <div className="bg-[#1e1e1e] rounded-xl flex items-center gap-3 px-4">
+            <div className={cn("rounded-xl flex items-center gap-3 px-4", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                 <Search className="w-5 h-5 text-gray-500" />
                 <input
                     type="text"
                     placeholder="Search staff members..."
-                    className="flex-1 bg-transparent py-3 outline-none text-white placeholder-gray-500"
+                    className={cn("flex-1 py-3 outline-none placeholder-gray-500 bg-transparent", isDark ? 'text-white' : 'text-gray-900')}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -79,7 +83,7 @@ export function Staff() {
             {/* Staff Grid */}
             <div className="grid grid-cols-2 gap-4">
                 {filteredStaff.map((staff) => (
-                    <div key={staff.id} className="bg-[#1e1e1e] rounded-2xl p-5 hover:bg-[#252525] transition-colors">
+                    <div key={staff.id} className={cn("rounded-2xl p-5 transition-colors", isDark ? 'bg-[#1e1e1e] hover:bg-[#252525]' : 'bg-white border border-gray-200 hover:bg-gray-50')}>
                         <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-4">
                                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center">
@@ -88,8 +92,8 @@ export function Staff() {
                                     </span>
                                 </div>
                                 <div>
-                                    <h3 className="text-white font-semibold">{staff.name}</h3>
-                                    <p className="text-gray-400 text-sm">{staff.role}</p>
+                                    <h3 className={cn("font-semibold", isDark ? 'text-white' : 'text-gray-900')}>{staff.name}</h3>
+                                    <p className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>{staff.role}</p>
                                 </div>
                             </div>
                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -102,25 +106,25 @@ export function Staff() {
                         </div>
 
                         <div className="space-y-2 text-sm">
-                            <div className="flex items-center gap-2 text-gray-400">
+                            <div className={cn("flex items-center gap-2", isDark ? 'text-gray-400' : 'text-gray-600')}>
                                 <Mail className="w-4 h-4" />
                                 <span>{staff.email}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-gray-400">
+                            <div className={cn("flex items-center gap-2", isDark ? 'text-gray-400' : 'text-gray-600')}>
                                 <Phone className="w-4 h-4" />
                                 <span>{staff.phone}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-gray-400">
+                            <div className={cn("flex items-center gap-2", isDark ? 'text-gray-400' : 'text-gray-600')}>
                                 <Calendar className="w-4 h-4" />
                                 <span>{staff.schedule}</span>
                             </div>
                         </div>
 
                         <div className="mt-4 flex gap-2">
-                            <button className="flex-1 py-2 bg-[#0f0f0f] text-gray-300 rounded-lg hover:bg-[#252525] transition-colors text-sm">
+                            <button className={cn("flex-1 py-2 rounded-lg transition-colors text-sm", isDark ? 'bg-[#0f0f0f] text-gray-300 hover:bg-[#252525]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}>
                                 Edit
                             </button>
-                            <button className="flex-1 py-2 bg-[#0f0f0f] text-gray-300 rounded-lg hover:bg-[#252525] transition-colors text-sm">
+                            <button className={cn("flex-1 py-2 rounded-lg transition-colors text-sm", isDark ? 'bg-[#0f0f0f] text-gray-300 hover:bg-[#252525]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}>
                                 Schedule
                             </button>
                         </div>

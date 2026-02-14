@@ -2,13 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { MobileBottomNav } from './MobileBottomNav';
 import { cn } from '../lib/utils';
+import { useStore } from '../context/StoreContext';
 
 export function Layout() {
     const location = useLocation();
     const isDashboard = location.pathname === '/';
     const scrollRef = useRef(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { theme } = useStore();
+    
+    const isDark = theme === 'dark';
 
     useEffect(() => {
         // Scroll window to top (for non-dashboard pages)
@@ -24,15 +29,23 @@ export function Layout() {
     }, [location.pathname]);
 
     return (
-        <div className="flex bg-[#0f0f0f] min-h-screen">
+        <div className={cn(
+            "flex min-h-screen transition-colors duration-300",
+            isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
+        )}>
             <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
-            <main className="flex-1 lg:ml-20 transition-all duration-300 overflow-hidden w-full">
+            
+            <main className="flex-1 lg:ml-20 transition-all duration-300 w-full">
                 {isDashboard ? (
                     <div className="h-screen flex flex-col">
                         <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
                         <div
                             ref={scrollRef}
-                            className="flex-1 px-4 pb-4 md:px-6 md:pb-6 overflow-y-auto"
+                            className={cn(
+                                "flex-1 overflow-y-auto transition-colors duration-300",
+                                "px-3 pb-20 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-0",
+                                isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
+                            )}
                         >
                             <Outlet />
                         </div>
@@ -40,20 +53,19 @@ export function Layout() {
                 ) : (
                     <div className="min-h-screen flex flex-col">
                         <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
-                        <div className="flex-1 p-4 md:p-6">
+                        <div className={cn(
+                            "flex-1 transition-colors duration-300",
+                            "px-3 pb-24 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-4",
+                            isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
+                        )}>
                             <Outlet />
                         </div>
                     </div>
                 )}
             </main>
 
-            {/* Mobile Overlay */}
-            {isMobileMenuOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                />
-            )}
+            {/* Mobile Bottom Navigation */}
+            <MobileBottomNav />
         </div>
     );
 }

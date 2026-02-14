@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Download, Calendar, TrendingUp, Users, DollarSign, FileText, Filter } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { useStore } from '../context/StoreContext';
+import { cn } from '../lib/utils';
 
 const monthlyData = [
     { month: 'Jan', revenue: 42000, patients: 120 },
@@ -20,6 +22,8 @@ const serviceDistribution = [
 ];
 
 export function Reports() {
+    const { theme } = useStore();
+    const isDark = theme === 'dark';
     const [dateRange, setDateRange] = useState('last-30-days');
 
     return (
@@ -27,14 +31,14 @@ export function Reports() {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Reports</h1>
-                    <p className="text-gray-400">Analytics and insights for your clinic</p>
+                    <h1 className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Reports</h1>
+                    <p className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>Analytics and insights for your clinic</p>
                 </div>
                 <div className="flex gap-3">
                     <select
                         value={dateRange}
                         onChange={(e) => setDateRange(e.target.value)}
-                        className="bg-[#1e1e1e] text-white px-4 py-2 rounded-xl outline-none border border-gray-800"
+                        className={cn("px-4 py-2 rounded-xl outline-none border", isDark ? 'bg-[#1e1e1e] text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200')}
                     >
                         <option value="last-7-days">Last 7 Days</option>
                         <option value="last-30-days">Last 30 Days</option>
@@ -50,44 +54,44 @@ export function Reports() {
 
             {/* Stats Overview */}
             <div className="grid grid-cols-4 gap-4">
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
                             <DollarSign className="w-5 h-5 text-green-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Total Revenue</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Revenue</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">$283,000</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>$283,000</p>
                     <p className="text-green-400 text-xs mt-1">+12.5% vs last month</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
                             <Users className="w-5 h-5 text-blue-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Total Patients</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Patients</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">815</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>815</p>
                     <p className="text-green-400 text-xs mt-1">+8.2% vs last month</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
                             <FileText className="w-5 h-5 text-purple-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Appointments</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Appointments</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">1,245</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>1,245</p>
                     <p className="text-green-400 text-xs mt-1">+15.3% vs last month</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
                             <TrendingUp className="w-5 h-5 text-yellow-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Avg. Revenue/Patient</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Avg. Revenue/Patient</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">$347</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>$347</p>
                     <p className="text-red-400 text-xs mt-1">-2.1% vs last month</p>
                 </div>
             </div>
@@ -95,20 +99,20 @@ export function Reports() {
             {/* Charts Row */}
             <div className="grid grid-cols-2 gap-6">
                 {/* Revenue Chart */}
-                <div className="bg-[#1e1e1e] rounded-2xl p-6">
-                    <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <div className={cn("rounded-2xl p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <h3 className={cn("font-semibold mb-4 flex items-center gap-2", isDark ? 'text-white' : 'text-gray-900')}>
                         <DollarSign className="w-5 h-5 text-[#ff7a6b]" />
                         Revenue Trend
                     </h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={monthlyData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                <XAxis dataKey="month" stroke="#666" />
-                                <YAxis stroke="#666" />
+                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#333" : "#e5e7eb"} />
+                                <XAxis dataKey="month" stroke={isDark ? "#666" : "#9ca3af"} />
+                                <YAxis stroke={isDark ? "#666" : "#9ca3af"} />
                                 <Tooltip 
-                                    contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '8px' }}
-                                    labelStyle={{ color: '#fff' }}
+                                    contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }}
+                                    labelStyle={{ color: isDark ? '#fff' : '#111827' }}
                                 />
                                 <Bar dataKey="revenue" fill="#ff7a6b" radius={[4, 4, 0, 0]} />
                             </BarChart>
@@ -117,20 +121,20 @@ export function Reports() {
                 </div>
 
                 {/* Patient Chart */}
-                <div className="bg-[#1e1e1e] rounded-2xl p-6">
-                    <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <div className={cn("rounded-2xl p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <h3 className={cn("font-semibold mb-4 flex items-center gap-2", isDark ? 'text-white' : 'text-gray-900')}>
                         <Users className="w-5 h-5 text-[#8b5cf6]" />
                         Patient Visits
                     </h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={monthlyData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                <XAxis dataKey="month" stroke="#666" />
-                                <YAxis stroke="#666" />
+                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#333" : "#e5e7eb"} />
+                                <XAxis dataKey="month" stroke={isDark ? "#666" : "#9ca3af"} />
+                                <YAxis stroke={isDark ? "#666" : "#9ca3af"} />
                                 <Tooltip 
-                                    contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '8px' }}
-                                    labelStyle={{ color: '#fff' }}
+                                    contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }}
+                                    labelStyle={{ color: isDark ? '#fff' : '#111827' }}
                                 />
                                 <Line type="monotone" dataKey="patients" stroke="#8b5cf6" strokeWidth={3} dot={{ fill: '#8b5cf6' }} />
                             </LineChart>
@@ -140,8 +144,8 @@ export function Reports() {
             </div>
 
             {/* Service Distribution */}
-            <div className="bg-[#1e1e1e] rounded-2xl p-6">
-                <h3 className="text-white font-semibold mb-4">Service Distribution</h3>
+            <div className={cn("rounded-2xl p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                <h3 className={cn("font-semibold mb-4", isDark ? 'text-white' : 'text-gray-900')}>Service Distribution</h3>
                 <div className="flex items-center gap-8">
                     <div className="w-64 h-64">
                         <ResponsiveContainer width="100%" height="100%">
@@ -160,7 +164,7 @@ export function Reports() {
                                     ))}
                                 </Pie>
                                 <Tooltip 
-                                    contentStyle={{ backgroundColor: '#1e1e1e', border: '1px solid #333', borderRadius: '8px' }}
+                                    contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }}
                                 />
                             </PieChart>
                         </ResponsiveContainer>
@@ -173,8 +177,8 @@ export function Reports() {
                                     style={{ backgroundColor: service.color }}
                                 />
                                 <div>
-                                    <p className="text-white text-sm">{service.name}</p>
-                                    <p className="text-gray-400 text-xs">{service.value}% of total</p>
+                                    <p className={cn("text-sm", isDark ? 'text-white' : 'text-gray-900')}>{service.name}</p>
+                                    <p className={cn("text-xs", isDark ? 'text-gray-400' : 'text-gray-600')}>{service.value}% of total</p>
                                 </div>
                             </div>
                         ))}

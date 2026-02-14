@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Plus, Search, FileText, Download, CreditCard, Calendar, DollarSign } from 'lucide-react';
+import { useStore } from '../context/StoreContext';
+import { cn } from '../lib/utils';
 
 const mockInvoices = [
     { id: 'INV001', patient: 'John Doe', date: '2024-01-15', amount: 150, status: 'paid', service: 'General Consultation' },
@@ -9,6 +11,8 @@ const mockInvoices = [
 ];
 
 export function Billing() {
+    const { theme } = useStore();
+    const isDark = theme === 'dark';
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState('all');
 
@@ -28,8 +32,8 @@ export function Billing() {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Billing</h1>
-                    <p className="text-gray-400">Manage invoices and payments</p>
+                    <h1 className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Billing</h1>
+                    <p className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>Manage invoices and payments</p>
                 </div>
                 <button className="bg-[#ff7a6b] text-white px-4 py-2 rounded-xl hover:bg-[#ff6b5b] flex items-center gap-2 transition-colors">
                     <Plus className="w-4 h-4" />
@@ -39,43 +43,43 @@ export function Billing() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-3 gap-4">
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
                             <DollarSign className="w-5 h-5 text-green-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Total Revenue</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Revenue</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">${totalRevenue.toLocaleString()}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>${totalRevenue.toLocaleString()}</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
                             <CreditCard className="w-5 h-5 text-yellow-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Pending</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Pending</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">${pendingAmount.toLocaleString()}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>${pendingAmount.toLocaleString()}</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
                             <FileText className="w-5 h-5 text-red-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Overdue</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Overdue</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">${overdueAmount.toLocaleString()}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>${overdueAmount.toLocaleString()}</p>
                 </div>
             </div>
 
             {/* Filters and Search */}
             <div className="flex gap-4">
-                <div className="flex-1 bg-[#1e1e1e] rounded-xl flex items-center gap-3 px-4">
+                <div className={cn("flex-1 rounded-xl flex items-center gap-3 px-4", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <Search className="w-5 h-5 text-gray-500" />
                     <input
                         type="text"
                         placeholder="Search invoices..."
-                        className="flex-1 bg-transparent py-3 outline-none text-white placeholder-gray-500"
+                        className={cn("flex-1 py-3 outline-none placeholder-gray-500 bg-transparent", isDark ? 'text-white' : 'text-gray-900')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -83,7 +87,7 @@ export function Billing() {
                 <select
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
-                    className="bg-[#1e1e1e] text-white px-4 py-3 rounded-xl outline-none border border-gray-800"
+                    className={cn("px-4 py-3 rounded-xl outline-none border", isDark ? 'bg-[#1e1e1e] text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200')}
                 >
                     <option value="all">All Status</option>
                     <option value="paid">Paid</option>
@@ -93,9 +97,9 @@ export function Billing() {
             </div>
 
             {/* Invoices Table */}
-            <div className="bg-[#1e1e1e] rounded-2xl overflow-hidden">
+            <div className={cn("rounded-2xl overflow-hidden", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-[#0f0f0f] text-gray-400">
+                    <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}>
                         <tr>
                             <th className="p-4">Invoice ID</th>
                             <th className="p-4">Patient</th>
@@ -106,14 +110,14 @@ export function Billing() {
                             <th className="p-4 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800">
+                    <tbody className={cn("divide-y", isDark ? 'divide-gray-800' : 'divide-gray-200')}>
                         {filteredInvoices.map((invoice) => (
-                            <tr key={invoice.id} className="hover:bg-[#252525] transition-colors">
-                                <td className="p-4 text-white font-medium">#{invoice.id}</td>
-                                <td className="p-4 text-gray-300">{invoice.patient}</td>
-                                <td className="p-4 text-gray-400">{invoice.service}</td>
-                                <td className="p-4 text-gray-400">{invoice.date}</td>
-                                <td className="p-4 text-white font-medium">${invoice.amount}</td>
+                            <tr key={invoice.id} className={cn("transition-colors", isDark ? 'hover:bg-[#252525]' : 'hover:bg-gray-50')}>
+                                <td className={cn("p-4 font-medium", isDark ? 'text-white' : 'text-gray-900')}>#{invoice.id}</td>
+                                <td className={cn("p-4", isDark ? 'text-gray-300' : 'text-gray-700')}>{invoice.patient}</td>
+                                <td className={cn("p-4", isDark ? 'text-gray-400' : 'text-gray-600')}>{invoice.service}</td>
+                                <td className={cn("p-4", isDark ? 'text-gray-400' : 'text-gray-600')}>{invoice.date}</td>
+                                <td className={cn("p-4 font-medium", isDark ? 'text-white' : 'text-gray-900')}>${invoice.amount}</td>
                                 <td className="p-4">
                                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                                         invoice.status === 'paid' ? 'bg-green-500/20 text-green-400' :
@@ -124,7 +128,7 @@ export function Billing() {
                                     </span>
                                 </td>
                                 <td className="p-4 text-right">
-                                    <button className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-white">
+                                    <button className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}>
                                         <Download className="w-4 h-4" />
                                     </button>
                                 </td>

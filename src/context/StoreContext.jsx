@@ -4,6 +4,9 @@ const StoreContext = createContext();
 
 export const useStore = () => useContext(StoreContext);
 
+// Theme constants
+const THEME_KEY = 'clinic-theme';
+
 const initialPatients = [
     {
         id: '1',
@@ -123,6 +126,38 @@ export function StoreProvider({ children }) {
         return saved ? JSON.parse(saved) : initialPatients;
     });
 
+    // Theme state - load from localStorage or default to dark
+    const [theme, setTheme] = useState(() => {
+        const savedTheme = localStorage.getItem(THEME_KEY);
+        return savedTheme || 'dark';
+    });
+
+    // Persist theme to localStorage
+    useEffect(() => {
+        localStorage.setItem(THEME_KEY, theme);
+        // Apply theme class to document body for CSS variable switching
+        if (theme === 'light') {
+            document.documentElement.classList.add('light-mode');
+            document.documentElement.classList.remove('dark-mode');
+        } else {
+            document.documentElement.classList.add('dark-mode');
+            document.documentElement.classList.remove('light-mode');
+        }
+    }, [theme]);
+
+    // Initialize theme on mount
+    useEffect(() => {
+        if (theme === 'light') {
+            document.documentElement.classList.add('light-mode');
+        } else {
+            document.documentElement.classList.add('dark-mode');
+        }
+    }, []);
+
+    const toggleTheme = () => {
+        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    };
+
     // Services state
     const [services, setServices] = useState([
         { id: '1', name: 'General Consultation', price: 50, duration: 30 },
@@ -196,6 +231,9 @@ export function StoreProvider({ children }) {
             todayPatientCount,
             occupancyRate,
         },
+        theme,
+        setTheme,
+        toggleTheme,
     };
 
     return (

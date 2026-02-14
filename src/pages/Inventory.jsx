@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Search, Package, AlertTriangle, CheckCircle, TrendingDown, Box } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
+import { cn } from '../lib/utils';
 
 const inventoryItems = [
     { id: '1', name: 'Surgical Masks', category: 'PPE', stock: 45, threshold: 50, unit: 'boxes', status: 'low' },
@@ -13,7 +14,8 @@ const inventoryItems = [
 
 export function Inventory() {
     const [searchTerm, setSearchTerm] = useState('');
-    const { inventoryAlerts } = useStore();
+    const { inventoryAlerts, theme } = useStore();
+    const isDark = theme === 'dark';
 
     const filteredItems = inventoryItems.filter(item =>
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -28,8 +30,8 @@ export function Inventory() {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Inventory</h1>
-                    <p className="text-gray-400">Track and manage medical supplies</p>
+                    <h1 className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Inventory</h1>
+                    <p className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>Track and manage medical supplies</p>
                 </div>
                 <button className="bg-[#ff7a6b] text-white px-4 py-2 rounded-xl hover:bg-[#ff6b5b] flex items-center gap-2 transition-colors">
                     <Plus className="w-4 h-4" />
@@ -44,8 +46,8 @@ export function Inventory() {
                         <AlertTriangle className="w-5 h-5 text-yellow-400" />
                     </div>
                     <div className="flex-1">
-                        <p className="text-white font-medium">Low Stock Alert</p>
-                        <p className="text-gray-400 text-sm">{lowStockCount} items are below minimum threshold and need restocking</p>
+                        <p className={cn("font-medium", isDark ? 'text-white' : 'text-gray-900')}>Low Stock Alert</p>
+                        <p className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>{lowStockCount} items are below minimum threshold and need restocking</p>
                     </div>
                     <button className="px-4 py-2 bg-yellow-500/20 text-yellow-400 rounded-xl hover:bg-yellow-500/30 transition-colors text-sm font-medium">
                         View Alerts
@@ -55,62 +57,62 @@ export function Inventory() {
 
             {/* Stats */}
             <div className="grid grid-cols-4 gap-4">
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
                             <Box className="w-5 h-5 text-blue-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Total Items</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Items</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">{totalItems}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{totalItems}</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
                             <CheckCircle className="w-5 h-5 text-green-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">In Stock</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>In Stock</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">{totalItems - lowStockCount}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{totalItems - lowStockCount}</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
                             <TrendingDown className="w-5 h-5 text-yellow-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Low Stock</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Low Stock</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">{lowStockCount}</p>
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{lowStockCount}</p>
                 </div>
-                <div className="bg-[#1e1e1e] rounded-2xl p-5">
+                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
                             <AlertTriangle className="w-5 h-5 text-red-400" />
                         </div>
-                        <span className="text-gray-400 text-sm">Critical</span>
+                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Critical</span>
                     </div>
-                    <p className="text-2xl font-bold text-white">
+                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>
                         {inventoryItems.filter(i => i.status === 'critical').length}
                     </p>
                 </div>
             </div>
 
             {/* Search */}
-            <div className="bg-[#1e1e1e] rounded-xl flex items-center gap-3 px-4">
+            <div className={cn("rounded-xl flex items-center gap-3 px-4", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                 <Search className="w-5 h-5 text-gray-500" />
                 <input
                     type="text"
                     placeholder="Search inventory items..."
-                    className="flex-1 bg-transparent py-3 outline-none text-white placeholder-gray-500"
+                    className={cn("flex-1 py-3 outline-none placeholder-gray-500 bg-transparent", isDark ? 'text-white' : 'text-gray-900')}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
 
             {/* Inventory Table */}
-            <div className="bg-[#1e1e1e] rounded-2xl overflow-hidden">
+            <div className={cn("rounded-2xl overflow-hidden", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-[#0f0f0f] text-gray-400">
+                    <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}>
                         <tr>
                             <th className="p-4">Item</th>
                             <th className="p-4">Category</th>
@@ -120,22 +122,22 @@ export function Inventory() {
                             <th className="p-4 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-800">
+                    <tbody className={cn("divide-y", isDark ? 'divide-gray-800' : 'divide-gray-200')}>
                         {filteredItems.map((item) => (
-                            <tr key={item.id} className="hover:bg-[#252525] transition-colors">
+                            <tr key={item.id} className={cn("transition-colors", isDark ? 'hover:bg-[#252525]' : 'hover:bg-gray-50')}>
                                 <td className="p-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-[#0f0f0f] flex items-center justify-center">
-                                            <Package className="w-5 h-5 text-gray-400" />
+                                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100')}>
+                                            <Package className={cn("w-5 h-5", isDark ? 'text-gray-400' : 'text-gray-600')} />
                                         </div>
-                                        <span className="text-white font-medium">{item.name}</span>
+                                        <span className={cn("font-medium", isDark ? 'text-white' : 'text-gray-900')}>{item.name}</span>
                                     </div>
                                 </td>
-                                <td className="p-4 text-gray-400">{item.category}</td>
-                                <td className="p-4 text-white">
+                                <td className={cn("p-4", isDark ? 'text-gray-400' : 'text-gray-600')}>{item.category}</td>
+                                <td className={cn("p-4", isDark ? 'text-white' : 'text-gray-900')}>
                                     {item.stock} <span className="text-gray-500">{item.unit}</span>
                                 </td>
-                                <td className="p-4 text-gray-400">{item.threshold}</td>
+                                <td className={cn("p-4", isDark ? 'text-gray-400' : 'text-gray-600')}>{item.threshold}</td>
                                 <td className="p-4">
                                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                                         item.status === 'good' ? 'bg-green-500/20 text-green-400' :
