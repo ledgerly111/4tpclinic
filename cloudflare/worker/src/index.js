@@ -2,14 +2,65 @@ const JSON_HEADERS = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Clinic-Id',
 };
 
 const INVOICE_STATUSES = new Set(['pending', 'paid', 'overdue', 'void']);
-const ACCOUNTING_SCHEMA_STATEMENTS = [
+const SUPER_ADMIN_DEFAULT = {
+    username: 'aadhila003@gmail.com',
+    email: 'aadhila003@gmail.com',
+    password: 'aadhil8089385071',
+    fullName: 'Aadhila Super Admin',
+};
+
+const SCHEMA_STATEMENTS = [
     'PRAGMA foreign_keys = ON',
+    `CREATE TABLE IF NOT EXISTS organizations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        admin_user_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS clinics (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        code TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        role TEXT NOT NULL CHECK (role IN ('super_admin', 'admin', 'staff')),
+        organization_id TEXT,
+        username TEXT NOT NULL,
+        email TEXT NOT NULL,
+        password TEXT NOT NULL,
+        full_name TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_clinics (
+        user_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (user_id, clinic_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        token TEXT NOT NULL UNIQUE,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        expires_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
     `CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
+        organization_id TEXT,
+        clinic_id TEXT,
         invoice_number TEXT NOT NULL UNIQUE,
         patient_id TEXT,
         patient_name TEXT NOT NULL,
@@ -23,7 +74,9 @@ const ACCOUNTING_SCHEMA_STATEMENTS = [
         currency TEXT NOT NULL DEFAULT 'USD',
         notes TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE SET NULL
     )`,
     `CREATE TABLE IF NOT EXISTS invoice_items (
         id TEXT PRIMARY KEY,
@@ -45,6 +98,14 @@ const ACCOUNTING_SCHEMA_STATEMENTS = [
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
     )`,
+    'CREATE INDEX IF NOT EXISTS idx_clinics_org_id ON clinics(organization_id)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_clinics_org_code_unique ON clinics(organization_id, code)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower_unique ON users(LOWER(username))',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower_unique ON users(LOWER(email))',
+    'CREATE INDEX IF NOT EXISTS idx_users_org_id ON users(organization_id)',
+    'CREATE INDEX IF NOT EXISTS idx_user_clinics_user_id ON user_clinics(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_user_clinics_clinic_id ON user_clinics(clinic_id)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)',
     'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)',
     'CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)',
     'CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id)',
@@ -65,25 +126,7 @@ function extractErrorMessage(error) {
     try {
         if (!error) return '';
         if (typeof error === 'string') return error;
-
-        let message = '';
-        try {
-            message = typeof error.message === 'string' ? error.message : '';
-        } catch {
-            message = '';
-        }
-        if (message) return message;
-
-        let causeMessage = '';
-        try {
-            causeMessage = error.cause && typeof error.cause.message === 'string'
-                ? error.cause.message
-                : '';
-        } catch {
-            causeMessage = '';
-        }
-        if (causeMessage) return causeMessage;
-
+        if (typeof error.message === 'string') return error.message;
         const json = JSON.stringify(error);
         return typeof json === 'string' ? json : '';
     } catch {
@@ -121,22 +164,6 @@ function jsonResponse(data, status = 200) {
     });
 }
 
-function requireDb(env) {
-    if (!env.DB) {
-        throw new HttpError(500, 'D1 binding "DB" is missing. Check wrangler.toml.');
-    }
-    return env.DB;
-}
-
-async function ensureSchema(env) {
-    if (schemaReady) return;
-    const db = requireDb(env);
-    await db.batch(
-        ACCOUNTING_SCHEMA_STATEMENTS.map((statement) => db.prepare(statement))
-    );
-    schemaReady = true;
-}
-
 function emptyResponse(status = 204) {
     return new Response(null, {
         status,
@@ -144,9 +171,214 @@ function emptyResponse(status = 204) {
     });
 }
 
-function generateInvoiceNumber() {
-    const suffix = Math.floor(Math.random() * 90000) + 10000;
-    return `INV-${Date.now()}-${suffix}`;
+function requireDb(env) {
+    if (!env.DB) {
+        throw new HttpError(500, 'D1 binding "DB" is missing. Check wrangler.toml.');
+    }
+    return env.DB;
+}
+
+async function parseJsonRequest(request) {
+    try {
+        return await request.json();
+    } catch {
+        throw new HttpError(400, 'Request body must be valid JSON.');
+    }
+}
+
+async function ensureInvoicesTenantColumns(db) {
+    const tableInfo = await db.prepare('PRAGMA table_info(invoices)').all();
+    const names = new Set((tableInfo.results || []).map((c) => c.name));
+
+    if (!names.has('organization_id')) {
+        await db.prepare('ALTER TABLE invoices ADD COLUMN organization_id TEXT').run();
+    }
+    if (!names.has('clinic_id')) {
+        await db.prepare('ALTER TABLE invoices ADD COLUMN clinic_id TEXT').run();
+    }
+
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_org_id ON invoices(organization_id)').run();
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_clinic_id ON invoices(clinic_id)').run();
+}
+
+async function ensureSuperAdminUser(db) {
+    const existing = await db
+        .prepare('SELECT id FROM users WHERE role = ? LIMIT 1')
+        .bind('super_admin')
+        .first();
+
+    if (existing) return;
+
+    await db
+        .prepare(`
+            INSERT INTO users (
+                id,
+                role,
+                organization_id,
+                username,
+                email,
+                password,
+                full_name,
+                is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .bind(
+            crypto.randomUUID(),
+            'super_admin',
+            null,
+            SUPER_ADMIN_DEFAULT.username,
+            SUPER_ADMIN_DEFAULT.email,
+            SUPER_ADMIN_DEFAULT.password,
+            SUPER_ADMIN_DEFAULT.fullName,
+            1
+        )
+        .run();
+}
+
+async function ensureSchema(env) {
+    if (schemaReady) return;
+    const db = requireDb(env);
+    await db.batch(SCHEMA_STATEMENTS.map((statement) => db.prepare(statement)));
+    await ensureInvoicesTenantColumns(db);
+    await ensureSuperAdminUser(db);
+    schemaReady = true;
+}
+
+function mapSessionUser(baseUser, clinicIds) {
+    return {
+        userId: baseUser.id,
+        role: baseUser.role,
+        organizationId: baseUser.organization_id || null,
+        clinicIds,
+        fullName: baseUser.full_name,
+        email: baseUser.email,
+    };
+}
+
+async function getClinicIdsForUser(db, userId) {
+    const result = await db
+        .prepare('SELECT clinic_id FROM user_clinics WHERE user_id = ? ORDER BY clinic_id')
+        .bind(userId)
+        .all();
+    return (result.results || []).map((row) => row.clinic_id);
+}
+
+async function getUserByToken(db, token) {
+    if (!token) return null;
+
+    const row = await db
+        .prepare(`
+            SELECT
+                u.id,
+                u.role,
+                u.organization_id,
+                u.username,
+                u.email,
+                u.password,
+                u.full_name,
+                u.is_active
+            FROM sessions s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.token = ?
+            LIMIT 1
+        `)
+        .bind(token)
+        .first();
+
+    if (!row || !row.is_active) return null;
+
+    const clinicIds = await getClinicIdsForUser(db, row.id);
+    return {
+        ...mapSessionUser(row, clinicIds),
+        username: row.username,
+        password: row.password,
+    };
+}
+
+function getBearerToken(request) {
+    const header = request.headers.get('Authorization') || '';
+    if (!header.startsWith('Bearer ')) return '';
+    return header.slice(7).trim();
+}
+
+async function requireAuth(request, env) {
+    const token = getBearerToken(request);
+    if (!token) throw new HttpError(401, 'Missing authorization token.');
+
+    const db = requireDb(env);
+    const user = await getUserByToken(db, token);
+    if (!user) throw new HttpError(401, 'Invalid or expired session.');
+
+    return { token, user };
+}
+
+function requireRoles(user, roles) {
+    if (!roles.includes(user.role)) {
+        throw new HttpError(403, 'You do not have permission for this action.');
+    }
+}
+
+async function assertUniqueIdentity(db, username, email) {
+    const normalizedUsername = String(username || '').trim().toLowerCase();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedUsername || !normalizedEmail) {
+        throw new HttpError(400, 'Username and email are required.');
+    }
+
+    const existing = await db
+        .prepare('SELECT id FROM users WHERE LOWER(username) = ? OR LOWER(email) = ? LIMIT 1')
+        .bind(normalizedUsername, normalizedEmail)
+        .first();
+    if (existing) throw new HttpError(409, 'Username or email already exists.');
+}
+
+async function getAccessibleClinicIds(db, sessionUser) {
+    if (sessionUser.role === 'super_admin') {
+        const all = await db.prepare('SELECT id FROM clinics').all();
+        return (all.results || []).map((row) => row.id);
+    }
+    if (sessionUser.role === 'admin') {
+        const orgClinics = await db
+            .prepare('SELECT id FROM clinics WHERE organization_id = ? ORDER BY created_at')
+            .bind(sessionUser.organizationId)
+            .all();
+        return (orgClinics.results || []).map((row) => row.id);
+    }
+    return sessionUser.clinicIds || [];
+}
+
+async function resolveActiveClinicId(db, request, sessionUser, required = false) {
+    const requestedClinicId = (request.headers.get('X-Clinic-Id') || '').trim();
+    const accessibleClinicIds = await getAccessibleClinicIds(db, sessionUser);
+
+    if (requestedClinicId) {
+        if (!accessibleClinicIds.includes(requestedClinicId)) {
+            throw new HttpError(403, 'Selected clinic is not accessible.');
+        }
+        return requestedClinicId;
+    }
+
+    if (!required) return null;
+    if (accessibleClinicIds.length === 1) return accessibleClinicIds[0];
+    throw new HttpError(400, 'Select a clinic before continuing.');
+}
+
+async function resolveUniqueInvoiceNumber(db, requestedNumber) {
+    const explicit = String(requestedNumber || '').trim();
+    const base = explicit || `INV-${Date.now()}-${Math.floor(Math.random() * 90000) + 10000}`;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        const candidate = attempt === 0
+            ? base
+            : `${base}-${Math.floor(100 + Math.random() * 900)}`;
+        const existing = await db
+            .prepare('SELECT id FROM invoices WHERE invoice_number = ? LIMIT 1')
+            .bind(candidate)
+            .first();
+        if (!existing) return candidate;
+    }
+
+    throw new HttpError(409, explicit ? 'Invoice number already exists.' : 'Could not generate a unique invoice number.');
 }
 
 function mapInvoiceRow(row) {
@@ -161,45 +393,544 @@ function mapInvoiceRow(row) {
         service: row.service_names || '',
         paidAmount: fromCents(row.paid_cents),
         outstandingAmount: fromCents(row.outstanding_cents),
+        organizationId: row.organization_id || null,
+        clinicId: row.clinic_id || null,
     };
 }
+async function login(env, request) {
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
 
-async function parseJsonRequest(request) {
-    try {
-        return await request.json();
-    } catch {
-        throw new HttpError(400, 'Request body must be valid JSON.');
+    if (!username || !password) {
+        throw new HttpError(400, 'Username/email and password are required.');
     }
+
+    const user = await db
+        .prepare(`
+            SELECT
+                id,
+                role,
+                organization_id,
+                username,
+                email,
+                password,
+                full_name,
+                is_active
+            FROM users
+            WHERE (LOWER(username) = ? OR LOWER(email) = ?)
+            AND password = ?
+            LIMIT 1
+        `)
+        .bind(username.toLowerCase(), username.toLowerCase(), password)
+        .first();
+
+    if (!user || !user.is_active) throw new HttpError(401, 'Invalid credentials.');
+
+    const clinicIds = await getClinicIdsForUser(db, user.id);
+    const token = crypto.randomUUID();
+
+    await db
+        .prepare('INSERT INTO sessions (id, token, user_id) VALUES (?, ?, ?)')
+        .bind(crypto.randomUUID(), token, user.id)
+        .run();
+
+    return jsonResponse({
+        token,
+        user: {
+            ...mapSessionUser(user, clinicIds),
+            loginAt: new Date().toISOString(),
+        },
+    });
 }
 
-async function resolveUniqueInvoiceNumber(db, requestedNumber) {
-    const explicit = String(requestedNumber || '').trim();
-    const base = explicit || generateInvoiceNumber();
+async function getSession(env, request) {
+    const { user } = await requireAuth(request, env);
+    return jsonResponse({ user });
+}
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-        const candidate = attempt === 0
-            ? base
-            : `${base}-${Math.floor(100 + Math.random() * 900)}`;
-        const existing = await db
-            .prepare('SELECT id FROM invoices WHERE invoice_number = ? LIMIT 1')
-            .bind(candidate)
-            .first();
-        if (!existing) {
-            return candidate;
+async function logout(env, request) {
+    const { token } = await requireAuth(request, env);
+    const db = requireDb(env);
+    await db.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
+    return jsonResponse({ ok: true });
+}
+
+async function getTenantBootstrap(env, request) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+
+    let organizations = [];
+    let clinics = [];
+
+    if (user.role === 'super_admin') {
+        const orgResult = await db.prepare('SELECT id, name, admin_user_id, created_at FROM organizations ORDER BY created_at DESC').all();
+        const clinicResult = await db.prepare('SELECT id, organization_id, name, code, created_at FROM clinics ORDER BY created_at DESC').all();
+        organizations = (orgResult.results || []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            adminUserId: row.admin_user_id || null,
+            createdAt: row.created_at,
+        }));
+        clinics = (clinicResult.results || []).map((row) => ({
+            id: row.id,
+            organizationId: row.organization_id,
+            name: row.name,
+            code: row.code,
+            createdAt: row.created_at,
+        }));
+    } else {
+        const orgResult = await db
+            .prepare('SELECT id, name, admin_user_id, created_at FROM organizations WHERE id = ? LIMIT 1')
+            .bind(user.organizationId)
+            .all();
+        organizations = (orgResult.results || []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            adminUserId: row.admin_user_id || null,
+            createdAt: row.created_at,
+        }));
+
+        if (user.role === 'admin') {
+            const clinicResult = await db
+                .prepare('SELECT id, organization_id, name, code, created_at FROM clinics WHERE organization_id = ? ORDER BY created_at DESC')
+                .bind(user.organizationId)
+                .all();
+            clinics = (clinicResult.results || []).map((row) => ({
+                id: row.id,
+                organizationId: row.organization_id,
+                name: row.name,
+                code: row.code,
+                createdAt: row.created_at,
+            }));
+        } else {
+            const clinicResult = await db
+                .prepare(`
+                    SELECT c.id, c.organization_id, c.name, c.code, c.created_at
+                    FROM clinics c
+                    JOIN user_clinics uc ON uc.clinic_id = c.id
+                    WHERE uc.user_id = ?
+                    ORDER BY c.created_at DESC
+                `)
+                .bind(user.userId)
+                .all();
+            clinics = (clinicResult.results || []).map((row) => ({
+                id: row.id,
+                organizationId: row.organization_id,
+                name: row.name,
+                code: row.code,
+                createdAt: row.created_at,
+            }));
         }
     }
 
-    throw new HttpError(409, explicit ? 'Invoice number already exists.' : 'Could not generate a unique invoice number.');
+    return jsonResponse({ organizations, clinics });
 }
 
-async function listInvoices(env, url) {
+async function getSuperAdminOverview(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['super_admin']);
+    const db = requireDb(env);
+
+    const orgs = await db
+        .prepare('SELECT id, name, admin_user_id, created_at FROM organizations ORDER BY created_at DESC')
+        .all();
+    const clinics = await db
+        .prepare('SELECT id, organization_id, name, code, created_at FROM clinics ORDER BY created_at DESC')
+        .all();
+    const users = await db
+        .prepare(`
+            SELECT
+                id,
+                role,
+                organization_id,
+                username,
+                email,
+                password,
+                full_name,
+                is_active,
+                created_at
+            FROM users
+            ORDER BY created_at DESC
+        `)
+        .all();
+
+    const userRows = users.results || [];
+    const clinicAssignments = new Map();
+
+    if (userRows.length > 0) {
+        const userIds = userRows.map((row) => row.id);
+        const placeholders = userIds.map(() => '?').join(',');
+        const assignments = await db
+            .prepare(`SELECT user_id, clinic_id FROM user_clinics WHERE user_id IN (${placeholders})`)
+            .bind(...userIds)
+            .all();
+
+        (assignments.results || []).forEach((row) => {
+            const current = clinicAssignments.get(row.user_id) || [];
+            current.push(row.clinic_id);
+            clinicAssignments.set(row.user_id, current);
+        });
+    }
+
+    return jsonResponse({
+        organizations: (orgs.results || []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            adminUserId: row.admin_user_id || null,
+            createdAt: row.created_at,
+        })),
+        clinics: (clinics.results || []).map((row) => ({
+            id: row.id,
+            organizationId: row.organization_id,
+            name: row.name,
+            code: row.code,
+            createdAt: row.created_at,
+        })),
+        users: userRows.map((row) => ({
+            id: row.id,
+            role: row.role,
+            organizationId: row.organization_id || null,
+            clinicIds: clinicAssignments.get(row.id) || [],
+            username: row.username,
+            email: row.email,
+            password: row.password,
+            fullName: row.full_name,
+            isActive: Boolean(row.is_active),
+            createdAt: row.created_at,
+        })),
+    });
+}
+async function createOrganizationWithAdmin(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['super_admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const orgName = String(body.orgName || '').trim();
+    const adminFullName = String(body.adminFullName || '').trim();
+    const adminUsername = String(body.adminUsername || '').trim();
+    const adminEmail = String(body.adminEmail || '').trim();
+    const adminPassword = String(body.adminPassword || '');
+
+    if (!orgName || !adminFullName || !adminUsername || !adminEmail || !adminPassword) {
+        throw new HttpError(400, 'Organization and admin fields are required.');
+    }
+
+    await assertUniqueIdentity(db, adminUsername, adminEmail);
+
+    const organizationId = crypto.randomUUID();
+    const adminUserId = crypto.randomUUID();
+
+    await db.batch([
+        db.prepare('INSERT INTO organizations (id, name, admin_user_id) VALUES (?, ?, ?)').bind(organizationId, orgName, adminUserId),
+        db.prepare(`
+            INSERT INTO users (
+                id,
+                role,
+                organization_id,
+                username,
+                email,
+                password,
+                full_name,
+                is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(adminUserId, 'admin', organizationId, adminUsername, adminEmail, adminPassword, adminFullName, 1),
+    ]);
+
+    return jsonResponse({
+        organization: {
+            id: organizationId,
+            name: orgName,
+            adminUserId,
+        },
+        admin: {
+            id: adminUserId,
+            role: 'admin',
+            organizationId,
+            clinicIds: [],
+            username: adminUsername,
+            email: adminEmail,
+            password: adminPassword,
+            fullName: adminFullName,
+            isActive: true,
+        },
+    }, 201);
+}
+
+async function createAdminForOrganization(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['super_admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const organizationId = String(body.organizationId || '').trim();
+    const adminFullName = String(body.adminFullName || '').trim();
+    const adminUsername = String(body.adminUsername || '').trim();
+    const adminEmail = String(body.adminEmail || '').trim();
+    const adminPassword = String(body.adminPassword || '');
+
+    if (!organizationId || !adminFullName || !adminUsername || !adminEmail || !adminPassword) {
+        throw new HttpError(400, 'Organization and admin fields are required.');
+    }
+
+    const organization = await db
+        .prepare('SELECT id FROM organizations WHERE id = ? LIMIT 1')
+        .bind(organizationId)
+        .first();
+    if (!organization) throw new HttpError(404, 'Organization not found.');
+
+    await assertUniqueIdentity(db, adminUsername, adminEmail);
+
+    const adminUserId = crypto.randomUUID();
+    await db
+        .prepare(`
+            INSERT INTO users (
+                id,
+                role,
+                organization_id,
+                username,
+                email,
+                password,
+                full_name,
+                is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .bind(adminUserId, 'admin', organizationId, adminUsername, adminEmail, adminPassword, adminFullName, 1)
+        .run();
+
+    return jsonResponse({
+        admin: {
+            id: adminUserId,
+            role: 'admin',
+            organizationId,
+            clinicIds: [],
+            username: adminUsername,
+            email: adminEmail,
+            password: adminPassword,
+            fullName: adminFullName,
+            isActive: true,
+        },
+    }, 201);
+}
+
+async function getAdminSupervision(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin']);
+    const db = requireDb(env);
+
+    const clinics = await db
+        .prepare('SELECT id, organization_id, name, code, created_at FROM clinics WHERE organization_id = ? ORDER BY created_at DESC')
+        .bind(user.organizationId)
+        .all();
+    const staff = await db
+        .prepare(`
+            SELECT
+                id,
+                role,
+                organization_id,
+                username,
+                email,
+                password,
+                full_name,
+                is_active,
+                created_at
+            FROM users
+            WHERE organization_id = ?
+            AND role = 'staff'
+            ORDER BY created_at DESC
+        `)
+        .bind(user.organizationId)
+        .all();
+
+    const staffRows = staff.results || [];
+    const assignments = new Map();
+
+    if (staffRows.length > 0) {
+        const userIds = staffRows.map((row) => row.id);
+        const placeholders = userIds.map(() => '?').join(',');
+        const clinicAssignments = await db
+            .prepare(`SELECT user_id, clinic_id FROM user_clinics WHERE user_id IN (${placeholders})`)
+            .bind(...userIds)
+            .all();
+
+        (clinicAssignments.results || []).forEach((row) => {
+            const current = assignments.get(row.user_id) || [];
+            current.push(row.clinic_id);
+            assignments.set(row.user_id, current);
+        });
+    }
+
+    return jsonResponse({
+        clinics: (clinics.results || []).map((row) => ({
+            id: row.id,
+            organizationId: row.organization_id,
+            name: row.name,
+            code: row.code,
+            createdAt: row.created_at,
+        })),
+        users: staffRows.map((row) => ({
+            id: row.id,
+            role: row.role,
+            organizationId: row.organization_id,
+            clinicIds: assignments.get(row.id) || [],
+            username: row.username,
+            email: row.email,
+            password: row.password,
+            fullName: row.full_name,
+            isActive: Boolean(row.is_active),
+            createdAt: row.created_at,
+        })),
+    });
+}
+
+async function createClinic(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const name = String(body.name || '').trim();
+    const code = String(body.code || '').trim().toUpperCase();
+    if (!name || !code) throw new HttpError(400, 'Clinic name and code are required.');
+
+    const duplicate = await db
+        .prepare('SELECT id FROM clinics WHERE organization_id = ? AND code = ? LIMIT 1')
+        .bind(user.organizationId, code)
+        .first();
+    if (duplicate) throw new HttpError(409, 'Clinic code already exists in this organization.');
+
+    const clinicId = crypto.randomUUID();
+    await db
+        .prepare('INSERT INTO clinics (id, organization_id, name, code) VALUES (?, ?, ?, ?)')
+        .bind(clinicId, user.organizationId, name, code)
+        .run();
+
+    return jsonResponse({
+        clinic: {
+            id: clinicId,
+            organizationId: user.organizationId,
+            name,
+            code,
+            createdAt: new Date().toISOString(),
+        },
+    }, 201);
+}
+async function createStaff(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const fullName = String(body.fullName || '').trim();
+    const username = String(body.username || '').trim();
+    const email = String(body.email || '').trim();
+    const password = String(body.password || '');
+    const clinicIds = Array.isArray(body.clinicIds) ? body.clinicIds.map((id) => String(id).trim()).filter(Boolean) : [];
+
+    if (!fullName || !username || !email || !password) {
+        throw new HttpError(400, 'Staff details are required.');
+    }
+    if (clinicIds.length === 0) throw new HttpError(400, 'Assign at least one clinic.');
+
+    const placeholders = clinicIds.map(() => '?').join(',');
+    const clinicRows = await db
+        .prepare(`
+            SELECT id
+            FROM clinics
+            WHERE organization_id = ?
+            AND id IN (${placeholders})
+        `)
+        .bind(user.organizationId, ...clinicIds)
+        .all();
+
+    const validClinicIds = (clinicRows.results || []).map((row) => row.id);
+    if (validClinicIds.length !== clinicIds.length) {
+        throw new HttpError(400, 'One or more selected clinics are invalid.');
+    }
+
+    await assertUniqueIdentity(db, username, email);
+
+    const userId = crypto.randomUUID();
+    const statements = [
+        db.prepare(`
+            INSERT INTO users (
+                id,
+                role,
+                organization_id,
+                username,
+                email,
+                password,
+                full_name,
+                is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(userId, 'staff', user.organizationId, username, email, password, fullName, 1),
+    ];
+
+    validClinicIds.forEach((clinicId) => {
+        statements.push(
+            db.prepare('INSERT INTO user_clinics (user_id, clinic_id) VALUES (?, ?)').bind(userId, clinicId)
+        );
+    });
+
+    await db.batch(statements);
+
+    return jsonResponse({
+        user: {
+            id: userId,
+            role: 'staff',
+            organizationId: user.organizationId,
+            clinicIds: validClinicIds,
+            username,
+            email,
+            password,
+            fullName,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+        },
+    }, 201);
+}
+
+async function resetUserPassword(env, request, targetUserId) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const newPassword = String(body.newPassword || '');
+    if (!newPassword) throw new HttpError(400, 'New password is required.');
+
+    const targetUser = await db
+        .prepare('SELECT id, role, organization_id FROM users WHERE id = ? LIMIT 1')
+        .bind(targetUserId)
+        .first();
+    if (!targetUser) throw new HttpError(404, 'User not found.');
+
+    if (targetUser.organization_id !== user.organizationId || targetUser.role !== 'staff') {
+        throw new HttpError(403, 'You can only reset passwords for your staff users.');
+    }
+
+    await db
+        .prepare('UPDATE users SET password = ? WHERE id = ?')
+        .bind(newPassword, targetUserId)
+        .run();
+
+    return jsonResponse({ ok: true });
+}
+
+async function listInvoices(env, request, url) {
+    const { user } = await requireAuth(request, env);
     const db = requireDb(env);
     const q = (url.searchParams.get('q') || '').trim().toLowerCase();
     const status = (url.searchParams.get('status') || '').trim().toLowerCase();
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
 
     let sql = `
         SELECT
             i.id,
+            i.organization_id,
+            i.clinic_id,
             i.invoice_number,
             i.patient_name,
             i.patient_contact,
@@ -235,10 +966,27 @@ async function listInvoices(env, url) {
 
     const bindings = [];
 
-    if (status && status !== 'all') {
-        if (!INVOICE_STATUSES.has(status)) {
-            throw new HttpError(400, 'Invalid status filter.');
+    if (user.role === 'admin' || user.role === 'staff') {
+        sql += ' AND i.organization_id = ?';
+        bindings.push(user.organizationId);
+    }
+
+    if (user.role === 'staff') {
+        if (!user.clinicIds || user.clinicIds.length === 0) {
+            return jsonResponse({ invoices: [] });
         }
+        const clinicPlaceholders = user.clinicIds.map(() => '?').join(',');
+        sql += ` AND i.clinic_id IN (${clinicPlaceholders})`;
+        bindings.push(...user.clinicIds);
+    }
+
+    if (activeClinicId) {
+        sql += ' AND i.clinic_id = ?';
+        bindings.push(activeClinicId);
+    }
+
+    if (status && status !== 'all') {
+        if (!INVOICE_STATUSES.has(status)) throw new HttpError(400, 'Invalid status filter.');
         sql += ' AND i.status = ?';
         bindings.push(status);
     }
@@ -259,25 +1007,19 @@ async function listInvoices(env, url) {
         invoices: (result.results || []).map(mapInvoiceRow),
     });
 }
-
 async function createInvoice(env, request) {
+    const { user } = await requireAuth(request, env);
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
 
     const items = Array.isArray(body.items) ? body.items : [];
-    if (items.length === 0) {
-        throw new HttpError(400, 'Invoice must contain at least one item.');
-    }
+    if (items.length === 0) throw new HttpError(400, 'Invoice must contain at least one item.');
 
     const normalizedItems = items.map((item) => {
         const name = String(item.name || '').trim();
         const quantity = Math.max(1, Number.parseInt(item.quantity, 10) || 1);
         const unitPriceCents = toCents(item.price);
-
-        if (!name) {
-            throw new HttpError(400, 'Each invoice item must include a name.');
-        }
-
+        if (!name) throw new HttpError(400, 'Each invoice item must include a name.');
         return {
             id: crypto.randomUUID(),
             name,
@@ -288,9 +1030,7 @@ async function createInvoice(env, request) {
     });
 
     const patientName = String(body.patientName || '').trim();
-    if (!patientName) {
-        throw new HttpError(400, 'Patient name is required.');
-    }
+    if (!patientName) throw new HttpError(400, 'Patient name is required.');
 
     const status = normalizeInvoiceStatus(body.status || 'pending');
     const invoiceId = crypto.randomUUID();
@@ -301,11 +1041,18 @@ async function createInvoice(env, request) {
     const discountCents = toCents(body.discount);
     const totalCents = Math.max(0, subtotalCents + taxCents - discountCents);
 
+    const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
+    const organizationId = user.role === 'super_admin'
+        ? (body.organizationId ? String(body.organizationId) : null)
+        : user.organizationId;
+
     const statements = [
         db
             .prepare(`
                 INSERT INTO invoices (
                     id,
+                    organization_id,
+                    clinic_id,
                     invoice_number,
                     patient_id,
                     patient_name,
@@ -318,10 +1065,12 @@ async function createInvoice(env, request) {
                     total_cents,
                     currency,
                     notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .bind(
                 invoiceId,
+                organizationId,
+                activeClinicId,
                 invoiceNumber,
                 body.patientId ? String(body.patientId) : null,
                 patientName,
@@ -398,6 +1147,8 @@ async function createInvoice(env, request) {
     return jsonResponse({
         invoice: {
             id: invoiceId,
+            organizationId,
+            clinicId: activeClinicId,
             invoiceNumber,
             date: invoiceDate,
             patient: patientName,
@@ -408,6 +1159,7 @@ async function createInvoice(env, request) {
 }
 
 async function updateInvoiceStatus(env, request, invoiceId) {
+    const { user } = await requireAuth(request, env);
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
     const status = normalizeInvoiceStatus(body.status);
@@ -416,6 +1168,8 @@ async function updateInvoiceStatus(env, request, invoiceId) {
         .prepare(`
             SELECT
                 id,
+                organization_id,
+                clinic_id,
                 invoice_date,
                 total_cents,
                 status
@@ -424,9 +1178,15 @@ async function updateInvoiceStatus(env, request, invoiceId) {
         `)
         .bind(invoiceId)
         .first();
+    if (!invoice) throw new HttpError(404, 'Invoice not found.');
 
-    if (!invoice) {
-        throw new HttpError(404, 'Invoice not found.');
+    if (user.role === 'admin' && invoice.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Invoice is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (invoice.organization_id !== user.organizationId || !user.clinicIds.includes(invoice.clinic_id)) {
+            throw new HttpError(403, 'Invoice is outside your access scope.');
+        }
     }
 
     const statements = [
@@ -475,27 +1235,82 @@ async function updateInvoiceStatus(env, request, invoiceId) {
     return jsonResponse({ ok: true });
 }
 
-async function getAccountingSummary(env) {
+async function getAccountingSummary(env, request) {
+    const { user } = await requireAuth(request, env);
     const db = requireDb(env);
-    const invoicesResult = await db
-        .prepare(`
-            SELECT
-                i.id,
-                i.status,
-                i.total_cents,
-                COALESCE((
-                    SELECT SUM(p.amount_cents)
-                    FROM payments p
-                    WHERE p.invoice_id = i.id
-                ), 0) AS paid_cents
-            FROM invoices i
-            WHERE i.status != 'void'
-        `)
-        .all();
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
 
-    const payments = await db
-        .prepare('SELECT COALESCE(SUM(amount_cents), 0) AS total FROM payments')
-        .first();
+    let sql = `
+        SELECT
+            i.id,
+            i.status,
+            i.total_cents,
+            COALESCE((
+                SELECT SUM(p.amount_cents)
+                FROM payments p
+                WHERE p.invoice_id = i.id
+            ), 0) AS paid_cents
+        FROM invoices i
+        WHERE i.status != 'void'
+    `;
+    const bindings = [];
+
+    if (user.role === 'admin' || user.role === 'staff') {
+        sql += ' AND i.organization_id = ?';
+        bindings.push(user.organizationId);
+    }
+
+    if (user.role === 'staff') {
+        if (!user.clinicIds || user.clinicIds.length === 0) {
+            return jsonResponse({
+                cashReceived: 0,
+                pendingAmount: 0,
+                overdueAmount: 0,
+                receivables: 0,
+                invoiceCount: 0,
+            });
+        }
+        const clinicPlaceholders = user.clinicIds.map(() => '?').join(',');
+        sql += ` AND i.clinic_id IN (${clinicPlaceholders})`;
+        bindings.push(...user.clinicIds);
+    }
+
+    if (activeClinicId) {
+        sql += ' AND i.clinic_id = ?';
+        bindings.push(activeClinicId);
+    }
+
+    const invoicesResult = bindings.length > 0
+        ? await db.prepare(sql).bind(...bindings).all()
+        : await db.prepare(sql).all();
+
+    let paymentSql = `
+        SELECT COALESCE(SUM(p.amount_cents), 0) AS total
+        FROM payments p
+        JOIN invoices i ON i.id = p.invoice_id
+        WHERE 1 = 1
+    `;
+    const paymentBindings = [];
+
+    if (user.role === 'admin' || user.role === 'staff') {
+        paymentSql += ' AND i.organization_id = ?';
+        paymentBindings.push(user.organizationId);
+    }
+
+    if (user.role === 'staff') {
+        const clinicPlaceholders = user.clinicIds.map(() => '?').join(',');
+        paymentSql += ` AND i.clinic_id IN (${clinicPlaceholders})`;
+        paymentBindings.push(...user.clinicIds);
+    }
+
+    if (activeClinicId) {
+        paymentSql += ' AND i.clinic_id = ?';
+        paymentBindings.push(activeClinicId);
+    }
+
+    const payments = paymentBindings.length > 0
+        ? await db.prepare(paymentSql).bind(...paymentBindings).first()
+        : await db.prepare(paymentSql).first();
 
     let pendingAmountCents = 0;
     let overdueAmountCents = 0;
@@ -509,7 +1324,7 @@ async function getAccountingSummary(env) {
     });
 
     return jsonResponse({
-        cashReceived: fromCents(payments.total),
+        cashReceived: fromCents(payments?.total || 0),
         pendingAmount: fromCents(pendingAmountCents),
         overdueAmount: fromCents(overdueAmountCents),
         receivables: fromCents(receivableAmountCents),
@@ -538,22 +1353,34 @@ export default {
                 await ensureSchema(env);
             }
 
-            if (pathname === '/api/invoices' && request.method === 'GET') {
-                return listInvoices(env, url);
+            if (pathname === '/api/auth/login' && request.method === 'POST') return login(env, request);
+            if (pathname === '/api/auth/session' && request.method === 'GET') return getSession(env, request);
+            if (pathname === '/api/auth/logout' && request.method === 'POST') return logout(env, request);
+
+            if (pathname === '/api/tenant/bootstrap' && request.method === 'GET') return getTenantBootstrap(env, request);
+
+            if (pathname === '/api/super-admin/overview' && request.method === 'GET') return getSuperAdminOverview(env, request);
+            if (pathname === '/api/super-admin/organizations' && request.method === 'POST') return createOrganizationWithAdmin(env, request);
+            if (pathname === '/api/super-admin/admins' && request.method === 'POST') return createAdminForOrganization(env, request);
+
+            if (pathname === '/api/admin/supervision' && request.method === 'GET') return getAdminSupervision(env, request);
+            if (pathname === '/api/admin/clinics' && request.method === 'POST') return createClinic(env, request);
+            if (pathname === '/api/admin/staff' && request.method === 'POST') return createStaff(env, request);
+
+            const resetPasswordMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/password$/);
+            if (resetPasswordMatch && request.method === 'PATCH') {
+                return resetUserPassword(env, request, decodeURIComponent(resetPasswordMatch[1]));
             }
 
-            if (pathname === '/api/invoices' && request.method === 'POST') {
-                return createInvoice(env, request);
-            }
+            if (pathname === '/api/invoices' && request.method === 'GET') return listInvoices(env, request, url);
+            if (pathname === '/api/invoices' && request.method === 'POST') return createInvoice(env, request);
 
             const statusMatch = pathname.match(/^\/api\/invoices\/([^/]+)\/status$/);
             if (statusMatch && request.method === 'PATCH') {
                 return updateInvoiceStatus(env, request, decodeURIComponent(statusMatch[1]));
             }
 
-            if (pathname === '/api/accounting/summary' && request.method === 'GET') {
-                return getAccountingSummary(env);
-            }
+            if (pathname === '/api/accounting/summary' && request.method === 'GET') return getAccountingSummary(env, request);
 
             return jsonResponse({ error: 'Not found.' }, 404);
         } catch (error) {

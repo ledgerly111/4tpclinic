@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { mockAuthStore } from '../lib/mockAuthStore';
-import { getAccessibleOrganizations, getAccessibleClinics } from '../lib/tenantScope';
+import { fetchTenantBootstrapApi } from '../lib/authApi';
 
 const TenantContext = createContext();
 
@@ -25,6 +24,48 @@ export function TenantProvider({ children }) {
 
   // Load tenant data when session changes
   useEffect(() => {
+    const loadTenants = async () => {
+      setIsLoading(true);
+
+      try {
+        const data = await fetchTenantBootstrapApi();
+        const accessibleOrgs = Array.isArray(data.organizations) ? data.organizations : [];
+        const accessibleClinics = Array.isArray(data.clinics) ? data.clinics : [];
+        setOrganizations(accessibleOrgs);
+        setClinics(accessibleClinics);
+
+        const saved = sessionStorage.getItem(TENANT_STORAGE_KEY);
+        let savedSelection = null;
+
+        try {
+          savedSelection = saved ? JSON.parse(saved) : null;
+        } catch {
+          savedSelection = null;
+        }
+
+        if (savedSelection) {
+          const orgStillAccessible = accessibleOrgs.some((o) => o.id === savedSelection.organizationId);
+          const clinicStillAccessible = accessibleClinics.some((c) => c.id === savedSelection.clinicId);
+
+          if (orgStillAccessible && clinicStillAccessible) {
+            setSelectedOrganizationId(savedSelection.organizationId);
+            setSelectedClinicId(savedSelection.clinicId);
+          } else {
+            setDefaultSelection(accessibleOrgs, accessibleClinics, session);
+          }
+        } else {
+          setDefaultSelection(accessibleOrgs, accessibleClinics, session);
+        }
+      } catch {
+        setOrganizations([]);
+        setClinics([]);
+        setSelectedOrganizationId(null);
+        setSelectedClinicId(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     if (!isAuthenticated || !session) {
       setOrganizations([]);
       setClinics([]);
@@ -34,47 +75,7 @@ export function TenantProvider({ children }) {
       return;
     }
 
-    setIsLoading(true);
-    
-    // Load all data from mock store
-    const allOrgs = mockAuthStore.getOrganizations();
-    const allClinics = mockAuthStore.getClinics();
-    
-    // Filter by user access
-    const accessibleOrgs = getAccessibleOrganizations(session, allOrgs);
-    const accessibleClinics = getAccessibleClinics(session, allClinics);
-    
-    setOrganizations(accessibleOrgs);
-    setClinics(accessibleClinics);
-
-    // Try to restore previous selection from storage
-    const saved = sessionStorage.getItem(TENANT_STORAGE_KEY);
-    let savedSelection = null;
-    
-    try {
-      savedSelection = saved ? JSON.parse(saved) : null;
-    } catch {
-      savedSelection = null;
-    }
-
-    if (savedSelection) {
-      // Validate saved selection is still accessible
-      const orgStillAccessible = accessibleOrgs.some(o => o.id === savedSelection.organizationId);
-      const clinicStillAccessible = accessibleClinics.some(c => c.id === savedSelection.clinicId);
-      
-      if (orgStillAccessible && clinicStillAccessible) {
-        setSelectedOrganizationId(savedSelection.organizationId);
-        setSelectedClinicId(savedSelection.clinicId);
-      } else {
-        // Fall back to defaults
-        setDefaultSelection(accessibleOrgs, accessibleClinics, session);
-      }
-    } else {
-      // Set default selection
-      setDefaultSelection(accessibleOrgs, accessibleClinics, session);
-    }
-    
-    setIsLoading(false);
+    loadTenants();
   }, [session, isAuthenticated]);
 
   const setDefaultSelection = (accessibleOrgs, accessibleClinics, userSession) => {

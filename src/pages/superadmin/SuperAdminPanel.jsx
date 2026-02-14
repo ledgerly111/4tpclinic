@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, Shield, UserPlus, Users } from 'lucide-react';
-import { mockAuthStore } from '../../lib/mockAuthStore';
+import {
+  fetchSuperAdminOverviewApi,
+  createOrganizationWithAdminApi,
+  createAdminForOrganizationApi,
+} from '../../lib/authApi';
 import { cn } from '../../lib/utils';
 
 const initialOrgAdminForm = {
@@ -28,14 +32,17 @@ export function SuperAdminPanel() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const reload = () => {
-    setOrganizations(mockAuthStore.getOrganizations());
-    setUsers(mockAuthStore.getUsers());
-    setClinics(mockAuthStore.getClinics());
+  const reload = async () => {
+    const data = await fetchSuperAdminOverviewApi();
+    setOrganizations(Array.isArray(data.organizations) ? data.organizations : []);
+    setUsers(Array.isArray(data.users) ? data.users : []);
+    setClinics(Array.isArray(data.clinics) ? data.clinics : []);
   };
 
   useEffect(() => {
-    reload();
+    reload().catch((loadError) => {
+      setError(loadError.message || 'Failed to load super admin data.');
+    });
   }, []);
 
   const adminUsers = useMemo(() => users.filter((u) => u.role === 'admin'), [users]);
@@ -46,46 +53,43 @@ export function SuperAdminPanel() {
     setSuccess('');
   };
 
-  const handleCreateOrganizationWithAdmin = (event) => {
+  const handleCreateOrganizationWithAdmin = async (event) => {
     event.preventDefault();
     clearMessages();
     try {
-      const result = mockAuthStore.createOrganizationWithAdmin(
-        orgAdminForm.orgName.trim(),
-        {
-          username: orgAdminForm.adminUsername.trim(),
-          email: orgAdminForm.adminEmail.trim(),
-          password: orgAdminForm.adminPassword,
-          fullName: orgAdminForm.adminFullName.trim(),
-        }
-      );
+      const result = await createOrganizationWithAdminApi({
+        orgName: orgAdminForm.orgName.trim(),
+        adminUsername: orgAdminForm.adminUsername.trim(),
+        adminEmail: orgAdminForm.adminEmail.trim(),
+        adminPassword: orgAdminForm.adminPassword,
+        adminFullName: orgAdminForm.adminFullName.trim(),
+      });
 
       setSuccess(
         `Created org "${result.organization.name}" and admin login: ${result.admin.email} / ${result.admin.password}`
       );
       setOrgAdminForm(initialOrgAdminForm);
-      reload();
+      await reload();
     } catch (createError) {
       setError(createError.message || 'Failed to create organization admin.');
     }
   };
 
-  const handleCreateAdminInOrg = (event) => {
+  const handleCreateAdminInOrg = async (event) => {
     event.preventDefault();
     clearMessages();
     try {
-      const admin = mockAuthStore.createAdminForOrganization(
-        adminForm.organizationId,
-        {
-          username: adminForm.adminUsername.trim(),
-          email: adminForm.adminEmail.trim(),
-          password: adminForm.adminPassword,
-          fullName: adminForm.adminFullName.trim(),
-        }
-      );
+      const result = await createAdminForOrganizationApi({
+        organizationId: adminForm.organizationId,
+        adminUsername: adminForm.adminUsername.trim(),
+        adminEmail: adminForm.adminEmail.trim(),
+        adminPassword: adminForm.adminPassword,
+        adminFullName: adminForm.adminFullName.trim(),
+      });
+      const admin = result.admin;
       setSuccess(`Created admin login: ${admin.email} / ${admin.password}`);
       setAdminForm(initialAdminForm);
-      reload();
+      await reload();
     } catch (createError) {
       setError(createError.message || 'Failed to create admin user.');
     }

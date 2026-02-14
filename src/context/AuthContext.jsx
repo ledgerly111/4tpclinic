@@ -1,5 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { mockAuthStore } from '../lib/mockAuthStore';
+import {
+  loginApi,
+  logoutApi,
+  getSessionApi,
+  getStoredSession,
+  setStoredSession,
+  clearStoredSession,
+} from '../lib/authApi';
 
 const AuthContext = createContext();
 
@@ -18,11 +25,27 @@ export function AuthProvider({ children }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    const existingSession = mockAuthStore.getSession();
-    if (existingSession) {
-      setSession(existingSession);
-    }
-    setIsLoading(false);
+    const restore = async () => {
+      const existing = getStoredSession();
+      if (!existing?.token) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const result = await getSessionApi();
+        const restored = { ...result.user, token: existing.token };
+        setSession(restored);
+        setStoredSession(restored);
+      } catch {
+        clearStoredSession();
+        setSession(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    restore();
   }, []);
 
   const login = useCallback(async (username, password) => {
@@ -30,15 +53,11 @@ export function AuthProvider({ children }) {
     setError(null);
     
     try {
-      const result = mockAuthStore.login(username, password);
-      
-      if (result.success) {
-        setSession(result.user);
-        return { success: true, user: result.user };
-      } else {
-        setError(result.error);
-        return { success: false, error: result.error };
-      }
+      const result = await loginApi(username, password);
+      const nextSession = { ...result.user, token: result.token };
+      setSession(nextSession);
+      setStoredSession(nextSession);
+      return { success: true, user: nextSession };
     } catch (err) {
       const errorMsg = err.message || 'Login failed';
       setError(errorMsg);
@@ -49,7 +68,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
-    mockAuthStore.logout();
+    logoutApi().catch(() => {});
+    clearStoredSession();
+    sessionStorage.removeItem('clinic_selected_tenant');
     setSession(null);
     setError(null);
   }, []);

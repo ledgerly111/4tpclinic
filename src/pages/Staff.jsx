@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { Building2, Users, Plus, Key, X, UserPlus, Stethoscope } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
-import { mockAuthStore } from '../lib/mockAuthStore';
+import {
+    fetchAdminSupervisionApi,
+    createClinicApi,
+    createStaffApi,
+    resetStaffPasswordApi,
+} from '../lib/authApi';
 import { cn } from '../lib/utils';
 
 export function Staff() {
@@ -28,14 +33,17 @@ export function Staff() {
     });
     const [passwordForm, setPasswordForm] = useState({ newPassword: '' });
 
-    const loadData = () => {
+    const loadData = async () => {
         if (!session?.organizationId) return;
-        setClinics(mockAuthStore.getClinicsByOrganization(session.organizationId));
-        setUsers(mockAuthStore.getUsersByOrganization(session.organizationId).filter((u) => u.role === 'staff'));
+        const data = await fetchAdminSupervisionApi();
+        setClinics(Array.isArray(data.clinics) ? data.clinics : []);
+        setUsers(Array.isArray(data.users) ? data.users : []);
     };
 
     useEffect(() => {
-        loadData();
+        loadData().catch((error) => {
+            setFormError(error.message || 'Failed to load supervision data.');
+        });
     }, [session?.organizationId]);
 
     const clearMessages = () => {
@@ -43,18 +51,17 @@ export function Staff() {
         setFormSuccess('');
     };
 
-    const handleCreateClinic = (event) => {
+    const handleCreateClinic = async (event) => {
         event.preventDefault();
         clearMessages();
         try {
-            mockAuthStore.createClinic({
-                organizationId: session.organizationId,
+            await createClinicApi({
                 name: clinicForm.name.trim(),
                 code: clinicForm.code.trim().toUpperCase(),
             });
             setFormSuccess('Clinic created successfully.');
             setClinicForm({ name: '', code: '' });
-            loadData();
+            await loadData();
             setTimeout(() => {
                 setShowClinicModal(false);
                 setFormSuccess('');
@@ -64,7 +71,7 @@ export function Staff() {
         }
     };
 
-    const handleCreateStaff = (event) => {
+    const handleCreateStaff = async (event) => {
         event.preventDefault();
         clearMessages();
         if (staffForm.clinicIds.length === 0) {
@@ -72,9 +79,7 @@ export function Staff() {
             return;
         }
         try {
-            mockAuthStore.createUser({
-                role: 'staff',
-                organizationId: session.organizationId,
+            await createStaffApi({
                 clinicIds: staffForm.clinicIds,
                 username: staffForm.username.trim(),
                 email: staffForm.email.trim(),
@@ -83,7 +88,7 @@ export function Staff() {
             });
             setFormSuccess('Staff member created.');
             setStaffForm({ fullName: '', username: '', email: '', password: '', clinicIds: [] });
-            loadData();
+            await loadData();
             setTimeout(() => {
                 setShowStaffModal(false);
                 setFormSuccess('');
@@ -93,13 +98,13 @@ export function Staff() {
         }
     };
 
-    const handleResetPassword = (event) => {
+    const handleResetPassword = async (event) => {
         event.preventDefault();
         clearMessages();
         try {
-            mockAuthStore.resetPassword(selectedUser.id, passwordForm.newPassword);
+            await resetStaffPasswordApi(selectedUser.id, passwordForm.newPassword);
             setFormSuccess('Password reset successfully.');
-            loadData();
+            await loadData();
             setTimeout(() => {
                 setShowPasswordModal(false);
                 setSelectedUser(null);
