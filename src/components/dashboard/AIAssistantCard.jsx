@@ -56,45 +56,45 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
     };
 
     const quickActions = [
-        { label: '🔍 Show labor cost', color: isDark ? 'bg-[#60a5fa]/20 text-[#60a5fa]' : 'bg-blue-100 text-blue-600' },
-        { label: '📅 Initiate strategy planning', color: isDark ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600' },
+        { label: '🔍 Labor cost', color: isDark ? 'bg-[#60a5fa]/20 text-[#60a5fa]' : 'bg-blue-100 text-blue-600' },
+        { label: '📅 Strategy', color: isDark ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600' },
     ];
 
     return (
         <div className={cn(
-            "rounded-3xl p-5 h-full flex flex-col transition-colors duration-300",
+            "rounded-2xl sm:rounded-3xl p-4 sm:p-5 h-full flex flex-col transition-colors duration-300",
             isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200'
         )}>
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
                 <h2 className={cn(
-                    "text-lg font-bold tracking-wide",
+                    "text-sm sm:text-lg font-bold tracking-wide",
                     isDark ? 'text-white' : 'text-gray-900'
-                )}>AI OPERATIONS LEAD</h2>
+                )}>AI OPERATIONS</h2>
                 <button className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                    "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-colors",
                     isDark 
                         ? 'bg-white/10 text-white hover:bg-white/20' 
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 )}>
-                    <ArrowUpRight className="w-4 h-4" />
+                    <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
             </div>
 
             {/* Messages */}
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto space-y-3 mb-3 min-h-0">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto space-y-2 sm:space-y-3 mb-2 sm:mb-3 min-h-0">
                 {messages.map((message) => (
                     <div
                         key={message.id}
-                        className={`flex gap-3 ${message.type === 'user' ? 'flex-row-reverse' : ''}`}
+                        className={`flex gap-2 sm:gap-3 ${message.type === 'user' ? 'flex-row-reverse' : ''}`}
                     >
                         {message.type === 'ai' && (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center flex-shrink-0">
-                                <span className="text-white text-[10px] font-bold">AI</span>
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center flex-shrink-0">
+                                <span className="text-white text-[8px] sm:text-[10px] font-bold">AI</span>
                             </div>
                         )}
                         <div
-                            className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+                            className={`max-w-[85%] rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 ${
                                 message.type === 'user'
                                     ? 'bg-[#ff7a6b] text-white'
                                     : isDark 
@@ -102,23 +102,23 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                                         : 'bg-gray-100 text-gray-700'
                             }`}
                         >
-                            <p className="text-xs whitespace-pre-line leading-relaxed">{message.content}</p>
+                            <p className="text-[10px] sm:text-xs whitespace-pre-line leading-relaxed">{message.content}</p>
                         </div>
                     </div>
                 ))}
                 {isTyping && (
-                    <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center flex-shrink-0">
-                            <span className="text-white text-[10px] font-bold">AI</span>
+                    <div className="flex gap-2 sm:gap-3">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-[8px] sm:text-[10px] font-bold">AI</span>
                         </div>
                         <div className={cn(
-                            "rounded-2xl px-3 py-2",
+                            "rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2",
                             isDark ? 'bg-white/10' : 'bg-gray-100'
                         )}>
                             <div className="flex gap-1">
-                                <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", isDark ? 'bg-gray-400' : 'bg-gray-500')} style={{ animationDelay: '0ms' }} />
-                                <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", isDark ? 'bg-gray-400' : 'bg-gray-500')} style={{ animationDelay: '150ms' }} />
-                                <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", isDark ? 'bg-gray-400' : 'bg-gray-500')} style={{ animationDelay: '300ms' }} />
+                                <span className={cn("w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full animate-bounce", isDark ? 'bg-gray-400' : 'bg-gray-500')} style={{ animationDelay: '0ms' }} />
+                                <span className={cn("w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full animate-bounce", isDark ? 'bg-gray-400' : 'bg-gray-500')} style={{ animationDelay: '150ms' }} />
+                                <span className={cn("w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full animate-bounce", isDark ? 'bg-gray-400' : 'bg-gray-500')} style={{ animationDelay: '300ms' }} />
                             </div>
                         </div>
                     </div>
@@ -126,7 +126,7 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
             </div>
 
             {/* Quick Actions */}
-            <div className="flex gap-2 mb-3 flex-wrap">
+            <div className="flex gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-wrap">
                 {quickActions.map((action) => (
                     <button
                         key={action.label}
@@ -134,7 +134,7 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                             setInputValue(action.label.replace('🔍 ', '').replace('📅 ', ''));
                             handleSend();
                         }}
-                        className={`px-3 py-1.5 rounded-full text-[11px] transition-colors ${action.color}`}
+                        className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[11px] transition-colors ${action.color}`}
                     >
                         {action.label}
                     </button>
@@ -142,9 +142,9 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
             </div>
 
             {/* Input */}
-            <div className="flex items-center gap-2">
-                <button className="w-9 h-9 rounded-full bg-[#ff7a6b] flex items-center justify-center text-white hover:bg-[#ff6b5b] transition-colors flex-shrink-0">
-                    <span className="text-lg leading-none">+</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+                <button className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-[#ff7a6b] flex items-center justify-center text-white hover:bg-[#ff6b5b] transition-colors flex-shrink-0">
+                    <span className="text-sm sm:text-lg leading-none">+</span>
                 </button>
                 <div className="flex-1 relative">
                     <input
@@ -152,9 +152,9 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Ask something or choose to start"
+                        placeholder="Ask something..."
                         className={cn(
-                            "w-full rounded-full px-3 py-2 text-xs outline-none transition-colors",
+                            "w-full rounded-full px-2.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs outline-none transition-colors",
                             isDark 
                                 ? 'bg-white/5 text-white placeholder-gray-500 focus:bg-white/10' 
                                 : 'bg-gray-100 text-gray-900 placeholder-gray-400 focus:bg-gray-200'
@@ -162,10 +162,10 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                     />
                 </div>
                 <button className={cn(
-                    "transition-colors",
+                    "transition-colors p-1",
                     isDark ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-gray-600'
                 )}>
-                    <Mic className="w-4 h-4" />
+                    <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
             </div>
         </div>

@@ -1,4 +1,4 @@
-import { Search, Building2, Bell, ChevronDown, Menu, X } from 'lucide-react';
+import { Search, Building2, Bell, ChevronDown, Menu, X, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
@@ -71,8 +71,8 @@ export function Header({ onMenuClick }) {
             {showMobileSearch && (
                 <div className={cn(
                     "fixed inset-x-0 top-0 z-50 p-4 lg:hidden border-b",
-                    isDark 
-                        ? "bg-[#0f0f0f] border-gray-800" 
+                    isDark
+                        ? "bg-[#0f0f0f] border-gray-800"
                         : "bg-white border-gray-200"
                 )}>
                     <div className="flex items-center gap-3">
@@ -102,8 +102,8 @@ export function Header({ onMenuClick }) {
             <header className={cn(
                 "sticky top-0 z-40 border-b px-4 py-3 backdrop-blur-xl transition-colors duration-300",
                 "lg:rounded-t-3xl lg:px-5 lg:py-4",
-                isDark 
-                    ? "border-white/10 bg-black/88" 
+                isDark
+                    ? "border-white/10 bg-black/88"
                     : "border-gray-200 bg-white/95"
             )}>
                 {/* Desktop Header */}
@@ -125,12 +125,19 @@ export function Header({ onMenuClick }) {
                                 )}>{subtitle}</h1>
                                 <span className={cn(
                                     "rounded-full px-2.5 py-1 text-xs font-medium",
-                                    isDark 
-                                        ? "bg-slate-800/70 text-slate-200 border border-slate-700/50" 
+                                    isDark
+                                        ? "bg-slate-800/70 text-slate-200 border border-slate-700/50"
                                         : "bg-gray-100 text-gray-700 border border-gray-200"
                                 )}>
                                     {todayLabel}
                                 </span>
+                                <button
+                                    onClick={() => window.location.href = '/invoices/new'}
+                                    className="ml-2 w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg shadow-[#ff9a8b]/30 hover:shadow-[#ff9a8b]/50 transition-all hover:scale-105 active:scale-95"
+                                    style={{ backgroundColor: '#ff9a8b' }}
+                                >
+                                    <Plus className="w-5 h-5" />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -138,8 +145,8 @@ export function Header({ onMenuClick }) {
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <label className={cn(
                             "flex h-10 min-w-[11rem] items-center gap-2 rounded-full px-3 sm:min-w-[14rem] transition-colors",
-                            isDark 
-                                ? "bg-slate-800/70 text-slate-300 border border-slate-700/50" 
+                            isDark
+                                ? "bg-slate-800/70 text-slate-300 border border-slate-700/50"
                                 : "bg-gray-100 text-gray-600 border border-gray-200"
                         )}>
                             <Search className={cn("h-4 w-4", isDark ? "text-slate-400" : "text-gray-500")} />
@@ -158,8 +165,8 @@ export function Header({ onMenuClick }) {
                                 onClick={() => setShowLocationDropdown((prev) => !prev)}
                                 className={cn(
                                     "flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition",
-                                    isDark 
-                                        ? "bg-slate-800/70 text-slate-100 border border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25" 
+                                    isDark
+                                        ? "bg-slate-800/70 text-slate-100 border border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25"
                                         : "bg-gray-100 text-gray-700 border border-gray-200 hover:border-gray-400 hover:bg-gray-200/50"
                                 )}
                             >
@@ -171,8 +178,8 @@ export function Header({ onMenuClick }) {
                             {showLocationDropdown && (
                                 <div className={cn(
                                     "absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border p-1 shadow-2xl",
-                                    isDark 
-                                        ? "border-white/10 bg-[#0b0b0b] shadow-black/55" 
+                                    isDark
+                                        ? "border-white/10 bg-[#0b0b0b] shadow-black/55"
                                         : "border-gray-200 bg-white shadow-gray-200/50"
                                 )}>
                                     {locations.map((locationOption) => (
@@ -184,8 +191,8 @@ export function Header({ onMenuClick }) {
                                             }}
                                             className={cn(
                                                 "w-full rounded-xl px-3 py-2 text-left text-sm transition",
-                                                isDark 
-                                                    ? "text-slate-300 hover:bg-slate-700/35 hover:text-white" 
+                                                isDark
+                                                    ? "text-slate-300 hover:bg-slate-700/35 hover:text-white"
                                                     : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                                             )}
                                         >
@@ -198,8 +205,8 @@ export function Header({ onMenuClick }) {
 
                         <button className={cn(
                             "relative flex h-10 w-10 items-center justify-center rounded-full transition",
-                            isDark 
-                                ? "border border-slate-700/60 bg-slate-900/45 text-slate-300 hover:border-slate-500 hover:text-white" 
+                            isDark
+                                ? "border border-slate-700/60 bg-slate-900/45 text-slate-300 hover:border-slate-500 hover:text-white"
                                 : "border border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900"
                         )}>
                             <Bell className="h-4 w-4" />
@@ -220,8 +227,8 @@ export function Header({ onMenuClick }) {
                             onClick={onMenuClick}
                             className={cn(
                                 "flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
-                                isDark 
-                                    ? "bg-[#1f1f1f] text-gray-300 hover:text-white" 
+                                isDark
+                                    ? "bg-[#1f1f1f] text-gray-300 hover:text-white"
                                     : "bg-gray-100 text-gray-600 hover:text-gray-900"
                             )}
                         >
@@ -246,8 +253,8 @@ export function Header({ onMenuClick }) {
                             onClick={() => setShowMobileSearch(true)}
                             className={cn(
                                 "flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
-                                isDark 
-                                    ? "bg-[#1f1f1f] text-gray-400 hover:text-white" 
+                                isDark
+                                    ? "bg-[#1f1f1f] text-gray-400 hover:text-white"
                                     : "bg-gray-100 text-gray-600 hover:text-gray-900"
                             )}
                         >
@@ -257,8 +264,8 @@ export function Header({ onMenuClick }) {
                         {/* Mobile Notifications */}
                         <button className={cn(
                             "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
-                            isDark 
-                                ? "bg-[#1f1f1f] text-gray-400 hover:text-white" 
+                            isDark
+                                ? "bg-[#1f1f1f] text-gray-400 hover:text-white"
                                 : "bg-gray-100 text-gray-600 hover:text-gray-900"
                         )}>
                             <Bell className="w-5 h-5" />

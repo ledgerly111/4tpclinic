@@ -11,6 +11,7 @@ import { Staff } from './pages/Staff';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Help } from './pages/Help';
+import { CreateInvoice } from './pages/CreateInvoice';
 
 import { StoreProvider } from './context/StoreContext';
 
@@ -36,6 +37,7 @@ function App() {
             <Route path="appointments" element={<Appointments />} />
             <Route path="services" element={<Services />} />
             <Route path="billing" element={<Billing />} />
+            <Route path="invoices/new" element={<CreateInvoice />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="staff" element={<Staff />} />
             <Route path="reports" element={<Reports />} />

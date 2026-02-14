@@ -27,90 +27,90 @@ export function Reports() {
     const [dateRange, setDateRange] = useState('last-30-days');
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
                 <div>
-                    <h1 className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Reports</h1>
-                    <p className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>Analytics and insights for your clinic</p>
+                    <h1 className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Reports</h1>
+                    <p className={cn("text-sm sm:text-base", isDark ? 'text-gray-400' : 'text-gray-600')}>Analytics and insights for your clinic</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
                     <select
                         value={dateRange}
                         onChange={(e) => setDateRange(e.target.value)}
-                        className={cn("px-4 py-2 rounded-xl outline-none border", isDark ? 'bg-[#1e1e1e] text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200')}
+                        className={cn("w-full sm:w-auto px-4 py-2 rounded-xl outline-none border text-sm", isDark ? 'bg-[#1e1e1e] text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200')}
                     >
                         <option value="last-7-days">Last 7 Days</option>
                         <option value="last-30-days">Last 30 Days</option>
                         <option value="last-90-days">Last 90 Days</option>
                         <option value="this-year">This Year</option>
                     </select>
-                    <button className="bg-[#ff7a6b] text-white px-4 py-2 rounded-xl hover:bg-[#ff6b5b] flex items-center gap-2 transition-colors">
+                    <button className="w-full sm:w-auto bg-[#ff7a6b] text-white px-4 py-2 rounded-xl hover:bg-[#ff6b5b] flex items-center justify-center gap-2 transition-colors">
                         <Download className="w-4 h-4" />
-                        Export
+                        <span className="text-sm sm:text-base">Export</span>
                     </button>
                 </div>
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-4 gap-4">
-                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
-                            <DollarSign className="w-5 h-5 text-green-400" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
                         </div>
-                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Revenue</span>
+                        <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Revenue</span>
                     </div>
-                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>$283,000</p>
-                    <p className="text-green-400 text-xs mt-1">+12.5% vs last month</p>
+                    <p className={cn("text-lg sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>$283,000</p>
+                    <p className="text-green-400 text-[10px] sm:text-xs mt-1">+12.5% vs last month</p>
                 </div>
-                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                            <Users className="w-5 h-5 text-blue-400" />
+                <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
                         </div>
-                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Patients</span>
+                        <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Total Patients</span>
                     </div>
-                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>815</p>
-                    <p className="text-green-400 text-xs mt-1">+8.2% vs last month</p>
+                    <p className={cn("text-lg sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>815</p>
+                    <p className="text-green-400 text-[10px] sm:text-xs mt-1">+8.2% vs last month</p>
                 </div>
-                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                            <FileText className="w-5 h-5 text-purple-400" />
+                <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
                         </div>
-                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Appointments</span>
+                        <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Appointments</span>
                     </div>
-                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>1,245</p>
-                    <p className="text-green-400 text-xs mt-1">+15.3% vs last month</p>
+                    <p className={cn("text-lg sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>1,245</p>
+                    <p className="text-green-400 text-[10px] sm:text-xs mt-1">+15.3% vs last month</p>
                 </div>
-                <div className={cn("rounded-2xl p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
-                            <TrendingUp className="w-5 h-5 text-yellow-400" />
+                <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
                         </div>
-                        <span className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Avg. Revenue/Patient</span>
+                        <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Avg. Revenue/Patient</span>
                     </div>
-                    <p className={cn("text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>$347</p>
-                    <p className="text-red-400 text-xs mt-1">-2.1% vs last month</p>
+                    <p className={cn("text-lg sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>$347</p>
+                    <p className="text-red-400 text-[10px] sm:text-xs mt-1">-2.1% vs last month</p>
                 </div>
             </div>
 
             {/* Charts Row */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 {/* Revenue Chart */}
-                <div className={cn("rounded-2xl p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                    <h3 className={cn("font-semibold mb-4 flex items-center gap-2", isDark ? 'text-white' : 'text-gray-900')}>
-                        <DollarSign className="w-5 h-5 text-[#ff7a6b]" />
+                <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <h3 className={cn("font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base", isDark ? 'text-white' : 'text-gray-900')}>
+                        <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-[#ff7a6b]" />
                         Revenue Trend
                     </h3>
-                    <div className="h-64">
+                    <div className="h-48 sm:h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={monthlyData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#333" : "#e5e7eb"} />
-                                <XAxis dataKey="month" stroke={isDark ? "#666" : "#9ca3af"} />
-                                <YAxis stroke={isDark ? "#666" : "#9ca3af"} />
-                                <Tooltip 
+                                <XAxis dataKey="month" stroke={isDark ? "#666" : "#9ca3af"} fontSize={12} />
+                                <YAxis stroke={isDark ? "#666" : "#9ca3af"} fontSize={12} />
+                                <Tooltip
                                     contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }}
                                     labelStyle={{ color: isDark ? '#fff' : '#111827' }}
                                 />
@@ -121,18 +121,18 @@ export function Reports() {
                 </div>
 
                 {/* Patient Chart */}
-                <div className={cn("rounded-2xl p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                    <h3 className={cn("font-semibold mb-4 flex items-center gap-2", isDark ? 'text-white' : 'text-gray-900')}>
-                        <Users className="w-5 h-5 text-[#8b5cf6]" />
+                <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                    <h3 className={cn("font-semibold mb-4 flex items-center gap-2 text-sm sm:text-base", isDark ? 'text-white' : 'text-gray-900')}>
+                        <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[#8b5cf6]" />
                         Patient Visits
                     </h3>
-                    <div className="h-64">
+                    <div className="h-48 sm:h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={monthlyData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#333" : "#e5e7eb"} />
-                                <XAxis dataKey="month" stroke={isDark ? "#666" : "#9ca3af"} />
-                                <YAxis stroke={isDark ? "#666" : "#9ca3af"} />
-                                <Tooltip 
+                                <XAxis dataKey="month" stroke={isDark ? "#666" : "#9ca3af"} fontSize={12} />
+                                <YAxis stroke={isDark ? "#666" : "#9ca3af"} fontSize={12} />
+                                <Tooltip
                                     contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }}
                                     labelStyle={{ color: isDark ? '#fff' : '#111827' }}
                                 />
@@ -144,18 +144,18 @@ export function Reports() {
             </div>
 
             {/* Service Distribution */}
-            <div className={cn("rounded-2xl p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                <h3 className={cn("font-semibold mb-4", isDark ? 'text-white' : 'text-gray-900')}>Service Distribution</h3>
-                <div className="flex items-center gap-8">
-                    <div className="w-64 h-64">
+            <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                <h3 className={cn("font-semibold mb-4 text-sm sm:text-base", isDark ? 'text-white' : 'text-gray-900')}>Service Distribution</h3>
+                <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
+                    <div className="w-48 h-48 sm:w-64 sm:h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={serviceDistribution}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
+                                    innerRadius={50}
+                                    outerRadius={70}
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
@@ -163,21 +163,21 @@ export function Reports() {
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
                                 </Pie>
-                                <Tooltip 
+                                <Tooltip
                                     contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }}
                                 />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="flex-1 grid grid-cols-2 gap-4">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
                         {serviceDistribution.map((service) => (
                             <div key={service.name} className="flex items-center gap-3">
-                                <div 
-                                    className="w-4 h-4 rounded-full"
+                                <div
+                                    className="w-3 h-3 sm:w-4 sm:h-4 rounded-full flex-shrink-0"
                                     style={{ backgroundColor: service.color }}
                                 />
-                                <div>
-                                    <p className={cn("text-sm", isDark ? 'text-white' : 'text-gray-900')}>{service.name}</p>
+                                <div className="min-w-0">
+                                    <p className={cn("text-xs sm:text-sm truncate", isDark ? 'text-white' : 'text-gray-900')}>{service.name}</p>
                                     <p className={cn("text-xs", isDark ? 'text-gray-400' : 'text-gray-600')}>{service.value}% of total</p>
                                 </div>
                             </div>
