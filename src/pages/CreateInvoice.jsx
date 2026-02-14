@@ -8,10 +8,11 @@ import {
     PDFViewer,
     Font
 } from '@react-pdf/renderer';
-import { ArrowLeft, Save, Plus, Trash2, Download } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
+import { createInvoice } from '../lib/accountingApi';
 
 // Register fonts
 Font.register({
@@ -195,6 +196,9 @@ export function CreateInvoice() {
         discount: 0,
         taxPercent: 0,
     });
+    const [invoiceStatus, setInvoiceStatus] = useState('pending');
+    const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState('');
 
     // Computed data for PDF
     const selectedPatient = patients.find(p => p.id === formState.patientId) || {};
@@ -228,6 +232,46 @@ export function CreateInvoice() {
     const removeItem = (index) => {
         const newItems = formState.items.filter((_, i) => i !== index);
         setFormState(prev => ({ ...prev, items: newItems }));
+    };
+
+    const handleSaveInvoice = async () => {
+        setSubmitError('');
+
+        if (!formState.patientId) {
+            setSubmitError('Please select a customer before saving.');
+            return;
+        }
+
+        if (formState.items.length === 0) {
+            setSubmitError('Add at least one item to create an invoice.');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            await createInvoice({
+                invoiceNumber: formState.invoiceNumber,
+                patientId: selectedPatient.id || null,
+                patientName: selectedPatient.name || '',
+                patientContact: selectedPatient.contact || '',
+                date: formState.date,
+                status: invoiceStatus,
+                items: formState.items.map((item) => ({
+                    name: item.name,
+                    price: Number(item.price),
+                    quantity: Number(item.quantity),
+                })),
+                subtotal: calculatedTotals.subtotal,
+                tax: calculatedTotals.taxAmount,
+                discount: formState.discount,
+                total: calculatedTotals.total,
+            });
+            navigate('/billing');
+        } catch (error) {
+            setSubmitError(error.message || 'Failed to save invoice.');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -391,6 +435,46 @@ export function CreateInvoice() {
                                 ${calculatedTotals.total.toFixed(2)}
                             </span>
                         </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                            <label className={cn("text-sm font-medium", isDark ? "text-gray-300" : "text-gray-700")}>
+                                Invoice Status
+                            </label>
+                            <select
+                                value={invoiceStatus}
+                                onChange={(e) => setInvoiceStatus(e.target.value)}
+                                className={cn(
+                                    "px-3 py-2 rounded-lg text-sm outline-none border",
+                                    isDark
+                                        ? "bg-[#2a2a2a] border-gray-700 text-white"
+                                        : "bg-gray-50 border-gray-200 text-gray-900"
+                                )}
+                            >
+                                <option value="pending">Pending</option>
+                                <option value="paid">Paid</option>
+                                <option value="overdue">Overdue</option>
+                            </select>
+                        </div>
+
+                        {submitError && (
+                            <div className={cn(
+                                "rounded-xl border px-3 py-2 text-sm",
+                                isDark ? "bg-red-500/10 border-red-500/20 text-red-300" : "bg-red-50 border-red-200 text-red-700"
+                            )}>
+                                {submitError}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleSaveInvoice}
+                            disabled={submitting}
+                            className="w-full bg-[#ff7a6b] text-white py-3 rounded-xl hover:bg-[#ff6b5b] transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            <Save className="w-4 h-4" />
+                            {submitting ? 'Saving...' : 'Save Invoice'}
+                        </button>
                     </div>
                 </div>
             </div>

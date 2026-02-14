@@ -261,6 +261,15 @@ export function Header({ onMenuClick }) {
                             <Search className="w-5 h-5" />
                         </button>
 
+                        {/* Mobile New Invoice Button */}
+                        <button
+                            onClick={() => window.location.href = '/invoices/new'}
+                            className="flex items-center justify-center w-10 h-10 rounded-xl text-white shadow-lg shadow-[#ff9a8b]/30 active:scale-95 transition-all"
+                            style={{ backgroundColor: '#ff9a8b' }}
+                        >
+                            <Plus className="w-5 h-5" />
+                        </button>
+
                         {/* Mobile Notifications */}
                         <button className={cn(
                             "relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
