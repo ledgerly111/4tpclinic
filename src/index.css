@@ -1,0 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #000000;
+  --bg-soft: #050505;
+  --surface: #0b0b0b;
+  --surface-strong: #121212;
+  --surface-border: rgba(255, 255, 255, 0.14);
+  --text-main: #e7eefb;
+  --text-muted: #8ea1bc;
+  --accent-coral: #ff7d66;
+  --accent-cyan: #61c8ff;
+  --accent-lime: #7dd581;
+  --accent-gold: #ffbe5c;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Manrope', sans-serif;
+  color: var(--text-main);
+  background: #000;
+  background-attachment: fixed;
+}
+
+body::before {
+  content: '';
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.1;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 92%);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: 0.01em;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(97, 200, 255, 0.9);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dashboard-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.dashboard-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 1.5rem;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.03), transparent 40%);
+}
+
+.dashboard-card {
+  border-radius: 1.5rem;
+  border: 1px solid var(--surface-border);
+  box-shadow: 0 20px 45px rgba(3, 6, 12, 0.42);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 52px rgba(3, 6, 12, 0.55);
+}
+
+.glass-chip {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.surface-chip {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 8, 8, 0.7);
+  backdrop-filter: blur(10px);
+}
+
+@keyframes dashboard-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dashboard-reveal {
+  opacity: 0;
+  animation: dashboard-rise 520ms cubic-bezier(0.21, 1, 0.34, 1) forwards;
+}
+
+.reveal-delay-1 {
+  animation-delay: 80ms;
+}
+
+.reveal-delay-2 {
+  animation-delay: 140ms;
+}
+
+.reveal-delay-3 {
+  animation-delay: 200ms;
+}
+
+.reveal-delay-4 {
+  animation-delay: 260ms;
+}
+
+.reveal-delay-5 {
+  animation-delay: 320ms;
+}
+
+.reveal-delay-6 {
+  animation-delay: 380ms;
+}
