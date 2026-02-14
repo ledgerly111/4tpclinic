@@ -5,8 +5,7 @@ import {
     View,
     Document,
     StyleSheet,
-    PDFViewer,
-    Font
+    PDFViewer
 } from '@react-pdf/renderer';
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -14,18 +13,12 @@ import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 import { createInvoice } from '../lib/accountingApi';
 
-// Register fonts
-Font.register({
-    family: 'Inter',
-    src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.ttf'
-});
-
 const styles = StyleSheet.create({
     page: {
         flexDirection: 'column',
         backgroundColor: '#FFFFFF',
         padding: 40,
-        fontFamily: 'Inter',
+        fontFamily: 'Helvetica',
         color: '#1a1a1a',
     },
     header: {
@@ -190,7 +183,7 @@ export function CreateInvoice() {
 
     const [formState, setFormState] = useState({
         patientId: '',
-        invoiceNumber: `INV-${Math.floor(Math.random() * 10000)}`,
+        invoiceNumber: `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         date: new Date().toISOString().split('T')[0],
         items: [],
         discount: 0,

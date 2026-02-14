@@ -6,12 +6,88 @@ const JSON_HEADERS = {
 };
 
 const INVOICE_STATUSES = new Set(['pending', 'paid', 'overdue', 'void']);
+const ACCOUNTING_SCHEMA_STATEMENTS = [
+    'PRAGMA foreign_keys = ON',
+    `CREATE TABLE IF NOT EXISTS invoices (
+        id TEXT PRIMARY KEY,
+        invoice_number TEXT NOT NULL UNIQUE,
+        patient_id TEXT,
+        patient_name TEXT NOT NULL,
+        patient_contact TEXT,
+        invoice_date TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'paid', 'overdue', 'void')),
+        subtotal_cents INTEGER NOT NULL DEFAULT 0,
+        tax_cents INTEGER NOT NULL DEFAULT 0,
+        discount_cents INTEGER NOT NULL DEFAULT 0,
+        total_cents INTEGER NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS invoice_items (
+        id TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        item_name TEXT NOT NULL,
+        unit_price_cents INTEGER NOT NULL,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        line_total_cents INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS payments (
+        id TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+        payment_date TEXT NOT NULL,
+        method TEXT NOT NULL DEFAULT 'manual',
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)',
+    'CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)',
+    'CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id)',
+    'CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(invoice_id)',
+];
+
+let schemaReady = false;
 
 class HttpError extends Error {
     constructor(status, message) {
         super(message);
         this.name = 'HttpError';
         this.status = status;
+    }
+}
+
+function extractErrorMessage(error) {
+    try {
+        if (!error) return '';
+        if (typeof error === 'string') return error;
+
+        let message = '';
+        try {
+            message = typeof error.message === 'string' ? error.message : '';
+        } catch {
+            message = '';
+        }
+        if (message) return message;
+
+        let causeMessage = '';
+        try {
+            causeMessage = error.cause && typeof error.cause.message === 'string'
+                ? error.cause.message
+                : '';
+        } catch {
+            causeMessage = '';
+        }
+        if (causeMessage) return causeMessage;
+
+        const json = JSON.stringify(error);
+        return typeof json === 'string' ? json : '';
+    } catch {
+        return '';
     }
 }
 
@@ -43,6 +119,22 @@ function jsonResponse(data, status = 200) {
         status,
         headers: JSON_HEADERS,
     });
+}
+
+function requireDb(env) {
+    if (!env.DB) {
+        throw new HttpError(500, 'D1 binding "DB" is missing. Check wrangler.toml.');
+    }
+    return env.DB;
+}
+
+async function ensureSchema(env) {
+    if (schemaReady) return;
+    const db = requireDb(env);
+    await db.batch(
+        ACCOUNTING_SCHEMA_STATEMENTS.map((statement) => db.prepare(statement))
+    );
+    schemaReady = true;
 }
 
 function emptyResponse(status = 204) {
@@ -80,7 +172,28 @@ async function parseJsonRequest(request) {
     }
 }
 
+async function resolveUniqueInvoiceNumber(db, requestedNumber) {
+    const explicit = String(requestedNumber || '').trim();
+    const base = explicit || generateInvoiceNumber();
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        const candidate = attempt === 0
+            ? base
+            : `${base}-${Math.floor(100 + Math.random() * 900)}`;
+        const existing = await db
+            .prepare('SELECT id FROM invoices WHERE invoice_number = ? LIMIT 1')
+            .bind(candidate)
+            .first();
+        if (!existing) {
+            return candidate;
+        }
+    }
+
+    throw new HttpError(409, explicit ? 'Invoice number already exists.' : 'Could not generate a unique invoice number.');
+}
+
 async function listInvoices(env, url) {
+    const db = requireDb(env);
     const q = (url.searchParams.get('q') || '').trim().toLowerCase();
     const status = (url.searchParams.get('status') || '').trim().toLowerCase();
 
@@ -137,7 +250,7 @@ async function listInvoices(env, url) {
 
     sql += ' ORDER BY i.invoice_date DESC, i.created_at DESC';
 
-    const statement = env.DB.prepare(sql);
+    const statement = db.prepare(sql);
     const result = bindings.length > 0
         ? await statement.bind(...bindings).all()
         : await statement.all();
@@ -148,6 +261,7 @@ async function listInvoices(env, url) {
 }
 
 async function createInvoice(env, request) {
+    const db = requireDb(env);
     const body = await parseJsonRequest(request);
 
     const items = Array.isArray(body.items) ? body.items : [];
@@ -180,7 +294,7 @@ async function createInvoice(env, request) {
 
     const status = normalizeInvoiceStatus(body.status || 'pending');
     const invoiceId = crypto.randomUUID();
-    const invoiceNumber = String(body.invoiceNumber || generateInvoiceNumber()).trim();
+    const invoiceNumber = await resolveUniqueInvoiceNumber(db, body.invoiceNumber);
     const invoiceDate = sanitizeDate(body.date);
     const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.lineTotalCents, 0);
     const taxCents = toCents(body.tax);
@@ -188,7 +302,7 @@ async function createInvoice(env, request) {
     const totalCents = Math.max(0, subtotalCents + taxCents - discountCents);
 
     const statements = [
-        env.DB
+        db
             .prepare(`
                 INSERT INTO invoices (
                     id,
@@ -225,7 +339,7 @@ async function createInvoice(env, request) {
 
     normalizedItems.forEach((item) => {
         statements.push(
-            env.DB
+            db
                 .prepare(`
                     INSERT INTO invoice_items (
                         id,
@@ -249,7 +363,7 @@ async function createInvoice(env, request) {
 
     if (status === 'paid' && totalCents > 0) {
         statements.push(
-            env.DB
+            db
                 .prepare(`
                     INSERT INTO payments (
                         id,
@@ -272,13 +386,13 @@ async function createInvoice(env, request) {
     }
 
     try {
-        await env.DB.batch(statements);
+        await db.batch(statements);
     } catch (error) {
-        const message = String(error.message || '');
-        if (message.includes('UNIQUE constraint failed: invoices.invoice_number')) {
+        const message = extractErrorMessage(error);
+        if (message.includes('UNIQUE constraint failed') && message.includes('invoices.invoice_number')) {
             throw new HttpError(409, 'Invoice number already exists.');
         }
-        throw error;
+        throw new HttpError(500, message || 'Failed to create invoice.');
     }
 
     return jsonResponse({
@@ -294,10 +408,11 @@ async function createInvoice(env, request) {
 }
 
 async function updateInvoiceStatus(env, request, invoiceId) {
+    const db = requireDb(env);
     const body = await parseJsonRequest(request);
     const status = normalizeInvoiceStatus(body.status);
 
-    const invoice = await env.DB
+    const invoice = await db
         .prepare(`
             SELECT
                 id,
@@ -315,7 +430,7 @@ async function updateInvoiceStatus(env, request, invoiceId) {
     }
 
     const statements = [
-        env.DB
+        db
             .prepare(`
                 UPDATE invoices
                 SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -325,7 +440,7 @@ async function updateInvoiceStatus(env, request, invoiceId) {
     ];
 
     if (status === 'paid') {
-        const paid = await env.DB
+        const paid = await db
             .prepare('SELECT COALESCE(SUM(amount_cents), 0) AS total FROM payments WHERE invoice_id = ?')
             .bind(invoiceId)
             .first();
@@ -333,7 +448,7 @@ async function updateInvoiceStatus(env, request, invoiceId) {
 
         if (outstanding > 0) {
             statements.push(
-                env.DB
+                db
                     .prepare(`
                         INSERT INTO payments (
                             id,
@@ -356,12 +471,13 @@ async function updateInvoiceStatus(env, request, invoiceId) {
         }
     }
 
-    await env.DB.batch(statements);
+    await db.batch(statements);
     return jsonResponse({ ok: true });
 }
 
 async function getAccountingSummary(env) {
-    const invoicesResult = await env.DB
+    const db = requireDb(env);
+    const invoicesResult = await db
         .prepare(`
             SELECT
                 i.id,
@@ -377,7 +493,7 @@ async function getAccountingSummary(env) {
         `)
         .all();
 
-    const payments = await env.DB
+    const payments = await db
         .prepare('SELECT COALESCE(SUM(amount_cents), 0) AS total FROM payments')
         .first();
 
@@ -418,6 +534,10 @@ export default {
                 });
             }
 
+            if (pathname.startsWith('/api/')) {
+                await ensureSchema(env);
+            }
+
             if (pathname === '/api/invoices' && request.method === 'GET') {
                 return listInvoices(env, url);
             }
@@ -441,9 +561,10 @@ export default {
                 return jsonResponse({ error: error.message }, error.status);
             }
 
+            const detail = extractErrorMessage(error) || 'Unknown error.';
             return jsonResponse({
                 error: 'Internal server error.',
-                detail: String(error.message || error),
+                detail,
             }, 500);
         }
     },

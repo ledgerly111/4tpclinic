@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { Header } from './Header';
 import { cn } from '../lib/utils';
 import { useStore } from '../context/StoreContext';
 

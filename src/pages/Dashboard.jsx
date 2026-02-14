@@ -11,7 +11,7 @@ export function Dashboard() {
             {/* Main Grid Layout - Responsive */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5">
                 {/* Row 1: Revenue Card - Full width on mobile, 7 cols on desktop */}
-                <div className="col-span-1 lg:col-span-7 h-auto min-h-[320px] sm:min-h-[360px] lg:h-[380px]">
+                <div className="col-span-1 lg:col-span-7 h-auto min-h-[320px] sm:min-h-[360px] lg:h-[440px]">
                     <RevenueCard />
                 </div>
 
