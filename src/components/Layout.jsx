@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { MobileBottomNav } from './MobileBottomNav';
+import { Header } from './Header';
 import { cn } from '../lib/utils';
 import { useStore } from '../context/StoreContext';
 
@@ -12,7 +12,7 @@ export function Layout() {
     const scrollRef = useRef(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { theme } = useStore();
-    
+
     const isDark = theme === 'dark';
 
     useEffect(() => {
@@ -34,7 +34,7 @@ export function Layout() {
             isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
         )}>
             <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
-            
+
             <main className="flex-1 lg:ml-20 transition-all duration-300 w-full">
                 {isDashboard ? (
                     <div className="h-screen flex flex-col">
@@ -43,7 +43,7 @@ export function Layout() {
                             ref={scrollRef}
                             className={cn(
                                 "flex-1 overflow-y-auto transition-colors duration-300",
-                                "px-3 pb-20 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-0",
+                                "px-3 pb-4 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-0",
                                 isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
                             )}
                         >
@@ -55,7 +55,7 @@ export function Layout() {
                         <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
                         <div className={cn(
                             "flex-1 transition-colors duration-300",
-                            "px-3 pb-24 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-4",
+                            "px-3 pb-4 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-4",
                             isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
                         )}>
                             <Outlet />
@@ -63,9 +63,6 @@ export function Layout() {
                     </div>
                 )}
             </main>
-
-            {/* Mobile Bottom Navigation */}
-            <MobileBottomNav />
         </div>
     );
 }

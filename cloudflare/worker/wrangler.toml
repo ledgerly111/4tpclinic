@@ -1,0 +1,12 @@
+name = "clinic-software-api"
+main = "src/index.js"
+compatibility_date = "2026-02-14"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clinic-software-db"
+database_id = "1b0134b8-950a-426f-8934-26734c1a89dc"
+migrations_dir = "migrations"
