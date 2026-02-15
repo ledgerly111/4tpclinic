@@ -16,11 +16,11 @@ export function Dashboard() {
                 </div>
 
                 {/* Right Column - Alert + Quick Actions */}
-                <div className="col-span-1 lg:col-span-5 flex flex-col gap-4 lg:gap-5 h-auto">
+                <div className="col-span-1 lg:col-span-5 flex flex-col gap-4 lg:gap-5 h-auto lg:h-[440px]">
                     <div className="h-auto min-h-[80px] lg:h-[100px]">
                         <AlertCard />
                     </div>
-                    <div className="flex-1 min-h-[220px] sm:min-h-[240px] lg:min-h-0">
+                    <div className="flex-1 min-h-[220px] sm:min-h-[240px] lg:h-[320px]">
                         <QuickActionsCard />
                     </div>
                 </div>

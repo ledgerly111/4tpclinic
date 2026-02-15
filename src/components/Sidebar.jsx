@@ -1,14 +1,14 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-    LayoutDashboard,
+    LayoutGrid,
     Users,
-    Calendar,
-    CreditCard,
+    CalendarClock,
+    Receipt,
     Package,
     Settings,
-    FileText,
+    UserCog,
     Stethoscope,
-    TrendingUp,
+    BarChart3,
     HelpCircle,
     X,
     LogOut,
@@ -18,14 +18,14 @@ import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    { icon: Calendar, label: 'Appointments', path: '/appointments' },
+    { icon: LayoutGrid, label: 'Dashboard', path: '/' },
+    { icon: CalendarClock, label: 'Appointments', path: '/appointments' },
     { icon: Users, label: 'Patients', path: '/patients' },
     { icon: Stethoscope, label: 'Services', path: '/services' },
-    { icon: CreditCard, label: 'Billing', path: '/billing' },
+    { icon: Receipt, label: 'Billing', path: '/billing' },
     { icon: Package, label: 'Inventory', path: '/inventory' },
-    { icon: TrendingUp, label: 'Reports', path: '/reports' },
-    { icon: FileText, label: 'Supervision', path: '/staff' },
+    { icon: BarChart3, label: 'Reports', path: '/reports' },
+    { icon: UserCog, label: 'Supervision', path: '/staff' },
 ];
 
 const bottomNavItems = [
@@ -53,7 +53,7 @@ export function Sidebar({ isOpen, onClose }) {
                     {/* Logo with glow effect */}
                     <div className="mb-8 relative flex-shrink-0">
                         <div className={cn(
-                            "w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-emerald-500/20",
+                            "w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 hover:shadow-emerald-500/20",
                             isDark ? 'bg-[#1f1f1f]' : 'bg-gray-100'
                         )}>
                             <Stethoscope className="w-6 h-6 text-emerald-400" />
@@ -76,28 +76,27 @@ export function Sidebar({ isOpen, onClose }) {
                                     <div className={cn(
                                         "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300 relative overflow-hidden",
                                         isActive
-                                            ? "bg-gradient-to-br from-[#ff7a6b] to-[#ff6b5b] text-white shadow-lg shadow-[#ff7a6b]/30 scale-105 sidebar-active-icon nav-active-pulse"
+                                            ? "bg-gradient-to-br from-[#ff7a6b] to-[#ff6b5b] text-white shadow-lg shadow-[#ff7a6b]/30"
                                             : isDark
-                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f] hover:scale-105"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 hover:scale-105"
+                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f]"
+                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                                     )}>
                                         {/* Hover glow effect */}
                                         {!isActive && (
                                             <div className="absolute inset-0 bg-gradient-to-br from-[#ff7a6b]/0 to-[#ff7a6b]/0 group-hover:from-[#ff7a6b]/10 group-hover:to-transparent transition-all duration-300 rounded-2xl" />
                                         )}
                                         <item.icon className={cn(
-                                            "w-5 h-5 transition-all duration-300 relative z-10",
-                                            isActive ? "scale-110" : "group-hover:scale-110"
+                                            "w-5 h-5 transition-all duration-300 relative z-10"
                                         )} />
                                     </div>
-                                    
+
                                     {/* Tooltip with animation */}
                                     <div className={cn(
                                         "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
                                         "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
                                         "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
-                                        isDark 
-                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl" 
+                                        isDark
+                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl"
                                             : "bg-white text-gray-900 border border-gray-200 shadow-xl"
                                     )}>
                                         {item.label}
@@ -136,26 +135,26 @@ export function Sidebar({ isOpen, onClose }) {
                                     <div className={cn(
                                         "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300 relative overflow-hidden",
                                         isActive
-                                            ? isDark 
-                                                ? "bg-[#1f1f1f] text-white shadow-lg" 
+                                            ? isDark
+                                                ? "bg-[#1f1f1f] text-white shadow-lg"
                                                 : "bg-gray-200 text-gray-900 shadow-lg"
                                             : isDark
-                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f] hover:scale-105"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 hover:scale-105"
+                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f]"
+                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                                     )}>
                                         <item.icon className={cn(
                                             "w-5 h-5 transition-all duration-300",
                                             isActive ? "" : "group-hover:rotate-12"
                                         )} />
                                     </div>
-                                    
+
                                     {/* Tooltip */}
                                     <div className={cn(
                                         "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
                                         "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
                                         "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
-                                        isDark 
-                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl" 
+                                        isDark
+                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl"
                                             : "bg-white text-gray-900 border border-gray-200 shadow-xl"
                                     )}>
                                         {item.label}
@@ -176,19 +175,19 @@ export function Sidebar({ isOpen, onClose }) {
                             <div className={cn(
                                 "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300",
                                 isDark
-                                    ? "text-red-400 hover:bg-red-500/10 hover:scale-105"
-                                    : "text-red-500 hover:bg-red-50 hover:scale-105"
+                                    ? "text-red-400 hover:bg-red-500/10"
+                                    : "text-red-500 hover:bg-red-50"
                             )}>
                                 <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12" />
                             </div>
-                            
+
                             {/* Tooltip */}
                             <div className={cn(
                                 "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
                                 "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
                                 "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
-                                isDark 
-                                    ? "bg-[#1f1f1f] text-red-400 border border-gray-800 shadow-2xl" 
+                                isDark
+                                    ? "bg-[#1f1f1f] text-red-400 border border-gray-800 shadow-2xl"
                                     : "bg-white text-red-500 border border-gray-200 shadow-xl"
                             )}>
                                 Logout
@@ -208,11 +207,11 @@ export function Sidebar({ isOpen, onClose }) {
                 isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
             )}>
                 {/* Backdrop */}
-                <div 
+                <div
                     className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                     onClick={onClose}
                 />
-                
+
                 {/* Drawer Panel */}
                 <aside className={cn(
                     "absolute left-0 top-0 bottom-0 w-[280px] flex flex-col transition-transform duration-300 ease-out shadow-2xl",
@@ -315,8 +314,8 @@ export function Sidebar({ isOpen, onClose }) {
                                     >
                                         <div className={cn(
                                             "w-10 h-10 rounded-xl flex items-center justify-center",
-                                            active 
-                                                ? isDark ? "bg-[#0f0f0f]" : "bg-white" 
+                                            active
+                                                ? isDark ? "bg-[#0f0f0f]" : "bg-white"
                                                 : isDark ? "bg-[#1f1f1f]" : "bg-gray-100"
                                         )}>
                                             <item.icon className="w-5 h-5" />
@@ -340,8 +339,8 @@ export function Sidebar({ isOpen, onClose }) {
                             }}
                             className={cn(
                                 "flex items-center gap-3 w-full px-3 py-3 rounded-xl transition-all duration-200",
-                                isDark 
-                                    ? "text-red-400 hover:bg-red-500/10" 
+                                isDark
+                                    ? "text-red-400 hover:bg-red-500/10"
                                     : "text-red-500 hover:bg-red-50"
                             )}
                         >

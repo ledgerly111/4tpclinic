@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Patients } from './pages/Patients';
 import { Appointments } from './pages/Appointments';
 import { Billing } from './pages/Billing';
+import { CreateInvoice } from './pages/CreateInvoice';
 import { Inventory } from './pages/Inventory';
 import { Services } from './pages/Services';
 import { Staff } from './pages/Staff';
@@ -80,6 +81,11 @@ function App() {
                 <Route path="billing" element={
                   <RoleGuard allowedRoles={['admin', 'staff']}>
                     <Billing />
+                  </RoleGuard>
+                } />
+                <Route path="invoices/new" element={
+                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                    <CreateInvoice />
                   </RoleGuard>
                 } />
                 <Route path="inventory" element={

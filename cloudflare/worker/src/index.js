@@ -1,11 +1,12 @@
 const JSON_HEADERS = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Clinic-Id',
 };
 
 const INVOICE_STATUSES = new Set(['pending', 'paid', 'overdue', 'void']);
+const APPOINTMENT_STATUSES = new Set(['scheduled', 'in-progress', 'completed', 'cancelled']);
 const SUPER_ADMIN_DEFAULT = {
     username: 'aadhila003@gmail.com',
     email: 'aadhila003@gmail.com',
@@ -98,6 +99,81 @@ const SCHEMA_STATEMENTS = [
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
     )`,
+    `CREATE TABLE IF NOT EXISTS patients (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        age INTEGER,
+        gender TEXT,
+        contact TEXT,
+        medical_history TEXT,
+        last_visit TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS services (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        price_cents INTEGER NOT NULL DEFAULT 0,
+        duration_minutes INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS inventory_items (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        unit TEXT NOT NULL,
+        stock_quantity INTEGER NOT NULL DEFAULT 0,
+        reorder_threshold INTEGER NOT NULL DEFAULT 0,
+        cost_price_cents INTEGER NOT NULL DEFAULT 0,
+        sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS inventory_transactions (
+        id TEXT PRIMARY KEY,
+        inventory_item_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('purchase', 'sale', 'adjustment')),
+        quantity INTEGER NOT NULL,
+        unit_cost_cents INTEGER NOT NULL DEFAULT 0,
+        reference_type TEXT,
+        reference_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS appointments (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        patient_id TEXT,
+        patient_name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        doctor TEXT,
+        scheduled_date TEXT NOT NULL,
+        scheduled_time TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('scheduled', 'in-progress', 'completed', 'cancelled')),
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+    )`,
     'CREATE INDEX IF NOT EXISTS idx_clinics_org_id ON clinics(organization_id)',
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_clinics_org_code_unique ON clinics(organization_id, code)',
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower_unique ON users(LOWER(username))',
@@ -110,6 +186,16 @@ const SCHEMA_STATEMENTS = [
     'CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)',
     'CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id)',
     'CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(invoice_id)',
+    'CREATE INDEX IF NOT EXISTS idx_patients_org_id ON patients(organization_id)',
+    'CREATE INDEX IF NOT EXISTS idx_patients_clinic_id ON patients(clinic_id)',
+    'CREATE INDEX IF NOT EXISTS idx_services_org_id ON services(organization_id)',
+    'CREATE INDEX IF NOT EXISTS idx_services_clinic_id ON services(clinic_id)',
+    'CREATE INDEX IF NOT EXISTS idx_inventory_org_id ON inventory_items(organization_id)',
+    'CREATE INDEX IF NOT EXISTS idx_inventory_clinic_id ON inventory_items(clinic_id)',
+    'CREATE INDEX IF NOT EXISTS idx_inventory_tx_item_id ON inventory_transactions(inventory_item_id)',
+    'CREATE INDEX IF NOT EXISTS idx_appointments_org_id ON appointments(organization_id)',
+    'CREATE INDEX IF NOT EXISTS idx_appointments_clinic_id ON appointments(clinic_id)',
+    'CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(scheduled_date)',
 ];
 
 let schemaReady = false;
@@ -153,6 +239,14 @@ function normalizeInvoiceStatus(status) {
     const normalized = String(status || 'pending').toLowerCase();
     if (!INVOICE_STATUSES.has(normalized)) {
         throw new HttpError(400, 'Invalid invoice status.');
+    }
+    return normalized;
+}
+
+function normalizeAppointmentStatus(status) {
+    const normalized = String(status || 'scheduled').toLowerCase();
+    if (!APPOINTMENT_STATUSES.has(normalized)) {
+        throw new HttpError(400, 'Invalid appointment status.');
     }
     return normalized;
 }
@@ -201,6 +295,18 @@ async function ensureInvoicesTenantColumns(db) {
     await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_clinic_id ON invoices(clinic_id)').run();
 }
 
+async function ensureInvoiceItemColumns(db) {
+    const tableInfo = await db.prepare('PRAGMA table_info(invoice_items)').all();
+    const names = new Set((tableInfo.results || []).map((c) => c.name));
+
+    if (!names.has('item_type')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN item_type TEXT').run();
+    }
+    if (!names.has('inventory_item_id')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN inventory_item_id TEXT').run();
+    }
+}
+
 async function ensureSuperAdminUser(db) {
     const existing = await db
         .prepare('SELECT id FROM users WHERE role = ? LIMIT 1')
@@ -240,6 +346,7 @@ async function ensureSchema(env) {
     const db = requireDb(env);
     await db.batch(SCHEMA_STATEMENTS.map((statement) => db.prepare(statement)));
     await ensureInvoicesTenantColumns(db);
+    await ensureInvoiceItemColumns(db);
     await ensureSuperAdminUser(db);
     schemaReady = true;
 }
@@ -919,6 +1026,665 @@ async function resetUserPassword(env, request, targetUserId) {
     return jsonResponse({ ok: true });
 }
 
+async function listPatients(env, request, url) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
+
+    let sql = `
+        SELECT id, organization_id, clinic_id, name, age, gender, contact, medical_history, last_visit, created_at
+        FROM patients
+        WHERE 1 = 1
+    `;
+    const bindings = [];
+
+    if (user.role === 'admin' || user.role === 'staff') {
+        sql += ' AND organization_id = ?';
+        bindings.push(user.organizationId);
+    }
+
+    if (user.role === 'staff') {
+        if (!user.clinicIds?.length) return jsonResponse({ patients: [] });
+        const placeholders = user.clinicIds.map(() => '?').join(',');
+        sql += ` AND clinic_id IN (${placeholders})`;
+        bindings.push(...user.clinicIds);
+    }
+
+    if (activeClinicId) {
+        sql += ' AND clinic_id = ?';
+        bindings.push(activeClinicId);
+    }
+
+    if (q) {
+        sql += ' AND (LOWER(name) LIKE ? OR LOWER(contact) LIKE ?)';
+        bindings.push(`%${q}%`, `%${q}%`);
+    }
+
+    sql += ' ORDER BY created_at DESC';
+
+    const result = bindings.length > 0
+        ? await db.prepare(sql).bind(...bindings).all()
+        : await db.prepare(sql).all();
+
+    return jsonResponse({
+        patients: (result.results || []).map((row) => ({
+            id: row.id,
+            organizationId: row.organization_id,
+            clinicId: row.clinic_id,
+            name: row.name,
+            age: row.age ?? '',
+            gender: row.gender || '',
+            contact: row.contact || '',
+            medicalHistory: row.medical_history ? JSON.parse(row.medical_history) : [],
+            lastVisit: row.last_visit || '',
+            createdAt: row.created_at,
+        })),
+    });
+}
+
+async function createPatient(env, request) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const name = String(body.name || '').trim();
+    if (!name) throw new HttpError(400, 'Patient name is required.');
+
+    const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
+    const organizationId = user.role === 'super_admin'
+        ? String(body.organizationId || '').trim()
+        : user.organizationId;
+
+    if (!organizationId || !activeClinicId) {
+        throw new HttpError(400, 'Organization and clinic are required.');
+    }
+
+    const id = crypto.randomUUID();
+    const age = Number.parseInt(body.age, 10);
+    const medicalHistory = Array.isArray(body.medicalHistory)
+        ? body.medicalHistory.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+    const lastVisit = sanitizeDate(body.lastVisit || new Date().toISOString());
+
+    await db.prepare(`
+        INSERT INTO patients (
+            id, organization_id, clinic_id, name, age, gender, contact, medical_history, last_visit
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        id,
+        organizationId,
+        activeClinicId,
+        name,
+        Number.isFinite(age) ? age : null,
+        body.gender ? String(body.gender) : null,
+        body.contact ? String(body.contact) : null,
+        JSON.stringify(medicalHistory),
+        lastVisit
+    ).run();
+
+    return jsonResponse({
+        patient: {
+            id,
+            organizationId,
+            clinicId: activeClinicId,
+            name,
+            age: Number.isFinite(age) ? age : '',
+            gender: body.gender || '',
+            contact: body.contact || '',
+            medicalHistory,
+            lastVisit,
+        },
+    }, 201);
+}
+
+async function deletePatient(env, request, patientId) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+
+    const patient = await db
+        .prepare('SELECT id, organization_id, clinic_id FROM patients WHERE id = ? LIMIT 1')
+        .bind(patientId)
+        .first();
+    if (!patient) throw new HttpError(404, 'Patient not found.');
+
+    if (user.role === 'admin' && patient.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Patient is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (patient.organization_id !== user.organizationId || !user.clinicIds.includes(patient.clinic_id)) {
+            throw new HttpError(403, 'Patient is outside your scope.');
+        }
+    }
+
+    await db.prepare('DELETE FROM patients WHERE id = ?').bind(patientId).run();
+    return jsonResponse({ ok: true });
+}
+
+async function listServices(env, request, url) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
+
+    let sql = `
+        SELECT id, organization_id, clinic_id, name, price_cents, duration_minutes, created_at
+        FROM services
+        WHERE 1 = 1
+    `;
+    const bindings = [];
+
+    if (user.role === 'admin' || user.role === 'staff') {
+        sql += ' AND organization_id = ?';
+        bindings.push(user.organizationId);
+    }
+    if (user.role === 'staff') {
+        if (!user.clinicIds?.length) return jsonResponse({ services: [] });
+        const placeholders = user.clinicIds.map(() => '?').join(',');
+        sql += ` AND clinic_id IN (${placeholders})`;
+        bindings.push(...user.clinicIds);
+    }
+    if (activeClinicId) {
+        sql += ' AND clinic_id = ?';
+        bindings.push(activeClinicId);
+    }
+    if (q) {
+        sql += ' AND LOWER(name) LIKE ?';
+        bindings.push(`%${q}%`);
+    }
+
+    sql += ' ORDER BY created_at DESC';
+
+    const result = bindings.length > 0
+        ? await db.prepare(sql).bind(...bindings).all()
+        : await db.prepare(sql).all();
+
+    return jsonResponse({
+        services: (result.results || []).map((row) => ({
+            id: row.id,
+            organizationId: row.organization_id,
+            clinicId: row.clinic_id,
+            name: row.name,
+            price: fromCents(row.price_cents),
+            duration: row.duration_minutes,
+            type: 'service',
+            createdAt: row.created_at,
+        })),
+    });
+}
+
+async function createService(env, request) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+    const name = String(body.name || '').trim();
+    if (!name) throw new HttpError(400, 'Service name is required.');
+
+    const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
+    const organizationId = user.role === 'super_admin'
+        ? String(body.organizationId || '').trim()
+        : user.organizationId;
+
+    if (!organizationId || !activeClinicId) throw new HttpError(400, 'Organization and clinic are required.');
+
+    const id = crypto.randomUUID();
+    const duration = Number.parseInt(body.duration, 10) || 0;
+    const priceCents = toCents(body.price);
+
+    await db.prepare(`
+        INSERT INTO services (id, organization_id, clinic_id, name, price_cents, duration_minutes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(id, organizationId, activeClinicId, name, priceCents, duration).run();
+
+    return jsonResponse({
+        service: {
+            id,
+            organizationId,
+            clinicId: activeClinicId,
+            name,
+            price: fromCents(priceCents),
+            duration,
+            type: 'service',
+        },
+    }, 201);
+}
+
+async function deleteService(env, request, serviceId) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const service = await db
+        .prepare('SELECT id, organization_id, clinic_id FROM services WHERE id = ? LIMIT 1')
+        .bind(serviceId)
+        .first();
+    if (!service) throw new HttpError(404, 'Service not found.');
+
+    if (user.role === 'admin' && service.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Service is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (service.organization_id !== user.organizationId || !user.clinicIds.includes(service.clinic_id)) {
+            throw new HttpError(403, 'Service is outside your scope.');
+        }
+    }
+
+    await db.prepare('DELETE FROM services WHERE id = ?').bind(serviceId).run();
+    return jsonResponse({ ok: true });
+}
+
+async function listInventory(env, request, url) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
+
+    let sql = `
+        SELECT
+            id, organization_id, clinic_id, name, category, unit, stock_quantity,
+            reorder_threshold, cost_price_cents, sell_price_cents, created_at, updated_at
+        FROM inventory_items
+        WHERE 1 = 1
+    `;
+    const bindings = [];
+
+    if (user.role === 'admin' || user.role === 'staff') {
+        sql += ' AND organization_id = ?';
+        bindings.push(user.organizationId);
+    }
+    if (user.role === 'staff') {
+        if (!user.clinicIds?.length) return jsonResponse({ items: [] });
+        const placeholders = user.clinicIds.map(() => '?').join(',');
+        sql += ` AND clinic_id IN (${placeholders})`;
+        bindings.push(...user.clinicIds);
+    }
+    if (activeClinicId) {
+        sql += ' AND clinic_id = ?';
+        bindings.push(activeClinicId);
+    }
+    if (q) {
+        sql += ' AND (LOWER(name) LIKE ? OR LOWER(category) LIKE ?)';
+        bindings.push(`%${q}%`, `%${q}%`);
+    }
+    sql += ' ORDER BY created_at DESC';
+
+    const result = bindings.length > 0
+        ? await db.prepare(sql).bind(...bindings).all()
+        : await db.prepare(sql).all();
+
+    return jsonResponse({
+        items: (result.results || []).map((row) => ({
+            id: row.id,
+            organizationId: row.organization_id,
+            clinicId: row.clinic_id,
+            name: row.name,
+            category: row.category,
+            unit: row.unit,
+            stock: row.stock_quantity,
+            threshold: row.reorder_threshold,
+            costPrice: fromCents(row.cost_price_cents),
+            sellPrice: fromCents(row.sell_price_cents),
+            status: row.stock_quantity <= 0
+                ? 'critical'
+                : row.stock_quantity <= row.reorder_threshold
+                    ? 'low'
+                    : 'good',
+            type: 'inventory',
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+        })),
+    });
+}
+
+async function createInventoryItem(env, request) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const name = String(body.name || '').trim();
+    const category = String(body.category || '').trim() || 'General';
+    const unit = String(body.unit || '').trim() || 'pcs';
+    if (!name) throw new HttpError(400, 'Item name is required.');
+
+    const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
+    const organizationId = user.role === 'super_admin'
+        ? String(body.organizationId || '').trim()
+        : user.organizationId;
+    if (!organizationId || !activeClinicId) throw new HttpError(400, 'Organization and clinic are required.');
+
+    const id = crypto.randomUUID();
+    const stock = Math.max(0, Number.parseInt(body.stock, 10) || 0);
+    const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
+    const costCents = toCents(body.costPrice);
+    const sellCents = toCents(body.sellPrice);
+
+    const statements = [
+        db.prepare(`
+            INSERT INTO inventory_items (
+                id, organization_id, clinic_id, name, category, unit,
+                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, organizationId, activeClinicId, name, category, unit, stock, threshold, costCents, sellCents),
+    ];
+
+    if (stock > 0) {
+        statements.push(
+            db.prepare(`
+                INSERT INTO inventory_transactions (
+                    id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
+                ) VALUES (?, ?, ?, ?, 'purchase', ?, ?, 'inventory_create')
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, stock, costCents)
+        );
+    }
+
+    await db.batch(statements);
+
+    return jsonResponse({
+        item: {
+            id,
+            organizationId,
+            clinicId: activeClinicId,
+            name,
+            category,
+            unit,
+            stock,
+            threshold,
+            costPrice: fromCents(costCents),
+            sellPrice: fromCents(sellCents),
+            type: 'inventory',
+        },
+    }, 201);
+}
+
+async function restockInventoryItem(env, request, itemId) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+    const quantity = Number.parseInt(body.quantity, 10) || 0;
+    if (quantity <= 0) throw new HttpError(400, 'Quantity must be greater than zero.');
+
+    const item = await db
+        .prepare(`
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents
+            FROM inventory_items
+            WHERE id = ?
+            LIMIT 1
+        `)
+        .bind(itemId)
+        .first();
+    if (!item) throw new HttpError(404, 'Inventory item not found.');
+
+    if (user.role === 'admin' && item.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Item is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (item.organization_id !== user.organizationId || !user.clinicIds.includes(item.clinic_id)) {
+            throw new HttpError(403, 'Item is outside your scope.');
+        }
+    }
+
+    const unitCostCents = toCents(body.costPrice ?? fromCents(item.cost_price_cents || 0));
+    await db.batch([
+        db.prepare(`
+            UPDATE inventory_items
+            SET stock_quantity = stock_quantity + ?, cost_price_cents = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+        `).bind(quantity, unitCostCents, itemId),
+        db.prepare(`
+            INSERT INTO inventory_transactions (
+                id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
+            ) VALUES (?, ?, ?, ?, 'purchase', ?, ?, 'manual_restock')
+        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, quantity, unitCostCents),
+    ]);
+
+    return jsonResponse({ ok: true });
+}
+
+async function listAppointments(env, request, url) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const date = sanitizeDate(url.searchParams.get('date') || new Date().toISOString());
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
+
+    let sql = `
+        SELECT
+            id, organization_id, clinic_id, patient_id, patient_name, type, doctor,
+            scheduled_date, scheduled_time, status, notes, created_at
+        FROM appointments
+        WHERE scheduled_date = ?
+    `;
+    const bindings = [date];
+
+    if (user.role === 'admin' || user.role === 'staff') {
+        sql += ' AND organization_id = ?';
+        bindings.push(user.organizationId);
+    }
+    if (user.role === 'staff') {
+        if (!user.clinicIds?.length) return jsonResponse({ appointments: [] });
+        const placeholders = user.clinicIds.map(() => '?').join(',');
+        sql += ` AND clinic_id IN (${placeholders})`;
+        bindings.push(...user.clinicIds);
+    }
+    if (activeClinicId) {
+        sql += ' AND clinic_id = ?';
+        bindings.push(activeClinicId);
+    }
+    sql += ' ORDER BY scheduled_time ASC, created_at ASC';
+
+    const result = await db.prepare(sql).bind(...bindings).all();
+    return jsonResponse({
+        appointments: (result.results || []).map((row) => ({
+            id: row.id,
+            organizationId: row.organization_id,
+            clinicId: row.clinic_id,
+            patientId: row.patient_id,
+            patient: row.patient_name,
+            type: row.type,
+            doctor: row.doctor || '',
+            time: row.scheduled_time,
+            date: row.scheduled_date,
+            status: row.status,
+            notes: row.notes || '',
+            createdAt: row.created_at,
+        })),
+    });
+}
+
+async function createAppointment(env, request) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const patientName = String(body.patientName || '').trim();
+    const type = String(body.type || '').trim();
+    const scheduledDate = sanitizeDate(body.date || new Date().toISOString());
+    const scheduledTime = String(body.time || '').trim();
+    if (!patientName || !type || !scheduledTime) {
+        throw new HttpError(400, 'Patient, type and time are required.');
+    }
+
+    const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
+    const organizationId = user.role === 'super_admin'
+        ? String(body.organizationId || '').trim()
+        : user.organizationId;
+    if (!organizationId || !activeClinicId) throw new HttpError(400, 'Organization and clinic are required.');
+
+    const id = crypto.randomUUID();
+    const status = normalizeAppointmentStatus(body.status || 'scheduled');
+
+    await db.prepare(`
+        INSERT INTO appointments (
+            id, organization_id, clinic_id, patient_id, patient_name, type, doctor,
+            scheduled_date, scheduled_time, status, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        id,
+        organizationId,
+        activeClinicId,
+        body.patientId ? String(body.patientId) : null,
+        patientName,
+        type,
+        body.doctor ? String(body.doctor) : null,
+        scheduledDate,
+        scheduledTime,
+        status,
+        body.notes ? String(body.notes) : null
+    ).run();
+
+    return jsonResponse({
+        appointment: {
+            id,
+            organizationId,
+            clinicId: activeClinicId,
+            patientId: body.patientId || null,
+            patient: patientName,
+            type,
+            doctor: body.doctor || '',
+            date: scheduledDate,
+            time: scheduledTime,
+            status,
+            notes: body.notes || '',
+        },
+    }, 201);
+}
+
+async function updateAppointmentStatus(env, request, appointmentId) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+    const status = normalizeAppointmentStatus(body.status);
+
+    const appointment = await db
+        .prepare('SELECT id, organization_id, clinic_id FROM appointments WHERE id = ? LIMIT 1')
+        .bind(appointmentId)
+        .first();
+    if (!appointment) throw new HttpError(404, 'Appointment not found.');
+
+    if (user.role === 'admin' && appointment.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Appointment is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (appointment.organization_id !== user.organizationId || !user.clinicIds.includes(appointment.clinic_id)) {
+            throw new HttpError(403, 'Appointment is outside your scope.');
+        }
+    }
+
+    await db.prepare(`
+        UPDATE appointments
+        SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+    `).bind(status, appointmentId).run();
+
+    return jsonResponse({ ok: true });
+}
+
+async function getReportsOverview(env, request) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
+
+    let scopeSql = '';
+    const scopeBindings = [];
+    if (user.role === 'admin' || user.role === 'staff') {
+        scopeSql += ' AND organization_id = ?';
+        scopeBindings.push(user.organizationId);
+    }
+    if (user.role === 'staff') {
+        if (!user.clinicIds?.length) {
+            return jsonResponse({ monthlyRevenue: [], patientCount: 0, lowStockCount: 0, appointmentCount: 0 });
+        }
+        const placeholders = user.clinicIds.map(() => '?').join(',');
+        scopeSql += ` AND clinic_id IN (${placeholders})`;
+        scopeBindings.push(...user.clinicIds);
+    }
+    if (activeClinicId) {
+        scopeSql += ' AND clinic_id = ?';
+        scopeBindings.push(activeClinicId);
+    }
+
+    const patients = await db.prepare(`SELECT COUNT(*) AS total FROM patients WHERE 1=1 ${scopeSql}`).bind(...scopeBindings).first();
+    const lowStock = await db.prepare(`SELECT COUNT(*) AS total FROM inventory_items WHERE stock_quantity <= reorder_threshold ${scopeSql}`).bind(...scopeBindings).first();
+    const appointments = await db.prepare(`SELECT COUNT(*) AS total FROM appointments WHERE 1=1 ${scopeSql}`).bind(...scopeBindings).first();
+
+    const revenueRows = await db.prepare(`
+        SELECT substr(invoice_date, 1, 7) AS month, COALESCE(SUM(total_cents), 0) AS total
+        FROM invoices
+        WHERE status != 'void' ${scopeSql}
+        GROUP BY substr(invoice_date, 1, 7)
+        ORDER BY month ASC
+        LIMIT 12
+    `).bind(...scopeBindings).all();
+
+    return jsonResponse({
+        monthlyRevenue: (revenueRows.results || []).map((row) => ({
+            month: row.month,
+            revenue: fromCents(row.total),
+        })),
+        patientCount: Number(patients?.total || 0),
+        lowStockCount: Number(lowStock?.total || 0),
+        appointmentCount: Number(appointments?.total || 0),
+    });
+}
+
+async function getInvoiceDetails(env, request, invoiceId) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+
+    const invoice = await db.prepare(`
+        SELECT
+            id, organization_id, clinic_id, invoice_number, patient_id, patient_name,
+            patient_contact, invoice_date, status, subtotal_cents, tax_cents,
+            discount_cents, total_cents, notes, created_at
+        FROM invoices
+        WHERE id = ?
+        LIMIT 1
+    `).bind(invoiceId).first();
+
+    if (!invoice) throw new HttpError(404, 'Invoice not found.');
+    if (user.role === 'admin' && invoice.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Invoice is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (invoice.organization_id !== user.organizationId || !user.clinicIds.includes(invoice.clinic_id)) {
+            throw new HttpError(403, 'Invoice is outside your scope.');
+        }
+    }
+
+    const itemsResult = await db.prepare(`
+        SELECT id, item_name, unit_price_cents, quantity, line_total_cents, item_type, inventory_item_id
+        FROM invoice_items
+        WHERE invoice_id = ?
+        ORDER BY created_at ASC
+    `).bind(invoiceId).all();
+
+    return jsonResponse({
+        invoice: {
+            id: invoice.id,
+            organizationId: invoice.organization_id,
+            clinicId: invoice.clinic_id,
+            invoiceNumber: invoice.invoice_number,
+            patientId: invoice.patient_id,
+            patientName: invoice.patient_name,
+            patientContact: invoice.patient_contact || '',
+            date: invoice.invoice_date,
+            status: invoice.status,
+            subtotal: fromCents(invoice.subtotal_cents),
+            tax: fromCents(invoice.tax_cents),
+            discount: fromCents(invoice.discount_cents),
+            total: fromCents(invoice.total_cents),
+            notes: invoice.notes || '',
+            createdAt: invoice.created_at,
+            items: (itemsResult.results || []).map((item) => ({
+                id: item.id,
+                name: item.item_name,
+                price: fromCents(item.unit_price_cents),
+                quantity: item.quantity,
+                total: fromCents(item.line_total_cents),
+                itemType: item.item_type || 'service',
+                inventoryItemId: item.inventory_item_id || null,
+            })),
+        },
+    });
+}
+
 async function listInvoices(env, request, url) {
     const { user } = await requireAuth(request, env);
     const db = requireDb(env);
@@ -1019,6 +1785,10 @@ async function createInvoice(env, request) {
         const name = String(item.name || '').trim();
         const quantity = Math.max(1, Number.parseInt(item.quantity, 10) || 1);
         const unitPriceCents = toCents(item.price);
+        const itemType = String(item.itemType || 'service').toLowerCase() === 'inventory' ? 'inventory' : 'service';
+        const inventoryItemId = itemType === 'inventory' && item.inventoryItemId
+            ? String(item.inventoryItemId).trim()
+            : null;
         if (!name) throw new HttpError(400, 'Each invoice item must include a name.');
         return {
             id: crypto.randomUUID(),
@@ -1026,6 +1796,8 @@ async function createInvoice(env, request) {
             quantity,
             unitPriceCents,
             lineTotalCents: quantity * unitPriceCents,
+            itemType,
+            inventoryItemId,
         };
     });
 
@@ -1096,8 +1868,10 @@ async function createInvoice(env, request) {
                         item_name,
                         unit_price_cents,
                         quantity,
-                        line_total_cents
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        line_total_cents,
+                        item_type,
+                        inventory_item_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `)
                 .bind(
                     item.id,
@@ -1105,10 +1879,60 @@ async function createInvoice(env, request) {
                     item.name,
                     item.unitPriceCents,
                     item.quantity,
-                    item.lineTotalCents
+                    item.lineTotalCents,
+                    item.itemType,
+                    item.inventoryItemId
                 )
         );
     });
+
+    const inventoryItems = normalizedItems.filter((item) => item.itemType === 'inventory');
+    for (const item of inventoryItems) {
+        if (!item.inventoryItemId) {
+            throw new HttpError(400, 'Inventory item is missing inventoryItemId.');
+        }
+
+        const inventoryRow = await db.prepare(`
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents
+            FROM inventory_items
+            WHERE id = ?
+            LIMIT 1
+        `).bind(item.inventoryItemId).first();
+
+        if (!inventoryRow) {
+            throw new HttpError(400, `Inventory item not found: ${item.name}`);
+        }
+        if (inventoryRow.organization_id !== organizationId || inventoryRow.clinic_id !== activeClinicId) {
+            throw new HttpError(400, `Inventory item is outside selected clinic: ${item.name}`);
+        }
+        if (Number(inventoryRow.stock_quantity || 0) < item.quantity) {
+            throw new HttpError(400, `Insufficient stock for ${item.name}.`);
+        }
+
+        statements.push(
+            db.prepare(`
+                UPDATE inventory_items
+                SET stock_quantity = stock_quantity - ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+            `).bind(item.quantity, item.inventoryItemId)
+        );
+
+        statements.push(
+            db.prepare(`
+                INSERT INTO inventory_transactions (
+                    id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type, reference_id
+                ) VALUES (?, ?, ?, ?, 'sale', ?, ?, 'invoice', ?)
+            `).bind(
+                crypto.randomUUID(),
+                item.inventoryItemId,
+                organizationId,
+                activeClinicId,
+                item.quantity,
+                Number(inventoryRow.cost_price_cents || 0),
+                invoiceId
+            )
+        );
+    }
 
     if (status === 'paid' && totalCents > 0) {
         statements.push(
@@ -1349,38 +2173,71 @@ export default {
                 });
             }
 
-            if (pathname.startsWith('/api/')) {
-                await ensureSchema(env);
-            }
+            // Runtime schema bootstrap can fail unpredictably on remote isolates.
+            // Use explicit migrations for schema changes.
 
-            if (pathname === '/api/auth/login' && request.method === 'POST') return login(env, request);
-            if (pathname === '/api/auth/session' && request.method === 'GET') return getSession(env, request);
-            if (pathname === '/api/auth/logout' && request.method === 'POST') return logout(env, request);
+            if (pathname === '/api/auth/login' && request.method === 'POST') return await login(env, request);
+            if (pathname === '/api/auth/session' && request.method === 'GET') return await getSession(env, request);
+            if (pathname === '/api/auth/logout' && request.method === 'POST') return await logout(env, request);
 
-            if (pathname === '/api/tenant/bootstrap' && request.method === 'GET') return getTenantBootstrap(env, request);
+            if (pathname === '/api/tenant/bootstrap' && request.method === 'GET') return await getTenantBootstrap(env, request);
 
-            if (pathname === '/api/super-admin/overview' && request.method === 'GET') return getSuperAdminOverview(env, request);
-            if (pathname === '/api/super-admin/organizations' && request.method === 'POST') return createOrganizationWithAdmin(env, request);
-            if (pathname === '/api/super-admin/admins' && request.method === 'POST') return createAdminForOrganization(env, request);
+            if (pathname === '/api/super-admin/overview' && request.method === 'GET') return await getSuperAdminOverview(env, request);
+            if (pathname === '/api/super-admin/organizations' && request.method === 'POST') return await createOrganizationWithAdmin(env, request);
+            if (pathname === '/api/super-admin/admins' && request.method === 'POST') return await createAdminForOrganization(env, request);
 
-            if (pathname === '/api/admin/supervision' && request.method === 'GET') return getAdminSupervision(env, request);
-            if (pathname === '/api/admin/clinics' && request.method === 'POST') return createClinic(env, request);
-            if (pathname === '/api/admin/staff' && request.method === 'POST') return createStaff(env, request);
+            if (pathname === '/api/admin/supervision' && request.method === 'GET') return await getAdminSupervision(env, request);
+            if (pathname === '/api/admin/clinics' && request.method === 'POST') return await createClinic(env, request);
+            if (pathname === '/api/admin/staff' && request.method === 'POST') return await createStaff(env, request);
 
             const resetPasswordMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/password$/);
             if (resetPasswordMatch && request.method === 'PATCH') {
-                return resetUserPassword(env, request, decodeURIComponent(resetPasswordMatch[1]));
+                return await resetUserPassword(env, request, decodeURIComponent(resetPasswordMatch[1]));
             }
 
-            if (pathname === '/api/invoices' && request.method === 'GET') return listInvoices(env, request, url);
-            if (pathname === '/api/invoices' && request.method === 'POST') return createInvoice(env, request);
+            if (pathname === '/api/invoices' && request.method === 'GET') return await listInvoices(env, request, url);
+            if (pathname === '/api/invoices' && request.method === 'POST') return await createInvoice(env, request);
+
+            if (pathname === '/api/patients' && request.method === 'GET') return await listPatients(env, request, url);
+            if (pathname === '/api/patients' && request.method === 'POST') return await createPatient(env, request);
+            const patientMatch = pathname.match(/^\/api\/patients\/([^/]+)$/);
+            if (patientMatch && request.method === 'DELETE') {
+                return await deletePatient(env, request, decodeURIComponent(patientMatch[1]));
+            }
+
+            if (pathname === '/api/services' && request.method === 'GET') return await listServices(env, request, url);
+            if (pathname === '/api/services' && request.method === 'POST') return await createService(env, request);
+            const serviceMatch = pathname.match(/^\/api\/services\/([^/]+)$/);
+            if (serviceMatch && request.method === 'DELETE') {
+                return await deleteService(env, request, decodeURIComponent(serviceMatch[1]));
+            }
+
+            if (pathname === '/api/inventory' && request.method === 'GET') return await listInventory(env, request, url);
+            if (pathname === '/api/inventory' && request.method === 'POST') return await createInventoryItem(env, request);
+            const restockMatch = pathname.match(/^\/api\/inventory\/([^/]+)\/restock$/);
+            if (restockMatch && request.method === 'PATCH') {
+                return await restockInventoryItem(env, request, decodeURIComponent(restockMatch[1]));
+            }
+
+            if (pathname === '/api/appointments' && request.method === 'GET') return await listAppointments(env, request, url);
+            if (pathname === '/api/appointments' && request.method === 'POST') return await createAppointment(env, request);
+            const appointmentStatusMatch = pathname.match(/^\/api\/appointments\/([^/]+)\/status$/);
+            if (appointmentStatusMatch && request.method === 'PATCH') {
+                return await updateAppointmentStatus(env, request, decodeURIComponent(appointmentStatusMatch[1]));
+            }
 
             const statusMatch = pathname.match(/^\/api\/invoices\/([^/]+)\/status$/);
             if (statusMatch && request.method === 'PATCH') {
-                return updateInvoiceStatus(env, request, decodeURIComponent(statusMatch[1]));
+                return await updateInvoiceStatus(env, request, decodeURIComponent(statusMatch[1]));
             }
 
-            if (pathname === '/api/accounting/summary' && request.method === 'GET') return getAccountingSummary(env, request);
+            const invoiceMatch = pathname.match(/^\/api\/invoices\/([^/]+)$/);
+            if (invoiceMatch && request.method === 'GET') {
+                return await getInvoiceDetails(env, request, decodeURIComponent(invoiceMatch[1]));
+            }
+
+            if (pathname === '/api/accounting/summary' && request.method === 'GET') return await getAccountingSummary(env, request);
+            if (pathname === '/api/reports/overview' && request.method === 'GET') return await getReportsOverview(env, request);
 
             return jsonResponse({ error: 'Not found.' }, 404);
         } catch (error) {

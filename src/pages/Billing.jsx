@@ -4,18 +4,22 @@ import {
     Plus,
     Search,
     FileText,
-    Download,
+    Eye,
     CreditCard,
     DollarSign,
     CheckCircle2,
+    X,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 import {
     fetchAccountingSummary,
+    fetchInvoiceById,
     fetchInvoices,
     markInvoicePaid,
 } from '../lib/accountingApi';
+import { PDFViewer } from '@react-pdf/renderer';
+import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
 
 const currency = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -61,6 +65,8 @@ export function Billing() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actionInvoiceId, setActionInvoiceId] = useState('');
+    const [previewInvoice, setPreviewInvoice] = useState(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     const loadBillingData = async () => {
         setLoading(true);
@@ -110,7 +116,21 @@ export function Billing() {
         }
     };
 
+    const handlePreview = async (invoiceId) => {
+        setPreviewLoading(true);
+        setError('');
+        try {
+            const result = await fetchInvoiceById(invoiceId);
+            setPreviewInvoice(result.invoice || null);
+        } catch (err) {
+            setError(err.message || 'Failed to load invoice preview.');
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
     return (
+        <>
         <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
                 <div>
@@ -240,8 +260,8 @@ export function Billing() {
                                                 <CheckCircle2 className="w-4 h-4" />
                                             </button>
                                         )}
-                                        <button className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}>
-                                            <Download className="w-4 h-4" />
+                                        <button onClick={() => handlePreview(invoice.id)} className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}>
+                                            <Eye className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
@@ -287,8 +307,8 @@ export function Billing() {
                                                         <CheckCircle2 className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                <button className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}>
-                                                    <Download className="w-4 h-4" />
+                                                <button onClick={() => handlePreview(invoice.id)} className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}>
+                                                    <Eye className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         </td>
@@ -300,5 +320,37 @@ export function Billing() {
                 </>
             )}
         </div>
+        {previewLoading && (
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center text-white">Loading preview...</div>
+        )}
+        {previewInvoice && (
+            <div className="fixed inset-0 bg-black/80 z-50 p-4">
+                <div className="h-full w-full max-w-6xl mx-auto bg-[#111] rounded-2xl overflow-hidden border border-gray-800">
+                    <div className="h-12 px-4 flex items-center justify-between border-b border-gray-800 text-white">
+                        <span>Invoice #{previewInvoice.invoiceNumber}</span>
+                        <button onClick={() => setPreviewInvoice(null)} className="text-gray-300 hover:text-white">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                    <PDFViewer width="100%" height="calc(100% - 48px)" className="w-full h-[calc(100%-48px)] border-none">
+                        <InvoicePdfDocument
+                            data={{
+                                invoiceNumber: previewInvoice.invoiceNumber,
+                                date: previewInvoice.date,
+                                status: previewInvoice.status,
+                                patientName: previewInvoice.patientName,
+                                patientContact: previewInvoice.patientContact,
+                                items: previewInvoice.items || [],
+                                subtotal: previewInvoice.subtotal,
+                                tax: previewInvoice.tax,
+                                discount: previewInvoice.discount,
+                                total: previewInvoice.total,
+                            }}
+                        />
+                    </PDFViewer>
+                </div>
+            </div>
+        )}
+        </>
     );
 }

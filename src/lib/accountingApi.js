@@ -4,6 +4,10 @@ export async function fetchInvoices() {
     return request('/invoices');
 }
 
+export async function fetchInvoiceById(invoiceId) {
+    return request(`/invoices/${encodeURIComponent(invoiceId)}`);
+}
+
 export async function fetchAccountingSummary() {
     return request('/accounting/summary');
 }

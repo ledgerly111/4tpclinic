@@ -3,8 +3,11 @@ import { ChevronDown, Users, Calendar, FileText, Package, PlusCircle, ArrowUpRig
 import { useStore } from '../../context/StoreContext';
 import { cn } from '../../lib/utils';
 
+import { useNavigate } from 'react-router-dom';
+
 export function QuickActionsCard() {
     const { theme } = useStore();
+    const navigate = useNavigate();
     const isDark = theme === 'dark';
     const [timeRange, setTimeRange] = useState('This Week');
     const [showDropdown, setShowDropdown] = useState(false);
@@ -15,31 +18,35 @@ export function QuickActionsCard() {
             label: 'New Patient',
             subLabel: 'Register',
             color: 'text-[#5c6aff]',
+            path: '/patients?action=new'
         },
         {
             icon: Calendar,
             label: 'Schedule',
             subLabel: 'Appointment',
             color: 'text-[#5c6aff]',
+            path: '/appointments'
         },
         {
             icon: FileText,
             label: 'Invoice',
             subLabel: 'Create New',
             color: 'text-[#5c6aff]',
+            path: '/invoices/new'
         },
         {
             icon: Package,
             label: 'Inventory',
             subLabel: 'Add Stock',
             color: 'text-[#5c6aff]',
+            path: '/inventory'
         },
     ];
 
     return (
-        <div className="bg-[#5c6aff] rounded-2xl sm:rounded-3xl p-4 sm:p-5 h-full flex flex-col relative overflow-hidden">
+        <div className="bg-[#5c6aff] rounded-2xl sm:rounded-3xl p-4 h-full flex flex-col relative overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4 sm:mb-6 relative z-10">
+            <div className="flex items-center justify-between mb-3 sm:mb-4 relative z-10">
                 <div>
                     <h2 className="text-base sm:text-lg font-bold text-white tracking-wide uppercase">Quick Actions</h2>
                 </div>
@@ -82,11 +89,12 @@ export function QuickActionsCard() {
             </div>
 
             {/* Action Buttons Grid */}
-            <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-2 sm:gap-3 relative z-10">
+            <div className="flex-1 grid grid-cols-2 lg:grid-cols-2 gap-2 relative z-10 overflow-hidden">
                 {actions.map((action) => (
                     <button
                         key={action.label}
-                        className="flex flex-col justify-center items-center gap-1 sm:gap-1.5 p-2 sm:p-3 rounded-xl bg-white hover:bg-gray-50 transition-all duration-300 group shadow-sm"
+                        onClick={() => navigate(action.path)}
+                        className="flex flex-col justify-center items-center gap-1 p-2 rounded-xl bg-white hover:bg-gray-50 transition-all duration-300 group shadow-sm h-full"
                     >
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#5c6aff]/10 flex items-center justify-center group-hover:scale-110 transition-transform">
                             <action.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${action.color}`} />
@@ -98,7 +106,7 @@ export function QuickActionsCard() {
             </div>
 
             {/* Footer Summary */}
-            <div className="mt-3 sm:mt-4 flex items-center justify-between text-[10px] sm:text-xs text-white/80 relative z-10">
+            <div className="mt-2 sm:mt-3 flex items-center justify-between text-[10px] sm:text-xs text-white/80 relative z-10">
                 <span className="font-medium">Total Actions</span>
                 <span className="bg-white/20 px-2 py-0.5 rounded-md text-white font-bold">12</span>
             </div>

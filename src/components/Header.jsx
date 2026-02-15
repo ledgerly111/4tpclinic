@@ -3,27 +3,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
+import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 
 const pageNames = {
   '/': 'Overview',
-  '/appointments': 'Appointments',
-  '/patients': 'Patients',
-  '/services': 'Services',
-  '/billing': 'Billing',
-  '/inventory': 'Inventory',
-  '/reports': 'Reports',
-  '/staff': 'Supervision',
-  '/settings': 'Settings',
-  '/help': 'Help',
-  '/super-admin': 'Super Admin',
+  // ... (keep existing lines)
   '/admin': 'Admin Panel',
 };
 
 const roleConfig = {
-  super_admin: { color: 'text-purple-400', bgColor: 'bg-purple-500/20', label: 'Super Admin' },
-  admin: { color: 'text-blue-400', bgColor: 'bg-blue-500/20', label: 'Admin' },
-  staff: { color: 'text-emerald-400', bgColor: 'bg-emerald-500/20', label: 'Staff' },
+  // ... (keep existing lines)
 };
 
 export function Header({ onMenuClick }) {
@@ -37,8 +27,9 @@ export function Header({ onMenuClick }) {
     getClinicsBySelectedOrg,
     organizations
   } = useTenant();
+  const { theme } = useStore();
 
-  const isDark = true;
+  const isDark = theme === 'dark';
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -102,11 +93,14 @@ export function Header({ onMenuClick }) {
     <>
       {/* Mobile Search Overlay */}
       {showMobileSearch && (
-        <div className="fixed inset-x-0 top-0 z-50 p-4 lg:hidden border-b bg-[#0f0f0f] border-gray-800">
+        <div className={cn(
+          "fixed inset-x-0 top-0 z-50 p-4 lg:hidden border-b",
+          isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-white border-gray-200"
+        )}>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowMobileSearch(false)}
-              className="p-2 rounded-lg text-gray-400"
+              className={cn("p-2 rounded-lg", isDark ? "text-gray-400" : "text-gray-600")}
             >
               <X className="w-5 h-5" />
             </button>
@@ -114,20 +108,31 @@ export function Header({ onMenuClick }) {
               type="search"
               placeholder="Search..."
               autoFocus
-              className="flex-1 bg-transparent outline-none text-base text-white placeholder-gray-500"
+              className={cn(
+                "flex-1 bg-transparent outline-none text-base outline-none",
+                isDark ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"
+              )}
             />
           </div>
         </div>
       )}
 
       {/* Main Header */}
-      <header className="sticky top-0 z-40 border-b px-4 py-3 backdrop-blur-xl transition-colors duration-300 lg:rounded-t-3xl lg:px-5 lg:py-4 bg-black/88 border-white/10">
+      <header className={cn(
+        "sticky top-0 z-40 border-b px-4 py-3 backdrop-blur-xl transition-colors duration-300 lg:rounded-t-3xl lg:px-5 lg:py-4",
+        isDark ? "bg-black/88 border-white/10" : "bg-white/80 border-gray-200"
+      )}>
         {/* Desktop Header */}
         <div className="hidden xl:flex xl:items-center xl:justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={onMenuClick}
-              className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#1f1f1f] text-gray-300 hover:text-white transition-colors border border-white/5"
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-xl transition-colors border",
+                isDark
+                  ? "bg-[#1f1f1f] text-gray-300 hover:text-white border-white/5"
+                  : "bg-white text-gray-600 hover:text-gray-900 border-gray-200 hover:bg-gray-50"
+              )}
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -135,11 +140,16 @@ export function Header({ onMenuClick }) {
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
                 <span>Dashboard</span>
                 <span className="text-slate-600">/</span>
-                <span className="text-slate-200">{section}</span>
+                <span className={isDark ? "text-slate-200" : "text-slate-700"}>{section}</span>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <h1 className="text-lg font-semibold sm:text-xl text-slate-100">{subtitle}</h1>
-                <span className="rounded-full px-2.5 py-1 text-xs font-medium bg-slate-800/70 text-slate-200 border border-slate-700/50">
+                <h1 className={cn("text-lg font-semibold sm:text-xl", isDark ? "text-slate-100" : "text-gray-900")}>{subtitle}</h1>
+                <span className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-medium border",
+                  isDark
+                    ? "bg-slate-800/70 text-slate-200 border-slate-700/50"
+                    : "bg-gray-100 text-gray-700 border-gray-200"
+                )}>
                   {todayLabel}
                 </span>
               </div>
@@ -147,28 +157,32 @@ export function Header({ onMenuClick }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Role Badge */}
-            {roleStyle && (
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${roleStyle.bgColor}`}>
-                <Shield className={`w-4 h-4 ${roleStyle.color}`} />
-                <span className={`text-sm font-medium ${roleStyle.color}`}>{roleStyle.label}</span>
-              </div>
-            )}
+
 
             {/* Clinic Switcher */}
             {session?.role !== 'super_admin' && accessibleClinics.length > 0 && (
               <div className="relative" ref={locationRef}>
                 <button
                   onClick={() => setShowLocationDropdown((prev) => !prev)}
-                  className="flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition bg-slate-800/70 text-slate-100 border border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25"
+                  className={cn(
+                    "flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition border",
+                    isDark
+                      ? "bg-slate-800/70 text-slate-100 border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  )}
                 >
-                  <Building2 className="w-4 h-4 text-slate-300" />
+                  <Building2 className={cn("w-4 h-4", isDark ? "text-slate-300" : "text-gray-500")} />
                   <span>{selectedClinic?.name || 'Select Clinic'}</span>
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                  <ChevronDown className={cn("w-4 h-4", isDark ? "text-slate-400" : "text-gray-400")} />
                 </button>
 
                 {showLocationDropdown && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b0b] p-1 shadow-2xl shadow-black/55">
+                  <div className={cn(
+                    "absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border p-1 shadow-2xl",
+                    isDark
+                      ? "border-white/10 bg-[#0b0b0b] shadow-black/55"
+                      : "border-gray-200 bg-white shadow-xl"
+                  )}>
                     {accessibleClinics.map((clinic) => (
                       <button
                         key={clinic.id}
@@ -176,8 +190,8 @@ export function Header({ onMenuClick }) {
                         className={cn(
                           "w-full rounded-xl px-3 py-2.5 text-left text-sm transition flex items-center justify-between",
                           selectedClinic?.id === clinic.id
-                            ? "bg-slate-700/50 text-white"
-                            : "text-slate-300 hover:bg-slate-700/35 hover:text-white"
+                            ? isDark ? "bg-slate-700/50 text-white" : "bg-gray-100 text-gray-900"
+                            : isDark ? "text-slate-300 hover:bg-slate-700/35 hover:text-white" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                         )}
                       >
                         <span>{clinic.name}</span>
@@ -196,15 +210,25 @@ export function Header({ onMenuClick }) {
               <div className="relative" ref={locationRef}>
                 <button
                   onClick={() => setShowLocationDropdown((prev) => !prev)}
-                  className="flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition bg-slate-800/70 text-slate-100 border border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25"
+                  className={cn(
+                    "flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition border",
+                    isDark
+                      ? "bg-slate-800/70 text-slate-100 border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  )}
                 >
-                  <Building2 className="w-4 h-4 text-slate-300" />
+                  <Building2 className={cn("w-4 h-4", isDark ? "text-slate-300" : "text-gray-500")} />
                   <span>{selectedOrganization?.name || 'Select Organization'}</span>
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                  <ChevronDown className={cn("w-4 h-4", isDark ? "text-slate-400" : "text-gray-400")} />
                 </button>
 
                 {showLocationDropdown && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b0b] p-1 shadow-2xl shadow-black/55">
+                  <div className={cn(
+                    "absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border p-1 shadow-2xl",
+                    isDark
+                      ? "border-white/10 bg-[#0b0b0b] shadow-black/55"
+                      : "border-gray-200 bg-white shadow-xl"
+                  )}>
                     <div className="px-3 py-2 text-xs text-gray-500 uppercase font-semibold">Organizations</div>
                     {organizations.map((org) => (
                       <button
@@ -213,8 +237,8 @@ export function Header({ onMenuClick }) {
                         className={cn(
                           "w-full rounded-xl px-3 py-2.5 text-left text-sm transition",
                           selectedOrganization?.id === org.id
-                            ? "bg-slate-700/50 text-white"
-                            : "text-slate-300 hover:bg-slate-700/35 hover:text-white"
+                            ? isDark ? "bg-slate-700/50 text-white" : "bg-gray-100 text-gray-900"
+                            : isDark ? "text-slate-300 hover:bg-slate-700/35 hover:text-white" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                         )}
                       >
                         {org.name}
@@ -227,14 +251,24 @@ export function Header({ onMenuClick }) {
 
             {/* Organization Display (for non-switchable) */}
             {selectedOrganization && session?.role !== 'super_admin' && (
-              <div className="flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium bg-slate-800/50 text-slate-300 border border-slate-700/30">
+              <div className={cn(
+                "flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium border",
+                isDark
+                  ? "bg-slate-800/50 text-slate-300 border-slate-700/30"
+                  : "bg-gray-100 text-gray-700 border-gray-200"
+              )}>
                 <Building2 className="w-4 h-4" />
                 <span className="max-w-[150px] truncate">{selectedOrganization.name}</span>
               </div>
             )}
 
             {/* Notifications */}
-            <button className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-700/60 bg-slate-900/45 text-slate-300 transition hover:border-slate-500 hover:text-white">
+            <button className={cn(
+              "relative flex h-10 w-10 items-center justify-center rounded-full border transition",
+              isDark
+                ? "border-slate-700/60 bg-slate-900/45 text-slate-300 hover:border-slate-500 hover:text-white"
+                : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+            )}>
               <Bell className="h-4 w-4" />
               {notifications > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-[#ff7d66] to-[#ffab61] px-1.5 text-[10px] font-semibold text-white">
@@ -247,7 +281,10 @@ export function Header({ onMenuClick }) {
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 h-10 px-2 rounded-full hover:bg-slate-800/50 transition-colors"
+                className={cn(
+                  "flex items-center gap-2 h-10 px-2 rounded-full transition-colors",
+                  isDark ? "hover:bg-slate-800/50" : "hover:bg-gray-100"
+                )}
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center">
                   <span className="text-white text-xs font-bold">
@@ -258,15 +295,23 @@ export function Header({ onMenuClick }) {
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b0b] shadow-2xl shadow-black/55">
-                  <div className="p-3 border-b border-gray-800">
-                    <p className="text-white font-medium truncate">{session?.fullName}</p>
+                <div className={cn(
+                  "absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border shadow-2xl",
+                  isDark
+                    ? "border-white/10 bg-[#0b0b0b] shadow-black/55"
+                    : "border-gray-200 bg-white shadow-xl"
+                )}>
+                  <div className={cn("p-3 border-b", isDark ? "border-gray-800" : "border-gray-100")}>
+                    <p className={cn("font-medium truncate", isDark ? "text-white" : "text-gray-900")}>{session?.fullName}</p>
                     <p className="text-gray-500 text-sm truncate">{session?.email}</p>
                   </div>
                   <div className="p-1">
                     <button
                       onClick={() => navigate('/settings')}
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/35 hover:text-white transition flex items-center gap-2"
+                      className={cn(
+                        "w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-2",
+                        isDark ? "text-slate-300 hover:bg-slate-700/35 hover:text-white" : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      )}
                     >
                       <User className="w-4 h-4" />
                       Profile Settings
@@ -290,19 +335,18 @@ export function Header({ onMenuClick }) {
           <div className="flex items-center gap-3">
             <button
               onClick={onMenuClick}
-              className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#1f1f1f] text-gray-300 hover:text-white transition-colors"
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
+                isDark ? "bg-[#1f1f1f] text-gray-300 hover:text-white" : "bg-gray-100 text-gray-600 hover:text-gray-900 hover:bg-gray-200"
+              )}
             >
               <Menu className="w-5 h-5" />
             </button>
 
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white">{section}</h1>
-                {roleStyle && (
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${roleStyle.bgColor} ${roleStyle.color}`}>
-                    {roleStyle.label}
-                  </span>
-                )}
+                <h1 className={cn("text-lg font-bold", isDark ? "text-white" : "text-gray-900")}>{section}</h1>
+
               </div>
               <p className="text-xs text-gray-500">{todayLabel}</p>
             </div>
@@ -311,7 +355,10 @@ export function Header({ onMenuClick }) {
           <div className="flex items-center gap-2">
             {/* Mobile Clinic Indicator */}
             {selectedClinic && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/50 text-slate-300 text-xs">
+              <div className={cn(
+                "hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs",
+                isDark ? "bg-slate-800/50 text-slate-300" : "bg-gray-100 text-gray-600"
+              )}>
                 <Building2 className="w-3.5 h-3.5" />
                 <span className="max-w-[100px] truncate">{selectedClinic.name}</span>
               </div>
@@ -319,12 +366,18 @@ export function Header({ onMenuClick }) {
 
             <button
               onClick={() => setShowMobileSearch(true)}
-              className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#1f1f1f] text-gray-400 hover:text-white transition-colors"
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
+                isDark ? "bg-[#1f1f1f] text-gray-400 hover:text-white" : "bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200"
+              )}
             >
               <Search className="w-5 h-5" />
             </button>
 
-            <button className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-[#1f1f1f] text-gray-400 hover:text-white transition-colors">
+            <button className={cn(
+              "relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
+              isDark ? "bg-[#1f1f1f] text-gray-400 hover:text-white" : "bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200"
+            )}>
               <Bell className="w-5 h-5" />
               {notifications > 0 && (
                 <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-br from-[#ff7d66] to-[#ffab61] px-1 text-[10px] font-semibold text-white">
