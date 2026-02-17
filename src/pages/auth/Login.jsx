@@ -28,8 +28,13 @@ export function Login() {
     const result = await login(formData.username, formData.password);
 
     if (result.success) {
-      // Redirect based on role, or to originally requested page if accessible
-      const redirectPath = from || getRoleRedirectPath(result.user.role);
+      const rolePath = getRoleRedirectPath(result.user.role);
+      const allowedReturnPath =
+        typeof from === 'string' &&
+        from !== '/' &&
+        from !== '/login' &&
+        !from.startsWith('/landing');
+      const redirectPath = allowedReturnPath ? from : rolePath;
       navigate(redirectPath, { replace: true });
     } else {
       setLocalError(result.error || 'Login failed');

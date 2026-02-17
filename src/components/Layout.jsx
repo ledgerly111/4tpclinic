@@ -7,7 +7,7 @@ import { useStore } from '../context/StoreContext';
 
 export function Layout() {
     const location = useLocation();
-    const isDashboard = location.pathname === '/' || location.pathname === '/dashboard';
+    const isDashboard = location.pathname === '/app' || location.pathname === '/app/dashboard';
     const scrollRef = useRef(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { theme } = useStore();

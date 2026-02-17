@@ -85,11 +85,11 @@ export function AuthProvider({ children }) {
       case 'super_admin':
         return '/super-admin';
       case 'admin':
-        return '/dashboard';
+        return '/app/dashboard';
       case 'staff':
-        return '/dashboard';
+        return '/app/dashboard';
       default:
-        return '/dashboard';
+        return '/app/dashboard';
     }
   }, []);
 

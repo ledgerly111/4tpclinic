@@ -84,10 +84,10 @@ function getRedirectPath(role) {
     case 'super_admin':
       return '/super-admin';
     case 'admin':
-      return '/admin';
+      return '/app/dashboard';
     case 'staff':
-      return '/dashboard';
+      return '/app/dashboard';
     default:
-      return '/dashboard';
+      return '/app/dashboard';
   }
 }
