@@ -18,19 +18,19 @@ import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-    { icon: LayoutGrid, label: 'Dashboard', path: '/' },
-    { icon: CalendarClock, label: 'Appointments', path: '/appointments' },
-    { icon: Users, label: 'Patients', path: '/patients' },
-    { icon: Stethoscope, label: 'Services', path: '/services' },
-    { icon: Receipt, label: 'Billing', path: '/billing' },
-    { icon: Package, label: 'Inventory', path: '/inventory' },
-    { icon: BarChart3, label: 'Reports', path: '/reports' },
-    { icon: UserCog, label: 'Supervision', path: '/staff' },
+    { icon: LayoutGrid, label: 'Dashboard', path: '/app' },
+    { icon: CalendarClock, label: 'Appointments', path: '/app/appointments' },
+    { icon: Users, label: 'Patients', path: '/app/patients' },
+    { icon: Stethoscope, label: 'Services', path: '/app/services' },
+    { icon: Receipt, label: 'Billing', path: '/app/billing' },
+    { icon: Package, label: 'Inventory', path: '/app/inventory' },
+    { icon: BarChart3, label: 'Reports', path: '/app/reports' },
+    { icon: UserCog, label: 'Supervision', path: '/app/staff' },
 ];
 
 const bottomNavItems = [
-    { icon: Settings, label: 'Settings', path: '/settings' },
-    { icon: HelpCircle, label: 'Help', path: '/help' },
+    { icon: Settings, label: 'Settings', path: '/app/settings' },
+    { icon: HelpCircle, label: 'Help', path: '/app/help' },
 ];
 
 export function Sidebar({ isOpen, onClose }) {
@@ -50,16 +50,13 @@ export function Sidebar({ isOpen, onClose }) {
             )}>
                 {/* Scrollable Container */}
                 <div className="flex-1 w-full overflow-y-auto overflow-x-hidden scrollbar-thin flex flex-col items-center py-6">
-                    {/* Logo with glow effect */}
+                    {/* 4TP Logo */}
                     <div className="mb-8 relative flex-shrink-0">
-                        <div className={cn(
-                            "w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 hover:shadow-emerald-500/20",
-                            isDark ? 'bg-[#1f1f1f]' : 'bg-gray-100'
-                        )}>
-                            <Stethoscope className="w-6 h-6 text-emerald-400" />
+                        <div className="w-14 h-14 rounded-full bg-[#e8919a] flex items-center justify-center shadow-lg shadow-[#e8919a]/30 transition-all duration-300 hover:scale-110 hover:shadow-[#e8919a]/50">
+                            <span className="text-[#fef9f3] font-black text-xl tracking-tight">4TP</span>
                         </div>
                         {/* Logo glow effect */}
-                        <div className="absolute inset-0 rounded-2xl bg-emerald-500/20 blur-xl opacity-0 hover:opacity-100 transition-opacity duration-300 -z-10" />
+                        <div className="absolute inset-0 rounded-full bg-[#e8919a]/30 blur-xl opacity-0 hover:opacity-100 transition-opacity duration-300 -z-10" />
                     </div>
 
                     {/* Main Navigation Icons */}
@@ -226,17 +223,14 @@ export function Sidebar({ isOpen, onClose }) {
                         isDark ? "border-[#1f1f1f]" : "border-gray-200"
                     )}>
                         <div className="flex items-center gap-3">
-                            <div className={cn(
-                                "flex h-10 w-10 items-center justify-center rounded-xl text-emerald-400 shadow-sm",
-                                isDark ? 'bg-[#1f1f1f]' : 'bg-gray-100'
-                            )}>
-                                <Stethoscope className="h-6 w-6" />
+                            <div className="w-12 h-12 rounded-full bg-[#e8919a] flex items-center justify-center shadow-md">
+                                <span className="text-[#fef9f3] font-black text-lg tracking-tight">4TP</span>
                             </div>
                             <span className={cn(
                                 "text-lg font-bold",
                                 isDark ? "text-white" : "text-gray-900"
                             )}>
-                                Clinic OS
+                                4 The People
                             </span>
                         </div>
                         <button

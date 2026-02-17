@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Stethoscope, Eye, EyeOff, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, User } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, getRoleRedirectPath, error, clearError } = useAuth();
-  
+
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -26,7 +26,7 @@ export function Login() {
     setIsLoading(true);
 
     const result = await login(formData.username, formData.password);
-    
+
     if (result.success) {
       // Redirect based on role, or to originally requested page if accessible
       const redirectPath = from || getRoleRedirectPath(result.user.role);
@@ -34,7 +34,7 @@ export function Login() {
     } else {
       setLocalError(result.error || 'Login failed');
     }
-    
+
     setIsLoading(false);
   };
 
@@ -50,12 +50,12 @@ export function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f0f0f] px-4 py-12">
       <div className="w-full max-w-md">
-        {/* Logo */}
+        {/* 4TP Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#1e1e1e] rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Stethoscope className="w-8 h-8 text-emerald-400" />
+          <div className="w-20 h-20 rounded-full bg-[#e8919a] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#e8919a]/30">
+            <span className="text-[#fef9f3] font-black text-3xl tracking-tight">4TP</span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1">Clinic Pro</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">4 The People</h1>
           <p className="text-gray-400">Sign in to your account</p>
         </div>
 
@@ -121,8 +121,8 @@ export function Login() {
               disabled={isLoading}
               className={cn(
                 "w-full bg-[#ff7a6b] text-white py-3 rounded-xl font-medium transition-colors",
-                isLoading 
-                  ? "opacity-50 cursor-not-allowed" 
+                isLoading
+                  ? "opacity-50 cursor-not-allowed"
                   : "hover:bg-[#ff6b5b]"
               )}
             >
@@ -130,18 +130,6 @@ export function Login() {
             </button>
           </form>
 
-          {/* Test Accounts */}
-          <div className="mt-6 pt-6 border-t border-gray-800">
-            <p className="text-xs text-gray-500 text-center mb-3">Initial Super Admin Account</p>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center bg-[#0f0f0f] rounded-lg p-2">
-                <span className="text-gray-400">Super Admin:</span>
-                <div className="text-right">
-                  <span className="text-gray-300">aadhila003@gmail.com / aadhil8089385071</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

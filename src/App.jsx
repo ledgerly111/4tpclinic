@@ -13,6 +13,9 @@ import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Help } from './pages/Help';
 
+// Landing Page
+import { LandingPage } from './pages/LandingPage';
+
 // Auth & Admin Pages
 import { Login } from './pages/auth/Login';
 import { SuperAdminPanel } from './pages/superadmin/SuperAdminPanel';
@@ -25,7 +28,6 @@ import { RoleGuard, AccessDenied } from './routes/RoleGuard';
 import { StoreProvider } from './context/StoreContext';
 import { AuthProvider } from './context/AuthContext';
 import { TenantProvider } from './context/TenantContext';
-import { useAuth } from './context/AuthContext';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -37,13 +39,6 @@ function ScrollToTop() {
   return null;
 }
 
-// Role-based redirect component
-function RoleBasedRedirect() {
-  const { session, getRoleRedirectPath } = useAuth();
-  const target = session ? getRoleRedirectPath(session.role) : '/login';
-  return <Navigate to={target} replace />;
-}
-
 function App() {
   return (
     <AuthProvider>
@@ -53,18 +48,17 @@ function App() {
             <ScrollToTop />
             <Routes>
               {/* Public Routes */}
+              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
               
               {/* Protected Routes with Layout */}
-              <Route path="/" element={
+              <Route path="/app" element={
                 <ProtectedRoute>
                   <Layout />
                 </ProtectedRoute>
               }>
-                {/* Default redirect based on role */}
-                <Route index element={<RoleBasedRedirect />} />
-                
                 {/* Dashboard - Accessible by all roles */}
+                <Route index element={<Dashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 
                 {/* Regular pages - Accessible by admin and staff */}
@@ -128,8 +122,8 @@ function App() {
               {/* Access Denied Page */}
               <Route path="/access-denied" element={<AccessDenied />} />
 
-              {/* Catch all - redirect to login */}
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              {/* Catch all - redirect to landing page */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
         </StoreProvider>

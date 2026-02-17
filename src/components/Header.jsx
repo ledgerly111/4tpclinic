@@ -7,17 +7,17 @@ import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 
 const pageNames = {
-  '/': 'Overview',
-  '/dashboard': 'Dashboard',
-  '/appointments': 'Appointments',
-  '/patients': 'Patients',
-  '/services': 'Services',
-  '/billing': 'Billing',
-  '/inventory': 'Inventory',
-  '/reports': 'Reports',
-  '/staff': 'Supervision',
-  '/settings': 'Settings',
-  '/help': 'Help',
+  '/app': 'Overview',
+  '/app/dashboard': 'Dashboard',
+  '/app/appointments': 'Appointments',
+  '/app/patients': 'Patients',
+  '/app/services': 'Services',
+  '/app/billing': 'Billing',
+  '/app/inventory': 'Inventory',
+  '/app/reports': 'Reports',
+  '/app/staff': 'Supervision',
+  '/app/settings': 'Settings',
+  '/app/help': 'Help',
   '/super-admin': 'Admin Panel',
 };
 
@@ -318,7 +318,7 @@ export function Header({ onMenuClick }) {
                   </div>
                   <div className="p-1">
                     <button
-                      onClick={() => navigate('/settings')}
+                      onClick={() => navigate('/app/settings')}
                       className={cn(
                         "w-full rounded-xl px-3 py-2 text-left text-sm transition flex items-center gap-2",
                         isDark ? "text-slate-300 hover:bg-slate-700/35 hover:text-white" : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"

@@ -14,18 +14,18 @@ import { useStore } from '../context/StoreContext';
 import { useState } from 'react';
 
 const mainNavItems = [
-    { icon: LayoutDashboard, label: 'Home', path: '/' },
-    { icon: Calendar, label: 'Appointments', path: '/appointments' },
-    { icon: Users, label: 'Patients', path: '/patients' },
-    { icon: CreditCard, label: 'Billing', path: '/billing' },
+    { icon: LayoutDashboard, label: 'Home', path: '/app' },
+    { icon: Calendar, label: 'Appointments', path: '/app/appointments' },
+    { icon: Users, label: 'Patients', path: '/app/patients' },
+    { icon: CreditCard, label: 'Billing', path: '/app/billing' },
 ];
 
 const moreNavItems = [
-    { icon: Stethoscope, label: 'Services', path: '/services' },
-    { icon: Package, label: 'Inventory', path: '/inventory' },
-    { icon: LayoutDashboard, label: 'Reports', path: '/reports' },
-    { icon: Users, label: 'Supervision', path: '/staff' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
+    { icon: Stethoscope, label: 'Services', path: '/app/services' },
+    { icon: Package, label: 'Inventory', path: '/app/inventory' },
+    { icon: LayoutDashboard, label: 'Reports', path: '/app/reports' },
+    { icon: Users, label: 'Supervision', path: '/app/staff' },
+    { icon: Settings, label: 'Settings', path: '/app/settings' },
 ];
 
 export function MobileBottomNav() {
