@@ -58,10 +58,42 @@ export function Reports() {
             {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-500/20 flex items-center justify-center"><DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Total Revenue</span></div><p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>${Math.round(totalRevenue).toLocaleString()}</p></div>
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/20 flex items-center justify-center"><Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Total Patients</span></div><p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{overview.patientCount}</p></div>
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-500/20 flex items-center justify-center"><FileText className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Appointments</span></div><p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{overview.appointmentCount}</p></div>
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center"><TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Low Stock Items</span></div><p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{overview.lowStockCount}</p></div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Total Revenue</span>
+                    </div>
+                    <p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Rs{Math.round(totalRevenue).toLocaleString()}</p>
+                </div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Total Patients</span>
+                    </div>
+                    <p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{overview.patientCount}</p>
+                </div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Appointments</span>
+                    </div>
+                    <p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{overview.appointmentCount}</p>
+                </div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Low Stock Items</span>
+                    </div>
+                    <p className={cn('text-lg sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{overview.lowStockCount}</p>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -70,10 +102,29 @@ export function Reports() {
                     <div className="h-48 sm:h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={monthlyData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#333' : '#e5e7eb'} />
-                                <XAxis dataKey="month" stroke={isDark ? '#666' : '#9ca3af'} fontSize={12} />
-                                <YAxis stroke={isDark ? '#666' : '#9ca3af'} fontSize={12} />
-                                <Tooltip contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }} labelStyle={{ color: isDark ? '#fff' : '#111827' }} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#333' : '#e2e8f0'} vertical={false} />
+                                <XAxis
+                                    dataKey="month"
+                                    stroke={isDark ? '#666' : '#9ca3af'}
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                />
+                                <YAxis
+                                    stroke={isDark ? '#666' : '#9ca3af'}
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+                                        border: `1px solid ${isDark ? '#333' : '#e2e8f0'}`,
+                                        borderRadius: '12px',
+                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                                    }}
+                                    labelStyle={{ color: isDark ? '#fff' : '#111827', fontWeight: 'bold' }}
+                                />
                                 <Bar dataKey="revenue" fill="#ff7a6b" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
@@ -85,11 +136,30 @@ export function Reports() {
                     <div className="h-48 sm:h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={monthlyData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#333' : '#e5e7eb'} />
-                                <XAxis dataKey="month" stroke={isDark ? '#666' : '#9ca3af'} fontSize={12} />
-                                <YAxis stroke={isDark ? '#666' : '#9ca3af'} fontSize={12} />
-                                <Tooltip contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#ffffff', border: `1px solid ${isDark ? '#333' : '#e5e7eb'}`, borderRadius: '8px' }} labelStyle={{ color: isDark ? '#fff' : '#111827' }} />
-                                <Line type="monotone" dataKey="patients" stroke="#8b5cf6" strokeWidth={3} dot={{ fill: '#8b5cf6' }} />
+                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#333' : '#e2e8f0'} vertical={false} />
+                                <XAxis
+                                    dataKey="month"
+                                    stroke={isDark ? '#666' : '#9ca3af'}
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                />
+                                <YAxis
+                                    stroke={isDark ? '#666' : '#9ca3af'}
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+                                        border: `1px solid ${isDark ? '#333' : '#e2e8f0'}`,
+                                        borderRadius: '12px',
+                                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                                    }}
+                                    labelStyle={{ color: isDark ? '#fff' : '#111827', fontWeight: 'bold' }}
+                                />
+                                <Line type="monotone" dataKey="patients" stroke="#8b5cf6" strokeWidth={3} dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, strokeWidth: 0 }} />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>

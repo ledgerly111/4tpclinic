@@ -302,82 +302,55 @@ export function Settings() {
 
     return (
         <div className="space-y-4 sm:space-y-6">
-            {/* Header */}
-            <div>
-                <h1 className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Settings</h1>
-                <p className={cn("text-sm sm:text-base", isDark ? 'text-gray-400' : 'text-gray-600')}>Manage your clinic preferences</p>
-            </div>
-
-            {/* Mobile Tab Selector */}
-            <div className="sm:hidden space-y-4">
-                <div className={cn("rounded-xl p-1 flex overflow-x-auto", isDark ? 'bg-[#1e1e1e]' : 'bg-gray-100')}>
-                    {settingsTabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={cn("flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors text-xs whitespace-nowrap",
-                                activeTab === tab.id
-                                    ? 'bg-[#ff7a6b] text-white'
-                                    : isDark
-                                        ? 'text-gray-400 hover:text-white'
-                                        : 'text-gray-600 hover:text-gray-900'
-                            )}
-                        >
-                            <tab.icon className="w-4 h-4" />
-                            <span className="font-medium">{tab.label}</span>
-                        </button>
-                    ))}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+                <div>
+                    <h1 className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Settings</h1>
+                    <p className={cn("text-sm sm:text-base", isDark ? 'text-gray-400' : 'text-gray-600')}>Manage your clinic preferences</p>
                 </div>
-                <button
-                    onClick={handleLogout}
-                    className={cn("w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-colors text-sm font-medium",
-                        isDark
-                            ? 'bg-[#1e1e1e] text-red-400 hover:bg-red-500/10'
-                            : 'bg-white text-red-500 hover:bg-red-50 border border-gray-200'
-                    )}
-                >
-                    <LogOut className="w-4 h-4" />
-                    <span>Log Out</span>
-                </button>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                {/* Desktop Sidebar Tabs */}
-                <div className="hidden sm:block w-64 space-y-6">
-                    <div className="space-y-2">
+                {/* Sidebar Tabs */}
+                <div className="w-full sm:w-64 space-y-4 sm:space-y-6">
+                    <div className={cn(
+                        "flex flex-row sm:flex-col gap-1 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 scrollbar-hide p-1 rounded-2xl transition-colors",
+                        isDark ? "bg-[#1e1e1e]" : "bg-white border border-gray-200 shadow-sm"
+                    )}>
                         {settingsTabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left",
+                                className={cn(
+                                    "flex-1 sm:flex-none flex items-center justify-center sm:justify-start gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium text-sm whitespace-nowrap",
                                     activeTab === tab.id
-                                        ? 'bg-[#ff7a6b] text-white'
+                                        ? 'bg-[#ff7a6b] text-white shadow-lg shadow-[#ff7a6b]/20 translate-x-1'
                                         : isDark
-                                            ? 'bg-[#1e1e1e] text-gray-400 hover:bg-[#252525] hover:text-white'
-                                            : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
+                                            ? 'text-gray-400 hover:text-white hover:bg-[#252525]'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                                 )}
                             >
                                 <tab.icon className="w-5 h-5" />
-                                <span className="font-medium">{tab.label}</span>
+                                <span>{tab.label}</span>
                             </button>
                         ))}
                     </div>
 
                     <button
                         onClick={handleLogout}
-                        className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left group",
+                        className={cn(
+                            "w-full flex items-center justify-center sm:justify-start gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
                             isDark
                                 ? 'bg-[#1e1e1e] text-gray-400 hover:bg-red-500/10 hover:text-red-400'
                                 : 'bg-white text-gray-600 hover:bg-red-50 hover:text-red-500 border border-gray-200 hover:border-red-200'
                         )}
                     >
-                        <LogOut className="w-5 h-5 group-hover:text-red-500 transition-colors" />
+                        <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                         <span className="font-medium">Log Out</span>
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className={cn("flex-1 rounded-xl sm:rounded-2xl p-4 sm:p-6", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                {/* Main Content Area */}
+                <div className={cn("flex-1 rounded-2xl sm:rounded-3xl p-4 sm:p-8 min-h-[500px] transition-colors", isDark ? "bg-[#1e1e1e]" : "bg-white border border-gray-200 shadow-sm")}>
                     <h2 className={cn("text-lg sm:text-xl font-bold mb-4 sm:mb-6", isDark ? 'text-white' : 'text-gray-900')}>
                         {settingsTabs.find(t => t.id === activeTab)?.label} Settings
                     </h2>

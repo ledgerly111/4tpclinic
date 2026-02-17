@@ -45,7 +45,7 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                 "Inventory check: Order Hand Sanitizer, Masks, and Syringes within 48 hours.",
             ];
             const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-            
+
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
                 type: 'ai',
@@ -63,7 +63,7 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
     return (
         <div className={cn(
             "rounded-2xl sm:rounded-3xl p-4 sm:p-5 h-full flex flex-col transition-colors duration-300",
-            isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200'
+            isDark ? "bg-[#1e1e1e]" : "bg-white border border-gray-200 shadow-sm"
         )}>
             {/* Header */}
             <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -73,8 +73,8 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                 )}>AI OPERATIONS</h2>
                 <button className={cn(
                     "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-colors",
-                    isDark 
-                        ? 'bg-white/10 text-white hover:bg-white/20' 
+                    isDark
+                        ? 'bg-white/10 text-white hover:bg-white/20'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 )}>
                     <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -94,13 +94,12 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                             </div>
                         )}
                         <div
-                            className={`max-w-[85%] rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 ${
-                                message.type === 'user'
+                            className={`max-w-[85%] rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3 sm:py-2 ${message.type === 'user'
                                     ? 'bg-[#ff7a6b] text-white'
-                                    : isDark 
-                                        ? 'bg-white/10 text-gray-200' 
+                                    : isDark
+                                        ? 'bg-white/10 text-gray-200'
                                         : 'bg-gray-100 text-gray-700'
-                            }`}
+                                }`}
                         >
                             <p className="text-[10px] sm:text-xs whitespace-pre-line leading-relaxed">{message.content}</p>
                         </div>
@@ -154,10 +153,10 @@ The clinic shows strong revenue, but two flags need attention: AOV is dipping an
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder="Ask something..."
                         className={cn(
-                            "w-full rounded-full px-2.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs outline-none transition-colors",
-                            isDark 
-                                ? 'bg-white/5 text-white placeholder-gray-500 focus:bg-white/10' 
-                                : 'bg-gray-100 text-gray-900 placeholder-gray-400 focus:bg-gray-200'
+                            "w-full rounded-full px-2.5 sm:px-4 py-2 sm:py-2.5 text-[10px] sm:text-sm outline-none transition-colors border",
+                            isDark
+                                ? 'bg-[#0f0f0f] border-gray-800 text-white placeholder-gray-500 focus:border-[#ff7a6b]'
+                                : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-[#ff7a6b]'
                         )}
                     />
                 </div>

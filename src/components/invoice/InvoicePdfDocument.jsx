@@ -93,6 +93,7 @@ const styles = StyleSheet.create({
 
 export function InvoicePdfDocument({ data }) {
   const items = Array.isArray(data.items) ? data.items : [];
+  const clinicName = String(data.clinicName || '').trim() || 'Clinic';
 
   return (
     <Document>
@@ -103,7 +104,7 @@ export function InvoicePdfDocument({ data }) {
             <Text style={{ fontSize: 10, marginTop: 4, color: '#666' }}>#{data.invoiceNumber}</Text>
           </View>
           <View style={styles.meta}>
-            <Text style={[styles.metaItem, { fontWeight: 'bold', fontSize: 12, color: '#000' }]}>Clinic Name</Text>
+            <Text style={[styles.metaItem, { fontWeight: 'bold', fontSize: 12, color: '#000' }]}>{clinicName}</Text>
             <Text style={styles.metaItem}>Date: {data.date}</Text>
             <Text style={styles.metaItem}>Status: {data.status || 'pending'}</Text>
           </View>
@@ -125,20 +126,20 @@ export function InvoicePdfDocument({ data }) {
           {items.map((item, index) => (
             <View key={`${item.name}-${index}`} style={styles.row}>
               <Text style={[styles.col1, { paddingLeft: 8 }]}>{item.name}</Text>
-              <Text style={styles.col2}>${Number(item.price || 0).toFixed(2)}</Text>
+              <Text style={styles.col2}>Rs {Number(item.price || 0).toFixed(2)}</Text>
               <Text style={styles.col3}>{Number(item.quantity || 0)}</Text>
-              <Text style={[styles.col4, { paddingRight: 8 }]}>${(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</Text>
+              <Text style={[styles.col4, { paddingRight: 8 }]}>Rs {(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</Text>
             </View>
           ))}
         </View>
 
         <View style={styles.totalSection}>
-          <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>${Number(data.subtotal || 0).toFixed(2)}</Text></View>
-          {Number(data.discount || 0) > 0 && <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={[styles.totalValue, { color: '#ff6b6b' }]}>- ${Number(data.discount || 0).toFixed(2)}</Text></View>}
-          {Number(data.tax || 0) > 0 && <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>+ ${Number(data.tax || 0).toFixed(2)}</Text></View>}
-          <View style={[styles.totalRow, { marginTop: 8, borderTop: '1px solid #000', paddingTop: 8 }]}>
+          <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>Rs {Number(data.subtotal || 0).toFixed(2)}</Text></View>
+          {Number(data.discount || 0) > 0 && <View style={styles.totalRow}><Text style={styles.totalLabel}>Discount</Text><Text style={[styles.totalValue, { color: '#ff6b6b' }]}>- Rs {Number(data.discount || 0).toFixed(2)}</Text></View>}
+          {Number(data.tax || 0) > 0 && <View style={styles.totalRow}><Text style={styles.totalLabel}>Tax</Text><Text style={styles.totalValue}>+ Rs {Number(data.tax || 0).toFixed(2)}</Text></View>}
+          <View style={[styles.totalRow, { marginTop: 8, borderTop: '1px solid #000', paddingTop: 8 }]}> 
             <Text style={[styles.totalLabel, { fontSize: 12, fontWeight: 'bold', color: '#000' }]}>Total</Text>
-            <Text style={[styles.totalValue, { fontSize: 12, color: '#ff9a8b' }]}>${Number(data.total || 0).toFixed(2)}</Text>
+            <Text style={[styles.totalValue, { fontSize: 12, color: '#ff9a8b' }]}>Rs {Number(data.total || 0).toFixed(2)}</Text>
           </View>
         </View>
       </Page>

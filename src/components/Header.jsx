@@ -8,12 +8,23 @@ import { cn } from '../lib/utils';
 
 const pageNames = {
   '/': 'Overview',
-  // ... (keep existing lines)
-  '/admin': 'Admin Panel',
+  '/dashboard': 'Dashboard',
+  '/appointments': 'Appointments',
+  '/patients': 'Patients',
+  '/services': 'Services',
+  '/billing': 'Billing',
+  '/inventory': 'Inventory',
+  '/reports': 'Reports',
+  '/staff': 'Supervision',
+  '/settings': 'Settings',
+  '/help': 'Help',
+  '/super-admin': 'Admin Panel',
 };
 
 const roleConfig = {
-  // ... (keep existing lines)
+  admin: { label: 'Admin', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
+  staff: { label: 'Staff', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  super_admin: { label: 'System Admin', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' }
 };
 
 export function Header({ onMenuClick }) {
@@ -109,7 +120,7 @@ export function Header({ onMenuClick }) {
               placeholder="Search..."
               autoFocus
               className={cn(
-                "flex-1 bg-transparent outline-none text-base outline-none",
+                "flex-1 bg-transparent outline-none text-base",
                 isDark ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"
               )}
             />
@@ -128,7 +139,7 @@ export function Header({ onMenuClick }) {
             <button
               onClick={onMenuClick}
               className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-xl transition-colors border",
+                "flex items-center justify-center w-10 h-10 rounded-xl transition-colors border shadow-sm",
                 isDark
                   ? "bg-[#1f1f1f] text-gray-300 hover:text-white border-white/5"
                   : "bg-white text-gray-600 hover:text-gray-900 border-gray-200 hover:bg-gray-50"

@@ -7,10 +7,12 @@ import { cn } from '../lib/utils';
 import { createInvoice } from '../lib/accountingApi';
 import { fetchInventory, fetchPatients, fetchServices } from '../lib/clinicApi';
 import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
+import { useTenant } from '../context/TenantContext';
 
 export function CreateInvoice() {
     const navigate = useNavigate();
     const { theme } = useStore();
+    const { selectedClinic } = useTenant();
     const isDark = theme === 'dark';
 
     const [patients, setPatients] = useState([]);
@@ -144,6 +146,7 @@ export function CreateInvoice() {
         invoiceNumber: formState.invoiceNumber,
         date: formState.date,
         status: invoiceStatus,
+        clinicName: selectedClinic?.name || '',
         patientName: selectedPatient.name || '',
         patientContact: selectedPatient.contact || '',
         items: formState.items,
@@ -186,10 +189,10 @@ export function CreateInvoice() {
                                 <select onChange={handleAddItem} value="" className={cn('w-full pl-9 pr-4 py-2 rounded-lg text-sm outline-none border cursor-pointer', isDark ? 'bg-[#2a2a2a] border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900')}>
                                     <option value="">Add Item...</option>
                                     <optgroup label="Services">
-                                        {services.map((s) => <option key={`s-${s.id}`} value={`service:${s.id}`}>{s.name} - ${s.price}</option>)}
+                                        {services.map((s) => <option key={`s-${s.id}`} value={`service:${s.id}`}>{s.name} - Rs{s.price}</option>)}
                                     </optgroup>
                                     <optgroup label="Inventory Medicines">
-                                        {inventoryItems.map((i) => <option key={`i-${i.id}`} value={`inventory:${i.id}`}>{i.name} ({i.stock} {i.unit}) - ${i.sellPrice}</option>)}
+                                        {inventoryItems.map((i) => <option key={`i-${i.id}`} value={`inventory:${i.id}`}>{i.name} ({i.stock} {i.unit}) - Rs{i.sellPrice}</option>)}
                                     </optgroup>
                                 </select>
                             </div>
@@ -198,10 +201,10 @@ export function CreateInvoice() {
 
                     <div className="space-y-4">
                         <div className={cn('p-4 rounded-xl space-y-3', isDark ? 'bg-[#252525]' : 'bg-gray-50')}>
-                            <div className="flex justify-between items-center"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Subtotal</span><span className={cn('font-medium', isDark ? 'text-white' : 'text-gray-900')}>${calculatedTotals.subtotal.toFixed(2)}</span></div>
+                            <div className="flex justify-between items-center"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Subtotal</span><span className={cn('font-medium', isDark ? 'text-white' : 'text-gray-900')}>Rs{calculatedTotals.subtotal.toFixed(2)}</span></div>
                             <div className="flex justify-between items-center gap-4"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Tax (%)</span><input type="number" value={formState.taxPercent} onChange={(e) => setFormState({ ...formState, taxPercent: parseFloat(e.target.value) || 0 })} className={cn('w-20 p-1 rounded text-right outline-none bg-transparent border-b', isDark ? 'border-gray-600 text-white' : 'border-gray-300 text-gray-900')} /></div>
-                            <div className="flex justify-between items-center gap-4"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Discount ($)</span><input type="number" value={formState.discount} onChange={(e) => setFormState({ ...formState, discount: parseFloat(e.target.value) || 0 })} className={cn('w-20 p-1 rounded text-right outline-none bg-transparent border-b', isDark ? 'border-gray-600 text-white' : 'border-gray-300 text-gray-900')} /></div>
-                            <div className="pt-3 border-t border-gray-700 flex justify-between items-center"><span className="font-bold text-lg text-[#ff9a8b]">Total</span><span className={cn('font-bold text-lg', isDark ? 'text-white' : 'text-gray-900')}>${calculatedTotals.total.toFixed(2)}</span></div>
+                            <div className="flex justify-between items-center gap-4"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Discount (Rs)</span><input type="number" value={formState.discount} onChange={(e) => setFormState({ ...formState, discount: parseFloat(e.target.value) || 0 })} className={cn('w-20 p-1 rounded text-right outline-none bg-transparent border-b', isDark ? 'border-gray-600 text-white' : 'border-gray-300 text-gray-900')} /></div>
+                            <div className="pt-3 border-t border-gray-700 flex justify-between items-center"><span className="font-bold text-lg text-[#ff9a8b]">Total</span><span className={cn('font-bold text-lg', isDark ? 'text-white' : 'text-gray-900')}>Rs{calculatedTotals.total.toFixed(2)}</span></div>
                         </div>
 
                         <div className="flex items-center gap-3">
@@ -220,7 +223,7 @@ export function CreateInvoice() {
                         <div key={item.id} className={cn('flex items-center gap-3 p-3 rounded-xl border', isDark ? 'bg-[#252525] border-gray-700' : 'bg-gray-50 border-gray-200')}>
                             <div className="flex-1">
                                 <p className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-gray-900')}>{item.name}</p>
-                                <p className={cn('text-xs', isDark ? 'text-gray-500' : 'text-gray-500')}>${item.price} {item.itemType === 'inventory' ? `(inventory)` : `(service)`}</p>
+                                <p className={cn('text-xs', isDark ? 'text-gray-500' : 'text-gray-500')}>Rs{item.price} {item.itemType === 'inventory' ? `(inventory)` : `(service)`}</p>
                             </div>
                             <div className="flex items-center gap-3">
                                 <input type="number" min="1" value={item.quantity} onChange={(e) => updateItemQuantity(index, e.target.value)} className={cn('w-16 p-1.5 rounded-lg text-sm text-center outline-none border', isDark ? 'bg-[#1e1e1e] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900')} />

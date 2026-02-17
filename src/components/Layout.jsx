@@ -15,12 +15,6 @@ export function Layout() {
     const isDark = theme === 'dark';
 
     useEffect(() => {
-        // Update page background when theme changes.
-        document.body.style.backgroundColor = isDark ? '#0f0f0f' : '#f3f4f6';
-        document.documentElement.style.backgroundColor = isDark ? '#0f0f0f' : '#f3f4f6';
-    }, [isDark]);
-
-    useEffect(() => {
         // Scroll to top on route change.
         window.scrollTo(0, 0);
         if (scrollRef.current) {
@@ -30,10 +24,7 @@ export function Layout() {
     }, [location.pathname]);
 
     return (
-        <div className={cn(
-            "flex min-h-[100dvh] transition-colors duration-300",
-            isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
-        )}>
+        <div className="flex min-h-[100dvh] transition-colors duration-300 bg-[var(--bg)]">
             <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
             <main className="flex-1 lg:ml-20 transition-all duration-300 w-full">
@@ -42,11 +33,7 @@ export function Layout() {
                         <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
                         <div
                             ref={scrollRef}
-                            className={cn(
-                                "flex-1 overflow-y-auto transition-colors duration-300",
-                                "px-3 pb-4 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-0",
-                                isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
-                            )}
+                            className="flex-1 overflow-y-auto transition-colors duration-300 px-3 pb-4 pt-2 md:px-4 lg:px-6 lg:pb-6 lg:pt-0 bg-[var(--bg)]"
                         >
                             <Outlet />
                         </div>
@@ -54,11 +41,7 @@ export function Layout() {
                 ) : (
                     <div className="min-h-[100dvh] flex flex-col">
                         <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
-                        <div className={cn(
-                            "flex-1 transition-colors duration-300",
-                            "px-4 pb-4 pt-4 md:px-5 lg:px-6 lg:pb-6 lg:pt-4",
-                            isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100'
-                        )}>
+                        <div className="flex-1 transition-colors duration-300 px-4 pb-4 pt-4 md:px-5 lg:px-6 lg:pb-6 lg:pt-4 bg-[var(--bg)]">
                             <Outlet />
                         </div>
                     </div>

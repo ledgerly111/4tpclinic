@@ -4,9 +4,13 @@ import { Search, Plus, Trash2, User, Phone, Calendar, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { createPatient, deletePatient, fetchPatients } from '../lib/clinicApi';
 import { useStore } from '../context/StoreContext';
+import { useAuth } from '../context/AuthContext';
+import { useTenant } from '../context/TenantContext';
 
 export function Patients() {
   const { theme } = useStore();
+  const { session } = useAuth();
+  const { selectedOrganizationId, selectedClinicId } = useTenant();
   const isDark = theme === 'dark';
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,9 +61,17 @@ export function Patients() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!selectedClinicId) {
+      setError('Please select a clinic before creating a patient.');
+      return;
+    }
+
     try {
       await createPatient({
         ...newPatient,
+        clinicId: selectedClinicId,
+        organizationId: session?.role === 'super_admin' ? selectedOrganizationId : undefined,
         medicalHistory: newPatient.medicalHistory
           .split(',')
           .map((item) => item.trim())

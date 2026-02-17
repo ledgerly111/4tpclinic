@@ -41,7 +41,11 @@ function getSelectedClinicId() {
   }
 }
 
-async function request(path, options = {}) {
+function clearSelectedClinic() {
+  sessionStorage.removeItem('clinic_selected_tenant');
+}
+
+async function request(path, options = {}, hasRetried = false) {
   const token = getAuthToken();
   const clinicId = getSelectedClinicId();
   const headers = {
@@ -63,7 +67,25 @@ async function request(path, options = {}) {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
+  }
+
+  if (
+    !response.ok &&
+    !hasRetried &&
+    clinicId &&
+    response.status === 403 &&
+    data?.error === 'Selected clinic is not accessible.'
+  ) {
+    clearSelectedClinic();
+    return request(path, options, true);
+  }
 
   if (!response.ok) {
     throw new ApiError(data.error || 'Request failed.', response.status);

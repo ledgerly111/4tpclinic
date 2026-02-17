@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { MapPin, ChevronDown, ArrowUpRight, TrendingUp } from 'lucide-react';
+import { useStore } from '../../context/StoreContext';
+import { cn } from '../../lib/utils';
 
 export function PointsCard() {
+    const { theme } = useStore();
+    const isDark = theme === 'dark';
     const [filter, setFilter] = useState('all points');
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
     const [rateFilter, setRateFilter] = useState('profitability rate');
@@ -30,7 +34,10 @@ export function PointsCard() {
                             <ChevronDown className="w-3 h-3" />
                         </button>
                         {showFilterDropdown && (
-                            <div className="absolute top-full right-0 mt-2 w-32 bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl z-50 overflow-hidden">
+                            <div className={cn(
+                                "absolute top-full right-0 mt-2 w-32 rounded-xl border shadow-xl z-50 overflow-hidden",
+                                isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-200"
+                            )}>
                                 {['all points', 'active only', 'top rated'].map((f) => (
                                     <button
                                         key={f}
@@ -38,7 +45,10 @@ export function PointsCard() {
                                             setFilter(f);
                                             setShowFilterDropdown(false);
                                         }}
-                                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors"
+                                        className={cn(
+                                            "w-full text-left px-3 py-2 text-sm transition-colors",
+                                            isDark ? "text-gray-300 hover:bg-[#2a2a2a] hover:text-white" : "text-gray-700 hover:bg-gray-100"
+                                        )}
                                     >
                                         {f}
                                     </button>
@@ -62,7 +72,10 @@ export function PointsCard() {
                     <ChevronDown className="w-3 h-3" />
                 </button>
                 {showRateDropdown && (
-                    <div className="absolute top-full left-0 mt-2 w-40 bg-[#1e1e1e] rounded-xl border border-gray-800 shadow-xl z-50 overflow-hidden">
+                    <div className={cn(
+                        "absolute top-full left-0 mt-2 w-40 rounded-xl border shadow-xl z-50 overflow-hidden",
+                        isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-200"
+                    )}>
                         {['profitability rate', 'patient count', 'revenue'].map((r) => (
                             <button
                                 key={r}
@@ -70,7 +83,10 @@ export function PointsCard() {
                                     setRateFilter(r);
                                     setShowRateDropdown(false);
                                 }}
-                                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-[#2a2a2a] hover:text-white transition-colors"
+                                className={cn(
+                                    "w-full text-left px-3 py-2 text-sm transition-colors",
+                                    isDark ? "text-gray-300 hover:bg-[#2a2a2a] hover:text-white" : "text-gray-700 hover:bg-gray-100"
+                                )}
                             >
                                 {r}
                             </button>
@@ -85,7 +101,7 @@ export function PointsCard() {
                 <svg className="absolute inset-0 w-full h-full opacity-30">
                     <defs>
                         <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#0f172a" strokeWidth="0.5"/>
+                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#0f172a" strokeWidth="0.5" />
                         </pattern>
                     </defs>
                     <rect width="100%" height="100%" fill="url(#grid)" />
@@ -115,14 +131,13 @@ export function PointsCard() {
                     >
                         {/* Location Marker */}
                         <div className="relative">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                point.active 
-                                    ? 'bg-[#0f172a]' 
-                                    : 'bg-[#ff7a6b]'
-                            }`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${point.active
+                                ? 'bg-[#0f172a]'
+                                : 'bg-[#ff7a6b]'
+                                }`}>
                                 <MapPin className="w-4 h-4 text-white" />
                             </div>
-                            
+
                             {/* Value Badge */}
                             {point.active && (
                                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#0f172a] text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap">
@@ -132,7 +147,7 @@ export function PointsCard() {
                                     </div>
                                 </div>
                             )}
-                            
+
                             {/* Tooltip */}
                             {point.active && (
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-[#0f172a] text-white text-xs px-3 py-2 rounded-xl whitespace-nowrap z-10">

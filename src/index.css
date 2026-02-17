@@ -5,17 +5,38 @@
 @tailwind utilities;
 
 :root {
-  --bg: #000000;
-  --bg-soft: #050505;
-  --surface: #0b0b0b;
-  --surface-strong: #121212;
-  --surface-border: rgba(255, 255, 255, 0.14);
-  --text-main: #e7eefb;
-  --text-muted: #8ea1bc;
+  /* Common variables */
   --accent-coral: #ff7d66;
   --accent-cyan: #61c8ff;
   --accent-lime: #7dd581;
   --accent-gold: #ffbe5c;
+
+  /* Default Dark Mode */
+  --bg: #0f0f0f;
+  --bg-soft: #1a1a1a;
+  --surface: #1e1e1e;
+  --surface-strong: #252525;
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --text-main: #ffffff;
+  --text-muted: #9ca3af;
+  --grid-opacity: 0.1;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+  --card-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+}
+
+.light-mode {
+  --bg: #f3f4f6;
+  --bg-soft: #ffffff;
+  --surface: #ffffff;
+  --surface-strong: #f9fafb;
+  --surface-border: rgba(0, 0, 0, 0.08);
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  --grid-opacity: 0.05;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.1);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
 }
 
 html,
@@ -28,8 +49,9 @@ body {
   margin: 0;
   font-family: 'Manrope', sans-serif;
   color: var(--text-main);
-  background: #000;
+  background: var(--bg);
   background-attachment: fixed;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body::before {
@@ -38,11 +60,13 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  opacity: 0.1;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  opacity: var(--grid-opacity);
+  background-image:
+    linear-gradient(currentColor 1px, transparent 1px),
+    linear-gradient(90deg, currentColor 1px, transparent 1px);
   background-size: 64px 64px;
   mask-image: radial-gradient(circle at center, black 35%, transparent 92%);
+  transition: opacity 0.3s ease;
 }
 
 h1,
@@ -83,12 +107,12 @@ a:focus-visible {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--scrollbar-thumb);
+  border: 1px solid transparent;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--scrollbar-thumb-hover);
 }
 
 .dashboard-shell {
@@ -108,24 +132,25 @@ a:focus-visible {
 .dashboard-card {
   border-radius: 1.5rem;
   border: 1px solid var(--surface-border);
-  box-shadow: 0 20px 45px rgba(3, 6, 12, 0.42);
-  transition: transform 220ms ease, box-shadow 220ms ease;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  transition: transform 220ms ease, box-shadow 220ms ease, background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .dashboard-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 24px 52px rgba(3, 6, 12, 0.55);
+  box-shadow: 0 24px 52px rgba(3, 6, 12, 0.15);
 }
 
 .glass-chip {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
 }
 
 .surface-chip {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(8, 8, 8, 0.7);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-strong);
   backdrop-filter: blur(10px);
 }
 
@@ -187,14 +212,15 @@ a:focus-visible {
 
 /* Mobile touch improvements */
 @media (hover: none) and (pointer: coarse) {
+
   /* Larger touch targets on mobile */
-  button, 
+  button,
   a,
   [role="button"] {
     min-height: 44px;
     min-width: 44px;
   }
-  
+
   /* Remove hover effects on touch devices */
   .dashboard-card:hover {
     transform: none;
@@ -204,6 +230,7 @@ a:focus-visible {
 
 /* iOS specific fixes */
 @supports (-webkit-touch-callout: none) {
+
   /* CSS specific to iOS devices */
   .ios-fixed {
     position: fixed;
@@ -215,18 +242,24 @@ a:focus-visible {
 
 /* Sidebar Animations */
 @keyframes sidebar-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 20px rgba(255, 122, 107, 0.1);
   }
+
   50% {
     box-shadow: 0 0 30px rgba(255, 122, 107, 0.2);
   }
 }
 
 @keyframes icon-bounce {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
   }
+
   50% {
     transform: scale(1.1);
   }
@@ -237,6 +270,7 @@ a:focus-visible {
     opacity: 0;
     transform: translateX(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -258,13 +292,11 @@ a:focus-visible {
 
 /* Sidebar background gradient effect */
 .sidebar-gradient {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 122, 107, 0.03) 0%,
-    transparent 30%,
-    transparent 70%,
-    rgba(255, 122, 107, 0.02) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(255, 122, 107, 0.03) 0%,
+      transparent 30%,
+      transparent 70%,
+      rgba(255, 122, 107, 0.02) 100%);
 }
 
 /* Custom scrollbar for sidebar */
@@ -313,9 +345,11 @@ a:focus-visible {
   0% {
     box-shadow: 0 0 0 0 rgba(255, 122, 107, 0.4);
   }
+
   70% {
     box-shadow: 0 0 0 8px rgba(255, 122, 107, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(255, 122, 107, 0);
   }

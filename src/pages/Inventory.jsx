@@ -107,13 +107,45 @@ export function Inventory() {
             )}
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/20 flex items-center justify-center"><Box className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Total Items</span></div><p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{totalItems}</p></div>
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-500/20 flex items-center justify-center"><CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>In Stock</span></div><p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{totalItems - lowStockCount}</p></div>
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center"><TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Low Stock</span></div><p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{lowStockCount}</p></div>
-                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}><div className="flex items-center gap-2 sm:gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-500/20 flex items-center justify-center"><AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Critical</span></div><p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{items.filter((i) => i.status === 'critical').length}</p></div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                            <Box className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Total Items</span>
+                    </div>
+                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{totalItems}</p>
+                </div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>In Stock</span>
+                    </div>
+                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{totalItems - lowStockCount}</p>
+                </div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+                            <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Low Stock</span>
+                    </div>
+                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{lowStockCount}</p>
+                </div>
+                <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+                        </div>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Critical</span>
+                    </div>
+                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{items.filter((i) => i.status === 'critical').length}</p>
+                </div>
             </div>
 
-            <div className={cn('rounded-xl flex items-center gap-3 px-4', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+            <div className={cn('rounded-xl flex items-center gap-3 px-4 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
                 <Search className="w-5 h-5 text-gray-500" />
                 <input type="text" placeholder="Search inventory items..." className={cn('flex-1 py-3 outline-none placeholder-gray-500 bg-transparent text-sm', isDark ? 'text-white' : 'text-gray-900')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
@@ -128,7 +160,7 @@ export function Inventory() {
                                 <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>{item.category}</td>
                                 <td className={cn('p-4', isDark ? 'text-white' : 'text-gray-900')}>{item.stock} <span className="text-gray-500">{item.unit}</span></td>
                                 <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>{item.threshold}</td>
-                                <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>${item.sellPrice}</td>
+                                <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>Rs{item.sellPrice}</td>
                                 <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>{item.status}</span></td>
                                 <td className="p-4 text-right"><button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || '') }); setShowRestockModal(true); }} className="px-3 py-1.5 bg-[#ff7a6b]/20 text-[#ff7a6b] rounded-lg hover:bg-[#ff7a6b]/30 transition-colors text-sm">Restock</button></td>
                             </tr>
@@ -138,24 +170,55 @@ export function Inventory() {
             </div>
 
             {showAddModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                    <div className="bg-[#1e1e1e] rounded-2xl p-6 w-full max-w-md border border-gray-800">
-                        <div className="flex items-center justify-between mb-4"><h2 className="text-white text-lg font-semibold">Add Inventory Item</h2><button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button></div>
-                        <form onSubmit={handleAddItem} className="space-y-3">
-                            <input required value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} className="w-full rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Item Name" />
-                            <div className="grid grid-cols-2 gap-3">
-                                <input required value={addForm.category} onChange={(e) => setAddForm({ ...addForm, category: e.target.value })} className="rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Category" />
-                                <input required value={addForm.unit} onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })} className="rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Unit" />
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className={cn(
+                        "rounded-2xl p-6 w-full max-w-md border shadow-2xl transition-colors",
+                        isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-200"
+                    )}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className={cn("text-lg font-semibold", isDark ? "text-white" : "text-gray-900")}>Add Inventory Item</h2>
+                            <button onClick={() => setShowAddModal(false)} className={cn("transition-colors", isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")}>
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddItem} className="space-y-4">
+                            <div>
+                                <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Item Name</label>
+                                <input required value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="e.g. Surgical Masks" />
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <input required type="number" value={addForm.stock} onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} className="rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Initial Stock" />
-                                <input required type="number" value={addForm.threshold} onChange={(e) => setAddForm({ ...addForm, threshold: e.target.value })} className="rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Threshold" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Category</label>
+                                    <input required value={addForm.category} onChange={(e) => setAddForm({ ...addForm, category: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="General" />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Unit</label>
+                                    <input required value={addForm.unit} onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="pcs" />
+                                </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <input required type="number" step="0.01" value={addForm.costPrice} onChange={(e) => setAddForm({ ...addForm, costPrice: e.target.value })} className="rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Cost Price" />
-                                <input required type="number" step="0.01" value={addForm.sellPrice} onChange={(e) => setAddForm({ ...addForm, sellPrice: e.target.value })} className="rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Sell Price" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Initial Stock</label>
+                                    <input required type="number" value={addForm.stock} onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="0" />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Threshold</label>
+                                    <input required type="number" value={addForm.threshold} onChange={(e) => setAddForm({ ...addForm, threshold: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="10" />
+                                </div>
                             </div>
-                            <button className="w-full rounded-xl bg-[#ff7a6b] py-2.5 text-white hover:bg-[#ff6b5b]">Add Item</button>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Cost Price</label>
+                                    <input required type="number" step="0.01" value={addForm.costPrice} onChange={(e) => setAddForm({ ...addForm, costPrice: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="0.00" />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Sell Price (Rs)</label>
+                                    <input required type="number" step="0.01" value={addForm.sellPrice} onChange={(e) => setAddForm({ ...addForm, sellPrice: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="0.00" />
+                                </div>
+                            </div>
+                            <button className="w-full rounded-xl bg-[#ff7a6b] py-3 text-white font-bold hover:bg-[#ff6b5b] transition-all active:scale-[0.98] shadow-lg shadow-[#ff7a6b]/20 mt-2">
+                                Add Item
+                            </button>
                         </form>
                     </div>
                 </div>

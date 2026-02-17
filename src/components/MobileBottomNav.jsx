@@ -40,14 +40,14 @@ export function MobileBottomNav() {
         <>
             {/* More Menu Overlay */}
             {showMore && (
-                <div 
+                <div
                     className="fixed inset-0 z-40 lg:hidden"
                     onClick={() => setShowMore(false)}
                 >
                     <div className={cn(
-                        "absolute bottom-20 left-4 right-4 rounded-2xl p-4 shadow-2xl border",
-                        isDark 
-                            ? "bg-[#1e1e1e] border-gray-800" 
+                        "absolute bottom-20 left-4 right-4 rounded-2xl p-4 shadow-2xl border transition-colors",
+                        isDark
+                            ? "bg-[#1e1e1e] border-gray-800"
                             : "bg-white border-gray-200"
                     )}>
                         <div className="grid grid-cols-4 gap-4">
@@ -59,9 +59,7 @@ export function MobileBottomNav() {
                                     className={cn(
                                         "flex flex-col items-center gap-1 p-3 rounded-xl transition-colors",
                                         isActive(item.path)
-                                            ? isDark 
-                                                ? "bg-[#3b82f6] text-white" 
-                                                : "bg-blue-500 text-white"
+                                            ? "bg-[#ff7a6b] text-white shadow-lg shadow-[#ff7a6b]/20"
                                             : isDark
                                                 ? "text-gray-400 hover:bg-[#252525]"
                                                 : "text-gray-600 hover:bg-gray-100"
@@ -78,10 +76,10 @@ export function MobileBottomNav() {
 
             {/* Bottom Navigation Bar */}
             <nav className={cn(
-                "fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t safe-area-pb",
-                isDark 
-                    ? "bg-[#0f0f0f] border-gray-800" 
-                    : "bg-white border-gray-200"
+                "fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t safe-area-pb transition-colors",
+                isDark
+                    ? "bg-[#0f0f0f]/95 backdrop-blur-md border-gray-800"
+                    : "bg-white/95 backdrop-blur-md border-gray-200"
             )}>
                 <div className="flex items-center justify-around px-2 py-2">
                     {mainNavItems.map((item) => (
@@ -91,33 +89,29 @@ export function MobileBottomNav() {
                             className={cn(
                                 "flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors min-w-[64px]",
                                 isActive(item.path)
-                                    ? isDark 
-                                        ? "text-[#3b82f6]" 
-                                        : "text-blue-600"
+                                    ? "text-[#ff7a6b]"
                                     : isDark
-                                        ? "text-gray-500"
-                                        : "text-gray-500"
+                                        ? "text-gray-500 hover:text-gray-300"
+                                        : "text-gray-500 hover:text-gray-900"
                             )}
                         >
                             <div className={cn(
                                 "p-1.5 rounded-lg transition-colors",
-                                isActive(item.path) && (isDark ? "bg-[#3b82f6]/20" : "bg-blue-100")
+                                isActive(item.path) && (isDark ? "bg-[#ff7a6b]/20" : "bg-[#ff7a6b]/10")
                             )}>
                                 <item.icon className="w-5 h-5" />
                             </div>
                             <span className="text-[10px] font-medium">{item.label}</span>
                         </NavLink>
                     ))}
-                    
+
                     {/* More Button */}
                     <button
                         onClick={() => setShowMore(!showMore)}
                         className={cn(
                             "flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors min-w-[64px]",
                             showMore
-                                ? isDark 
-                                    ? "text-[#3b82f6]" 
-                                    : "text-blue-600"
+                                ? "text-[#ff7a6b]"
                                 : isDark
                                     ? "text-gray-500"
                                     : "text-gray-500"
@@ -125,7 +119,7 @@ export function MobileBottomNav() {
                     >
                         <div className={cn(
                             "p-1.5 rounded-lg transition-colors",
-                            showMore && (isDark ? "bg-[#3b82f6]/20" : "bg-blue-100")
+                            showMore && (isDark ? "bg-[#ff7a6b]/20" : "bg-[#ff7a6b]/10")
                         )}>
                             <MoreHorizontal className="w-5 h-5" />
                         </div>

@@ -79,6 +79,10 @@ export function TenantProvider({ children }) {
   }, [session, isAuthenticated]);
 
   const setDefaultSelection = (accessibleOrgs, accessibleClinics, userSession) => {
+    // Always reset to avoid stale selection carrying across org/session changes.
+    setSelectedOrganizationId(null);
+    setSelectedClinicId(null);
+
     if (accessibleOrgs.length > 0) {
       setSelectedOrganizationId(accessibleOrgs[0].id);
     }

@@ -460,6 +460,10 @@ async function resolveActiveClinicId(db, request, sessionUser, required = false)
 
     if (requestedClinicId) {
         if (!accessibleClinicIds.includes(requestedClinicId)) {
+            if (!required) {
+                // Ignore stale clinic selection for read/filter endpoints.
+                return null;
+            }
             throw new HttpError(403, 'Selected clinic is not accessible.');
         }
         return requestedClinicId;
@@ -1091,10 +1095,31 @@ async function createPatient(env, request) {
     const name = String(body.name || '').trim();
     if (!name) throw new HttpError(400, 'Patient name is required.');
 
-    const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
-    const organizationId = user.role === 'super_admin'
+    const headerClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
+    const bodyClinicId = user.role === 'super_admin' ? String(body.clinicId || '').trim() : '';
+    const activeClinicId = headerClinicId || bodyClinicId;
+    let organizationId = user.role === 'super_admin'
         ? String(body.organizationId || '').trim()
         : user.organizationId;
+
+    if (activeClinicId) {
+        const clinic = await db
+            .prepare('SELECT id, organization_id FROM clinics WHERE id = ? LIMIT 1')
+            .bind(activeClinicId)
+            .first();
+
+        if (!clinic) {
+            throw new HttpError(400, 'Selected clinic does not exist.');
+        }
+
+        if (user.role === 'super_admin' && !organizationId) {
+            organizationId = clinic.organization_id;
+        }
+
+        if (organizationId && clinic.organization_id !== organizationId) {
+            throw new HttpError(400, 'Clinic does not belong to the selected organization.');
+        }
+    }
 
     if (!organizationId || !activeClinicId) {
         throw new HttpError(400, 'Organization and clinic are required.');
@@ -1633,6 +1658,7 @@ async function getInvoiceDetails(env, request, invoiceId) {
             id, organization_id, clinic_id, invoice_number, patient_id, patient_name,
             patient_contact, invoice_date, status, subtotal_cents, tax_cents,
             discount_cents, total_cents, notes, created_at
+            , (SELECT c.name FROM clinics c WHERE c.id = invoices.clinic_id) AS clinic_name
         FROM invoices
         WHERE id = ?
         LIMIT 1
@@ -1660,6 +1686,7 @@ async function getInvoiceDetails(env, request, invoiceId) {
             id: invoice.id,
             organizationId: invoice.organization_id,
             clinicId: invoice.clinic_id,
+            clinicName: invoice.clinic_name || '',
             invoiceNumber: invoice.invoice_number,
             patientId: invoice.patient_id,
             patientName: invoice.patient_name,
