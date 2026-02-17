@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Package, AlertTriangle, CheckCircle, TrendingDown, Box, X } from 'lucide-react';
+import { Plus, Search, Package, AlertTriangle, CheckCircle, TrendingDown, Box, X, Clock3 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 import { createInventoryItem, fetchInventory, restockInventoryItem } from '../lib/clinicApi';
@@ -13,8 +13,8 @@ export function Inventory() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showRestockModal, setShowRestockModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
-    const [addForm, setAddForm] = useState({ name: '', category: 'General', unit: 'pcs', stock: '', threshold: '', costPrice: '', sellPrice: '' });
-    const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '' });
+    const [addForm, setAddForm] = useState({ name: '', category: 'General', unit: 'pcs', stock: '', threshold: '', costPrice: '', sellPrice: '', expiryDate: '' });
+    const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', expiryDate: '' });
 
     const loadInventory = async () => {
         try {
@@ -36,7 +36,9 @@ export function Inventory() {
         )
     ), [items, searchTerm]);
 
-    const lowStockCount = items.filter((i) => i.status === 'low' || i.status === 'critical').length;
+    const lowStockCount = items.filter((i) => i.stockStatus === 'low' || i.stockStatus === 'critical').length;
+    const expiredCount = items.filter((i) => i.expiryStatus === 'expired').length;
+    const expiringSoonCount = items.filter((i) => i.expiryStatus === 'expiring_soon').length;
     const totalItems = items.length;
 
     const getStatusColor = (status) => {
@@ -44,8 +46,22 @@ export function Inventory() {
             case 'good': return 'bg-green-500/20 text-green-400';
             case 'low': return 'bg-yellow-500/20 text-yellow-400';
             case 'critical': return 'bg-red-500/20 text-red-400';
+            case 'expired': return 'bg-red-600/25 text-red-300';
+            case 'expiring_soon': return 'bg-orange-500/20 text-orange-300';
             default: return 'bg-gray-500/20 text-gray-400';
         }
+    };
+
+    const getExpiryLabel = (item) => {
+        if (!item.expiryDate) return '-';
+        if (item.expiryStatus === 'expired') {
+            const days = Math.abs(Number(item.daysToExpiry || 0));
+            return `Expired ${days}d ago`;
+        }
+        if (item.expiryStatus === 'expiring_soon') {
+            return `${item.daysToExpiry}d left`;
+        }
+        return item.expiryDate;
     };
 
     const handleAddItem = async (e) => {
@@ -58,9 +74,10 @@ export function Inventory() {
                 threshold: Number(addForm.threshold),
                 costPrice: Number(addForm.costPrice),
                 sellPrice: Number(addForm.sellPrice),
+                expiryDate: addForm.expiryDate || null,
             });
             setShowAddModal(false);
-            setAddForm({ name: '', category: 'General', unit: 'pcs', stock: '', threshold: '', costPrice: '', sellPrice: '' });
+            setAddForm({ name: '', category: 'General', unit: 'pcs', stock: '', threshold: '', costPrice: '', sellPrice: '', expiryDate: '' });
             await loadInventory();
         } catch (err) {
             setError(err.message || 'Failed to add inventory item.');
@@ -75,10 +92,11 @@ export function Inventory() {
             await restockInventoryItem(selectedItem.id, {
                 quantity: Number(restockForm.quantity),
                 costPrice: Number(restockForm.costPrice || selectedItem.costPrice),
+                expiryDate: restockForm.expiryDate || null,
             });
             setShowRestockModal(false);
             setSelectedItem(null);
-            setRestockForm({ quantity: '', costPrice: '' });
+            setRestockForm({ quantity: '', costPrice: '', expiryDate: '' });
             await loadInventory();
         } catch (err) {
             setError(err.message || 'Failed to restock item.');
@@ -106,6 +124,18 @@ export function Inventory() {
                 </div>
             )}
 
+            {(expiredCount > 0 || expiringSoonCount > 0) && (
+                <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0"><Clock3 className="w-5 h-5 text-red-300" /></div>
+                    <div className="flex-1">
+                        <p className={cn('font-medium text-sm sm:text-base', isDark ? 'text-white' : 'text-gray-900')}>Expiry Alert</p>
+                        <p className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>
+                            {expiredCount} expired, {expiringSoonCount} expiring soon (within 30 days).
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
                     <div className="flex items-center gap-2 sm:gap-3 mb-2">
@@ -123,7 +153,7 @@ export function Inventory() {
                         </div>
                         <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>In Stock</span>
                     </div>
-                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{totalItems - lowStockCount}</p>
+                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{items.filter((i) => i.stockStatus === 'good').length}</p>
                 </div>
                 <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
                     <div className="flex items-center gap-2 sm:gap-3 mb-2">
@@ -139,9 +169,9 @@ export function Inventory() {
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
                             <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
                         </div>
-                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Critical</span>
+                        <span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Expired</span>
                     </div>
-                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{items.filter((i) => i.status === 'critical').length}</p>
+                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{expiredCount}</p>
                 </div>
             </div>
 
@@ -152,7 +182,7 @@ export function Inventory() {
 
             <div className={cn('rounded-2xl overflow-hidden', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                 <table className="w-full text-left text-sm">
-                    <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}><tr><th className="p-4">Item</th><th className="p-4">Category</th><th className="p-4">Current Stock</th><th className="p-4">Threshold</th><th className="p-4">Sell Price</th><th className="p-4">Status</th><th className="p-4 text-right">Actions</th></tr></thead>
+                    <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}><tr><th className="p-4">Item</th><th className="p-4">Category</th><th className="p-4">Current Stock</th><th className="p-4">Threshold</th><th className="p-4">Expiry</th><th className="p-4">Sell Price</th><th className="p-4">Status</th><th className="p-4 text-right">Actions</th></tr></thead>
                     <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-200')}>
                         {filteredItems.map((item) => (
                             <tr key={item.id} className={cn('transition-colors', isDark ? 'hover:bg-[#252525]' : 'hover:bg-gray-50')}>
@@ -160,9 +190,10 @@ export function Inventory() {
                                 <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>{item.category}</td>
                                 <td className={cn('p-4', isDark ? 'text-white' : 'text-gray-900')}>{item.stock} <span className="text-gray-500">{item.unit}</span></td>
                                 <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>{item.threshold}</td>
+                                <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>{getExpiryLabel(item)}</td>
                                 <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>Rs{item.sellPrice}</td>
                                 <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>{item.status}</span></td>
-                                <td className="p-4 text-right"><button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || '') }); setShowRestockModal(true); }} className="px-3 py-1.5 bg-[#ff7a6b]/20 text-[#ff7a6b] rounded-lg hover:bg-[#ff7a6b]/30 transition-colors text-sm">Restock</button></td>
+                                <td className="p-4 text-right"><button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), expiryDate: item.expiryDate || '' }); setShowRestockModal(true); }} className="px-3 py-1.5 bg-[#ff7a6b]/20 text-[#ff7a6b] rounded-lg hover:bg-[#ff7a6b]/30 transition-colors text-sm">Restock</button></td>
                             </tr>
                         ))}
                     </tbody>
@@ -216,6 +247,10 @@ export function Inventory() {
                                     <input required type="number" step="0.01" value={addForm.sellPrice} onChange={(e) => setAddForm({ ...addForm, sellPrice: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} placeholder="0.00" />
                                 </div>
                             </div>
+                            <div>
+                                <label className={cn("block text-sm font-medium mb-1.5", isDark ? "text-gray-400" : "text-gray-600")}>Expiry Date (optional)</label>
+                                <input type="date" value={addForm.expiryDate} onChange={(e) => setAddForm({ ...addForm, expiryDate: e.target.value })} className={cn("w-full rounded-xl border p-3 text-sm outline-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-[#ff7a6b]" : "bg-white border-gray-200 text-gray-900 focus:border-[#ff7a6b]")} />
+                            </div>
                             <button className="w-full rounded-xl bg-[#ff7a6b] py-3 text-white font-bold hover:bg-[#ff6b5b] transition-all active:scale-[0.98] shadow-lg shadow-[#ff7a6b]/20 mt-2">
                                 Add Item
                             </button>
@@ -231,6 +266,7 @@ export function Inventory() {
                         <form onSubmit={handleRestock} className="space-y-3">
                             <input required type="number" value={restockForm.quantity} onChange={(e) => setRestockForm({ ...restockForm, quantity: e.target.value })} className="w-full rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Quantity" />
                             <input required type="number" step="0.01" value={restockForm.costPrice} onChange={(e) => setRestockForm({ ...restockForm, costPrice: e.target.value })} className="w-full rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" placeholder="Unit Cost" />
+                            <input type="date" value={restockForm.expiryDate} onChange={(e) => setRestockForm({ ...restockForm, expiryDate: e.target.value })} className="w-full rounded-xl bg-[#0f0f0f] border border-gray-800 p-3 text-white" />
                             <button className="w-full rounded-xl bg-[#ff7a6b] py-2.5 text-white hover:bg-[#ff6b5b]">Update Stock</button>
                         </form>
                     </div>

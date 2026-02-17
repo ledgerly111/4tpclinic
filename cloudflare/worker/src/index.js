@@ -137,6 +137,7 @@ const SCHEMA_STATEMENTS = [
         reorder_threshold INTEGER NOT NULL DEFAULT 0,
         cost_price_cents INTEGER NOT NULL DEFAULT 0,
         sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        expiry_date TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
@@ -235,6 +236,33 @@ function sanitizeDate(value) {
     return String(value).split('T')[0];
 }
 
+function sanitizeOptionalDate(value) {
+    if (value === undefined || value === null) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    return raw.split('T')[0];
+}
+
+function getExpiryMeta(expiryDate) {
+    if (!expiryDate) {
+        return { expiryStatus: 'not_set', daysToExpiry: null };
+    }
+
+    const now = new Date();
+    const nowUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const [year, month, day] = String(expiryDate).split('-').map((value) => Number.parseInt(value, 10));
+    if (!year || !month || !day) {
+        return { expiryStatus: 'not_set', daysToExpiry: null };
+    }
+
+    const expiryUtc = Date.UTC(year, month - 1, day);
+    const daysToExpiry = Math.floor((expiryUtc - nowUtc) / 86400000);
+
+    if (daysToExpiry < 0) return { expiryStatus: 'expired', daysToExpiry };
+    if (daysToExpiry <= 30) return { expiryStatus: 'expiring_soon', daysToExpiry };
+    return { expiryStatus: 'good', daysToExpiry };
+}
+
 function normalizeInvoiceStatus(status) {
     const normalized = String(status || 'pending').toLowerCase();
     if (!INVOICE_STATUSES.has(normalized)) {
@@ -307,6 +335,14 @@ async function ensureInvoiceItemColumns(db) {
     }
 }
 
+async function ensureInventoryColumns(db) {
+    const tableInfo = await db.prepare('PRAGMA table_info(inventory_items)').all();
+    const names = new Set((tableInfo.results || []).map((c) => c.name));
+    if (!names.has('expiry_date')) {
+        await db.prepare('ALTER TABLE inventory_items ADD COLUMN expiry_date TEXT').run();
+    }
+}
+
 async function ensureSuperAdminUser(db) {
     const existing = await db
         .prepare('SELECT id FROM users WHERE role = ? LIMIT 1')
@@ -347,6 +383,7 @@ async function ensureSchema(env) {
     await db.batch(SCHEMA_STATEMENTS.map((statement) => db.prepare(statement)));
     await ensureInvoicesTenantColumns(db);
     await ensureInvoiceItemColumns(db);
+    await ensureInventoryColumns(db);
     await ensureSuperAdminUser(db);
     schemaReady = true;
 }
@@ -1305,7 +1342,7 @@ async function listInventory(env, request, url) {
     let sql = `
         SELECT
             id, organization_id, clinic_id, name, category, unit, stock_quantity,
-            reorder_threshold, cost_price_cents, sell_price_cents, created_at, updated_at
+            reorder_threshold, cost_price_cents, sell_price_cents, expiry_date, created_at, updated_at
         FROM inventory_items
         WHERE 1 = 1
     `;
@@ -1336,26 +1373,44 @@ async function listInventory(env, request, url) {
         : await db.prepare(sql).all();
 
     return jsonResponse({
-        items: (result.results || []).map((row) => ({
-            id: row.id,
-            organizationId: row.organization_id,
-            clinicId: row.clinic_id,
-            name: row.name,
-            category: row.category,
-            unit: row.unit,
-            stock: row.stock_quantity,
-            threshold: row.reorder_threshold,
-            costPrice: fromCents(row.cost_price_cents),
-            sellPrice: fromCents(row.sell_price_cents),
-            status: row.stock_quantity <= 0
+        items: (result.results || []).map((row) => {
+            const stockStatus = row.stock_quantity <= 0
                 ? 'critical'
                 : row.stock_quantity <= row.reorder_threshold
                     ? 'low'
-                    : 'good',
-            type: 'inventory',
-            createdAt: row.created_at,
-            updatedAt: row.updated_at,
-        })),
+                    : 'good';
+            const expiryMeta = getExpiryMeta(row.expiry_date);
+            const status = expiryMeta.expiryStatus === 'expired'
+                ? 'expired'
+                : stockStatus === 'critical'
+                    ? 'critical'
+                    : stockStatus === 'low'
+                        ? 'low'
+                        : expiryMeta.expiryStatus === 'expiring_soon'
+                            ? 'expiring_soon'
+                            : 'good';
+
+            return {
+                id: row.id,
+                organizationId: row.organization_id,
+                clinicId: row.clinic_id,
+                name: row.name,
+                category: row.category,
+                unit: row.unit,
+                stock: row.stock_quantity,
+                threshold: row.reorder_threshold,
+                costPrice: fromCents(row.cost_price_cents),
+                sellPrice: fromCents(row.sell_price_cents),
+                expiryDate: row.expiry_date || '',
+                daysToExpiry: expiryMeta.daysToExpiry,
+                expiryStatus: expiryMeta.expiryStatus,
+                stockStatus,
+                status,
+                type: 'inventory',
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+            };
+        }),
     });
 }
 
@@ -1380,14 +1435,15 @@ async function createInventoryItem(env, request) {
     const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
     const costCents = toCents(body.costPrice);
     const sellCents = toCents(body.sellPrice);
+    const expiryDate = sanitizeOptionalDate(body.expiryDate);
 
     const statements = [
         db.prepare(`
             INSERT INTO inventory_items (
                 id, organization_id, clinic_id, name, category, unit,
-                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, organizationId, activeClinicId, name, category, unit, stock, threshold, costCents, sellCents),
+                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, organizationId, activeClinicId, name, category, unit, stock, threshold, costCents, sellCents, expiryDate),
     ];
 
     if (stock > 0) {
@@ -1414,6 +1470,7 @@ async function createInventoryItem(env, request) {
             threshold,
             costPrice: fromCents(costCents),
             sellPrice: fromCents(sellCents),
+            expiryDate: expiryDate || '',
             type: 'inventory',
         },
     }, 201);
@@ -1425,6 +1482,8 @@ async function restockInventoryItem(env, request, itemId) {
     const body = await parseJsonRequest(request);
     const quantity = Number.parseInt(body.quantity, 10) || 0;
     if (quantity <= 0) throw new HttpError(400, 'Quantity must be greater than zero.');
+    const hasExpiryDateField = Object.prototype.hasOwnProperty.call(body, 'expiryDate');
+    const expiryDateValue = hasExpiryDateField ? sanitizeOptionalDate(body.expiryDate) : null;
 
     const item = await db
         .prepare(`
@@ -1450,9 +1509,12 @@ async function restockInventoryItem(env, request, itemId) {
     await db.batch([
         db.prepare(`
             UPDATE inventory_items
-            SET stock_quantity = stock_quantity + ?, cost_price_cents = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            SET stock_quantity = stock_quantity + ?,
+                cost_price_cents = ?,
+                expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
-        `).bind(quantity, unitCostCents, itemId),
+        `).bind(quantity, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
         db.prepare(`
             INSERT INTO inventory_transactions (
                 id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type

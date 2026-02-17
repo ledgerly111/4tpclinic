@@ -1,11 +1,23 @@
+import { useEffect } from 'react';
 import { RevenueCard } from '../components/dashboard/RevenueCard';
 import { AlertCard } from '../components/dashboard/AlertCard';
 import { QuickActionsCard } from '../components/dashboard/QuickActionsCard';
 import { AppointmentsCard } from '../components/dashboard/AppointmentsCard';
 import { OperationsCard } from '../components/dashboard/OperationsCard';
 import { InventorySellCard } from '../components/dashboard/InventorySellCard';
+import { useStore } from '../context/StoreContext';
 
 export function Dashboard() {
+    const { refreshDashboard } = useStore();
+
+    useEffect(() => {
+        refreshDashboard();
+        const intervalId = setInterval(() => {
+            refreshDashboard();
+        }, 15000);
+        return () => clearInterval(intervalId);
+    }, [refreshDashboard]);
+
     return (
         <div className="pb-4">
             {/* Main Grid Layout - Responsive */}

@@ -51,7 +51,7 @@ function getStatusColor(status) {
 
 export function Billing() {
     const navigate = useNavigate();
-    const { theme } = useStore();
+    const { theme, refreshDashboard } = useStore();
     const isDark = theme === 'dark';
 
     const [invoices, setInvoices] = useState([]);
@@ -108,6 +108,7 @@ export function Billing() {
         setError('');
         try {
             await markInvoicePaid(invoiceId);
+            await refreshDashboard();
             await loadBillingData();
         } catch (err) {
             setError(err.message || 'Failed to update invoice status.');

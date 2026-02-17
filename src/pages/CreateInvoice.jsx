@@ -11,7 +11,7 @@ import { useTenant } from '../context/TenantContext';
 
 export function CreateInvoice() {
     const navigate = useNavigate();
-    const { theme } = useStore();
+    const { theme, refreshDashboard } = useStore();
     const { selectedClinic } = useTenant();
     const isDark = theme === 'dark';
 
@@ -19,6 +19,8 @@ export function CreateInvoice() {
     const [services, setServices] = useState([]);
     const [inventoryItems, setInventoryItems] = useState([]);
     const [showPreview, setShowPreview] = useState(false);
+    const [itemQuery, setItemQuery] = useState('');
+    const [showItemPicker, setShowItemPicker] = useState(false);
 
     const [formState, setFormState] = useState({
         patientId: '',
@@ -60,11 +62,7 @@ export function CreateInvoice() {
         return { subtotal, taxAmount, total };
     }, [formState.items, formState.discount, formState.taxPercent]);
 
-    const handleAddItem = (e) => {
-        const raw = e.target.value;
-        if (!raw) return;
-
-        const [kind, id] = raw.split(':');
+    const handleAddItem = (kind, id) => {
         if (kind === 'service') {
             const service = services.find((s) => s.id === id);
             if (service) {
@@ -84,7 +82,34 @@ export function CreateInvoice() {
                 }));
             }
         }
+        setItemQuery('');
+        setShowItemPicker(false);
     };
+
+    const availableItems = useMemo(() => {
+        const q = itemQuery.trim().toLowerCase();
+        const merged = [
+            ...services.map((s) => ({
+                kind: 'service',
+                id: s.id,
+                name: s.name,
+                subtitle: 'Service',
+                price: Number(s.price || 0),
+            })),
+            ...inventoryItems.map((i) => ({
+                kind: 'inventory',
+                id: i.id,
+                name: i.name,
+                subtitle: `Inventory • ${i.stock} ${i.unit}`,
+                price: Number(i.sellPrice || 0),
+            })),
+        ];
+
+        if (!q) return merged;
+        return merged.filter((item) =>
+            item.name.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q)
+        );
+    }, [services, inventoryItems, itemQuery]);
 
     const updateItemQuantity = (index, qty) => {
         const newItems = [...formState.items];
@@ -134,6 +159,7 @@ export function CreateInvoice() {
                 discount: Number(formState.discount || 0),
                 total: calculatedTotals.total,
             });
+            await refreshDashboard();
             navigate('/billing');
         } catch (error) {
             setSubmitError(error.message || 'Failed to save invoice.');
@@ -185,16 +211,39 @@ export function CreateInvoice() {
                         <div className="space-y-2">
                             <label className={cn('text-sm font-medium', isDark ? 'text-gray-300' : 'text-gray-700')}>Add Service / Medicine</label>
                             <div className="relative">
-                                <Plus className={cn('absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4', isDark ? 'text-gray-400' : 'text-gray-500')} />
-                                <select onChange={handleAddItem} value="" className={cn('w-full pl-9 pr-4 py-2 rounded-lg text-sm outline-none border cursor-pointer', isDark ? 'bg-[#2a2a2a] border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900')}>
-                                    <option value="">Add Item...</option>
-                                    <optgroup label="Services">
-                                        {services.map((s) => <option key={`s-${s.id}`} value={`service:${s.id}`}>{s.name} - Rs{s.price}</option>)}
-                                    </optgroup>
-                                    <optgroup label="Inventory Medicines">
-                                        {inventoryItems.map((i) => <option key={`i-${i.id}`} value={`inventory:${i.id}`}>{i.name} ({i.stock} {i.unit}) - Rs{i.sellPrice}</option>)}
-                                    </optgroup>
-                                </select>
+                                <Plus className={cn('absolute left-3 top-3 w-4 h-4', isDark ? 'text-gray-400' : 'text-gray-500')} />
+                                <input
+                                    type="text"
+                                    value={itemQuery}
+                                    onChange={(e) => {
+                                        setItemQuery(e.target.value);
+                                        setShowItemPicker(true);
+                                    }}
+                                    onFocus={() => setShowItemPicker(true)}
+                                    placeholder="Search service or medicine..."
+                                    className={cn('w-full pl-9 pr-4 py-2 rounded-lg text-sm outline-none border', isDark ? 'bg-[#2a2a2a] border-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500')}
+                                />
+                                {showItemPicker && (
+                                    <div className={cn('absolute z-20 mt-2 w-full max-h-60 overflow-y-auto rounded-xl border shadow-xl', isDark ? 'bg-[#1e1e1e] border-gray-700' : 'bg-white border-gray-200')}>
+                                        {availableItems.length === 0 ? (
+                                            <div className={cn('px-3 py-2 text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>
+                                                No matching items
+                                            </div>
+                                        ) : (
+                                            availableItems.map((item) => (
+                                                <button
+                                                    key={`${item.kind}-${item.id}`}
+                                                    type="button"
+                                                    onClick={() => handleAddItem(item.kind, item.id)}
+                                                    className={cn('w-full px-3 py-2 text-left transition-colors', isDark ? 'hover:bg-[#2a2a2a]' : 'hover:bg-gray-50')}
+                                                >
+                                                    <div className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-gray-900')}>{item.name}</div>
+                                                    <div className={cn('text-xs', isDark ? 'text-gray-400' : 'text-gray-600')}>{item.subtitle} • Rs {item.price}</div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
