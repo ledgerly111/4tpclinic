@@ -90,8 +90,8 @@ export function LandingPage() {
                             className="flex items-center gap-2 sm:gap-3 cursor-pointer group"
                             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                         >
-                            <div className="w-10 h-10 rounded-full bg-[#e8919a] flex items-center justify-center shadow-lg shadow-[#e8919a]/20 group-hover:scale-110 transition-transform">
-                                <span className="text-white font-black text-lg tracking-tighter">4TP</span>
+                            <div className="w-10 h-10 shrink-0 group-hover:scale-110 transition-transform">
+                                <img src="/clinic.svg" alt="4TP Logo" className="w-full h-full object-contain" />
                             </div>
                             <span className="text-[#512c31] font-bold text-xl tracking-tight">4 The People</span>
                         </motion.div>
@@ -161,20 +161,15 @@ export function LandingPage() {
                     {/* 1 - Brand Banner */}
                     <motion.div
                         variants={fadeInUp}
-                        className="col-span-2 md:col-span-4 lg:col-span-12 bg-[#512c31] rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-12 flex flex-col sm:flex-row items-center gap-6 sm:gap-8 relative overflow-hidden group shadow-2xl shadow-[#512c31]/20"
+                        className="col-span-2 md:col-span-4 lg:col-span-12 bg-[#512c31] rounded-[2rem] sm:rounded-[2.5rem] p-4 sm:p-12 flex flex-row items-center gap-4 sm:gap-8 relative overflow-hidden group shadow-2xl shadow-[#512c31]/20"
                     >
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,#e8919a_0%,transparent_60%)] opacity-30 group-hover:opacity-50 transition-opacity" />
-                        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-[#e8919a] rounded-2xl flex items-center justify-center shrink-0 shadow-2xl relative z-10 animate-float">
-                            <div className="grid grid-cols-2 gap-1 px-1">
-                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-white rounded-sm" />
-                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-transparent border-2 border-white rounded-sm" />
-                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-transparent border-2 border-white rounded-sm" />
-                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-white rounded-sm" />
-                            </div>
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 relative z-10 animate-float">
+                            <img src="/clinic.svg" alt="4TP Logo" className="w-full h-full object-contain" />
                         </div>
-                        <div className="text-center sm:text-left relative z-10">
-                            <h2 className="text-3xl sm:text-6xl font-black text-white tracking-tighter mb-1 sm:mb-2">4TP Clinic ERP</h2>
-                            <p className="text-white/60 text-sm sm:text-lg font-medium">Healthcare operations, beautifully refined.</p>
+                        <div className="text-left relative z-10">
+                            <h2 className="text-2xl sm:text-6xl font-black text-white tracking-tighter mb-0.5 sm:mb-2">4TP Clinic ERP</h2>
+                            <p className="text-white/60 text-[10px] sm:text-lg font-medium">Healthcare operations, beautifully refined.</p>
                         </div>
                         <div className="hidden lg:flex ml-auto gap-4 relative z-10">
                             <span className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-white/40 text-sm font-bold uppercase tracking-widest">Enterprise</span>
@@ -493,8 +488,8 @@ export function LandingPage() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-20">
                         <div className="md:col-span-2 space-y-8">
                             <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-[#e8919a] flex items-center justify-center shadow-lg shadow-[#e8919a]/20">
-                                    <span className="text-white font-black text-xl tracking-tighter">4TP</span>
+                                <div className="w-12 h-12 shrink-0">
+                                    <img src="/clinic.svg" alt="4TP Logo" className="w-full h-full object-contain" />
                                 </div>
                                 <h4 className="text-xl font-black text-[#fef9f3]">4 The People</h4>
                             </div>

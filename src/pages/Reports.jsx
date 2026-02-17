@@ -305,7 +305,7 @@ export function Reports() {
           <div
             key={kpi.title}
             className={cn(
-              'relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 hover:scale-[1.02] group',
+              'relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 hover:scale-[1.02] group dashboard-reveal',
               isDark ? 'bg-[#1e1e1e] border-gray-800 hover:border-gray-700' : 'bg-white border-gray-200 hover:shadow-lg'
             )}
             style={{ animationDelay: `${idx * 80}ms` }}
@@ -359,7 +359,7 @@ export function Reports() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Area Chart */}
         <div className={cn(
-          'rounded-2xl p-5 sm:p-6 lg:col-span-2 border',
+          'rounded-2xl p-5 sm:p-6 lg:col-span-2 border dashboard-reveal reveal-delay-4',
           isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
         )}>
           <div className="flex items-center justify-between mb-5">
@@ -423,7 +423,7 @@ export function Reports() {
 
         {/* Invoice Status Donut */}
         <div className={cn(
-          'rounded-2xl p-5 sm:p-6 border flex flex-col',
+          'rounded-2xl p-5 sm:p-6 border flex flex-col dashboard-reveal reveal-delay-5',
           isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
         )}>
           <div className="mb-4">

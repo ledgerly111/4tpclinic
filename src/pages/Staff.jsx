@@ -137,7 +137,7 @@ export function Staff() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 dashboard-reveal">
                 <div>
                     <h1 className={cn("text-2xl font-bold", isDark ? "text-white" : "text-gray-900")}>Supervision</h1>
                     <p className={cn(isDark ? "text-gray-400" : "text-gray-600")}>
@@ -153,7 +153,7 @@ export function Staff() {
             {formError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{formError}</div>}
             {formSuccess && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{formSuccess}</div>}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 dashboard-reveal reveal-delay-1">
                 <div className={cn("rounded-2xl p-4 border transition-colors", isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-100 shadow-sm")}>
                     <p className={cn("text-sm", isDark ? "text-gray-400" : "text-gray-500")}>Clinics</p>
                     <p className={cn("text-2xl font-bold", isDark ? "text-white" : "text-gray-900")}>{clinics.length}</p>
@@ -172,7 +172,7 @@ export function Staff() {
                 </div>
             </div>
 
-            <div className={cn("flex gap-2 border-b", isDark ? "border-gray-800" : "border-gray-200")}>
+            <div className={cn("flex gap-2 border-b dashboard-reveal reveal-delay-2", isDark ? "border-gray-800" : "border-gray-200")}>
                 <button
                     onClick={() => setActiveTab('clinics')}
                     className={cn(

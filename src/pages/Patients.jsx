@@ -98,7 +98,7 @@ export function Patients() {
 
   return (
     <div className='space-y-4 sm:space-y-6'>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 dashboard-reveal">
         <div>
           <h1 className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Patients</h1>
           <p className={cn('text-sm sm:text-base', isDark ? 'text-gray-400' : 'text-gray-600')}>Manage patient records</p>
@@ -118,7 +118,7 @@ export function Patients() {
         </div>
       )}
 
-      <div className={cn('p-3 sm:p-4 rounded-xl sm:rounded-2xl flex items-center gap-3', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+      <div className={cn('p-3 sm:p-4 rounded-xl sm:rounded-2xl flex items-center gap-3 dashboard-reveal reveal-delay-1', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
         <Search className="w-5 h-5 text-gray-500" />
         <input
           type="text"
@@ -145,7 +145,7 @@ export function Patients() {
       )}
 
       {!isLoading && filteredPatients.length > 0 && (
-        <div className={cn('rounded-2xl overflow-hidden', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+        <div className={cn('rounded-2xl overflow-hidden overflow-x-auto dashboard-reveal reveal-delay-2', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
           <table className="w-full text-left text-sm">
             <thead className={cn('font-medium', isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}>
               <tr>

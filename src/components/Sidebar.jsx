@@ -52,8 +52,8 @@ export function Sidebar({ isOpen, onClose }) {
                 <div className="flex-1 w-full overflow-y-auto overflow-x-hidden scrollbar-thin flex flex-col items-center py-6">
                     {/* 4TP Logo */}
                     <div className="mb-8 relative flex-shrink-0">
-                        <div className="w-14 h-14 rounded-full bg-[#e8919a] flex items-center justify-center shadow-lg shadow-[#e8919a]/30 transition-all duration-300 hover:scale-110 hover:shadow-[#e8919a]/50">
-                            <span className="text-[#fef9f3] font-black text-xl tracking-tight">4TP</span>
+                        <div className="w-14 h-14 shrink-0 transition-all duration-300 hover:scale-110">
+                            <img src="/clinic.svg" alt="4TP Logo" className="w-full h-full object-contain" />
                         </div>
                         {/* Logo glow effect */}
                         <div className="absolute inset-0 rounded-full bg-[#e8919a]/30 blur-xl opacity-0 hover:opacity-100 transition-opacity duration-300 -z-10" />
@@ -223,8 +223,8 @@ export function Sidebar({ isOpen, onClose }) {
                         isDark ? "border-[#1f1f1f]" : "border-gray-200"
                     )}>
                         <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full bg-[#e8919a] flex items-center justify-center shadow-md">
-                                <span className="text-[#fef9f3] font-black text-lg tracking-tight">4TP</span>
+                            <div className="w-12 h-12 shrink-0">
+                                <img src="/clinic.svg" alt="4TP Logo" className="w-full h-full object-contain" />
                             </div>
                             <span className={cn(
                                 "text-lg font-bold",

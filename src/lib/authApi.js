@@ -1,5 +1,7 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const SESSION_KEY = 'clinic_auth_session';
+const LEGACY_TENANT_STORAGE_KEY = 'clinic_selected_tenant';
+const TENANT_STORAGE_KEY_PREFIX = 'clinic_selected_tenant_by_user:';
 
 class ApiError extends Error {
   constructor(message, status) {
@@ -30,10 +32,13 @@ function getAuthToken() {
   return getStoredSession()?.token || '';
 }
 
-function getSelectedClinicId() {
+function getScopedTenantStorageKey(userId) {
+  return `${TENANT_STORAGE_KEY_PREFIX}${userId}`;
+}
+
+function parseStoredClinicId(raw) {
+  if (!raw) return '';
   try {
-    const raw = sessionStorage.getItem('clinic_selected_tenant');
-    if (!raw) return '';
     const parsed = JSON.parse(raw);
     return parsed?.clinicId || '';
   } catch {
@@ -41,8 +46,23 @@ function getSelectedClinicId() {
   }
 }
 
+function getSelectedClinicId() {
+  const legacyClinicId = parseStoredClinicId(sessionStorage.getItem(LEGACY_TENANT_STORAGE_KEY));
+  if (legacyClinicId) return legacyClinicId;
+
+  const userId = getStoredSession()?.userId;
+  if (!userId) return '';
+
+  return parseStoredClinicId(localStorage.getItem(getScopedTenantStorageKey(userId)));
+}
+
 function clearSelectedClinic() {
-  sessionStorage.removeItem('clinic_selected_tenant');
+  sessionStorage.removeItem(LEGACY_TENANT_STORAGE_KEY);
+
+  const userId = getStoredSession()?.userId;
+  if (userId) {
+    localStorage.removeItem(getScopedTenantStorageKey(userId));
+  }
 }
 
 async function request(path, options = {}, hasRetried = false) {

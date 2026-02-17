@@ -12,7 +12,20 @@ export const useTenant = () => {
   return context;
 };
 
-const TENANT_STORAGE_KEY = 'clinic_selected_tenant';
+const LEGACY_TENANT_STORAGE_KEY = 'clinic_selected_tenant';
+const TENANT_STORAGE_KEY_PREFIX = 'clinic_selected_tenant_by_user:';
+
+const getScopedTenantStorageKey = (userId) => `${TENANT_STORAGE_KEY_PREFIX}${userId}`;
+
+const parseSavedSelection = (raw) => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed?.organizationId && parsed?.clinicId ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 export function TenantProvider({ children }) {
   const { session, isAuthenticated } = useAuth();
@@ -34,14 +47,10 @@ export function TenantProvider({ children }) {
         setOrganizations(accessibleOrgs);
         setClinics(accessibleClinics);
 
-        const saved = sessionStorage.getItem(TENANT_STORAGE_KEY);
-        let savedSelection = null;
-
-        try {
-          savedSelection = saved ? JSON.parse(saved) : null;
-        } catch {
-          savedSelection = null;
-        }
+        const scopedKey = session?.userId ? getScopedTenantStorageKey(session.userId) : null;
+        const savedSelection =
+          parseSavedSelection(scopedKey ? localStorage.getItem(scopedKey) : null) ||
+          parseSavedSelection(sessionStorage.getItem(LEGACY_TENANT_STORAGE_KEY));
 
         if (savedSelection) {
           const orgStillAccessible = accessibleOrgs.some((o) => o.id === savedSelection.organizationId);
@@ -67,6 +76,7 @@ export function TenantProvider({ children }) {
     };
 
     if (!isAuthenticated || !session) {
+      sessionStorage.removeItem(LEGACY_TENANT_STORAGE_KEY);
       setOrganizations([]);
       setClinics([]);
       setSelectedOrganizationId(null);
@@ -98,15 +108,17 @@ export function TenantProvider({ children }) {
   // Persist selection changes
   useEffect(() => {
     if (selectedOrganizationId && selectedClinicId) {
-      sessionStorage.setItem(
-        TENANT_STORAGE_KEY,
-        JSON.stringify({
-          organizationId: selectedOrganizationId,
-          clinicId: selectedClinicId,
-        })
-      );
+      const payload = JSON.stringify({
+        organizationId: selectedOrganizationId,
+        clinicId: selectedClinicId,
+      });
+
+      sessionStorage.setItem(LEGACY_TENANT_STORAGE_KEY, payload);
+      if (session?.userId) {
+        localStorage.setItem(getScopedTenantStorageKey(session.userId), payload);
+      }
     }
-  }, [selectedOrganizationId, selectedClinicId]);
+  }, [selectedOrganizationId, selectedClinicId, session?.userId]);
 
   const selectOrganization = useCallback((orgId) => {
     setSelectedOrganizationId(orgId);

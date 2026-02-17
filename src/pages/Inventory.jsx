@@ -175,12 +175,12 @@ export function Inventory() {
                 </div>
             </div>
 
-            <div className={cn('rounded-xl flex items-center gap-3 px-4 transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
+            <div className={cn('rounded-xl flex items-center gap-3 px-4 transition-colors dashboard-reveal reveal-delay-2', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
                 <Search className="w-5 h-5 text-gray-500" />
                 <input type="text" placeholder="Search inventory items..." className={cn('flex-1 py-3 outline-none placeholder-gray-500 bg-transparent text-sm', isDark ? 'text-white' : 'text-gray-900')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
 
-            <div className={cn('rounded-2xl overflow-hidden', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+            <div className={cn('rounded-2xl overflow-hidden overflow-x-auto dashboard-reveal reveal-delay-3', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                 <table className="w-full text-left text-sm">
                     <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}><tr><th className="p-4">Item</th><th className="p-4">Category</th><th className="p-4">Current Stock</th><th className="p-4">Threshold</th><th className="p-4">Expiry</th><th className="p-4">Sell Price</th><th className="p-4">Status</th><th className="p-4 text-right">Actions</th></tr></thead>
                     <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-200')}>
