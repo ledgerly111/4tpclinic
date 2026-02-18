@@ -11,6 +11,7 @@ export function Services() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(true);
     const [newService, setNewService] = useState({
         name: '',
         price: '',
@@ -18,11 +19,14 @@ export function Services() {
     });
 
     const loadServices = async () => {
+        setLoading(true);
         try {
             const result = await fetchServices();
             setServices(result.services || []);
         } catch (err) {
             setError(err.message || 'Failed to load services.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -86,17 +90,15 @@ export function Services() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/20 flex items-center justify-center"><Stethoscope className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Total Services</span></div>
-                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{totalServices}</p>
+                    {loading ? <div className="skeleton-shimmer h-8 w-16 mt-1" /> : <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{totalServices}</p>}
                 </div>
                 <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-500/20 flex items-center justify-center"><DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Avg. Price</span></div>
-                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Rs{avgPrice}</p>
+                    {loading ? <div className="skeleton-shimmer h-8 w-20 mt-1" /> : <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Rs{avgPrice}</p>}
                 </div>
                 <div className={cn('rounded-xl sm:rounded-2xl p-4 sm:p-5', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
                     <div className="flex items-center gap-3 mb-2"><div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-500/20 flex items-center justify-center"><Clock className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" /></div><span className={cn('text-xs sm:text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Avg. Duration</span></div>
-                    <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>
-                        {Math.round(services.reduce((sum, s) => sum + Number(s.duration || 0), 0) / Math.max(services.length, 1))} min
-                    </p>
+                    {loading ? <div className="skeleton-shimmer h-8 w-20 mt-1" /> : <p className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>{Math.round(services.reduce((sum, s) => sum + Number(s.duration || 0), 0) / Math.max(services.length, 1))} min</p>}
                 </div>
             </div>
 
@@ -106,21 +108,44 @@ export function Services() {
             </div>
 
             <div className={cn('rounded-2xl overflow-hidden transition-colors', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
-                <table className="w-full text-left text-sm">
-                    <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}>
-                        <tr><th className="p-4">Service Name</th><th className="p-4">Duration</th><th className="p-4">Price</th><th className="p-4 text-right">Actions</th></tr>
-                    </thead>
-                    <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-200')}>
-                        {filteredServices.map((service) => (
-                            <tr key={service.id} className={cn('transition-colors', isDark ? 'hover:bg-[#252525]' : 'hover:bg-gray-50')}>
-                                <td className="p-4"><div className="flex items-center gap-3"><div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100')}><Stethoscope className="w-5 h-5 text-[#ff7a6b]" /></div><span className={cn('font-medium', isDark ? 'text-white' : 'text-gray-900')}>{service.name}</span></div></td>
-                                <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>{service.duration} min</td>
-                                <td className={cn('p-4 font-medium', isDark ? 'text-white' : 'text-gray-900')}>Rs{service.price}</td>
-                                <td className="p-4 text-right"><button onClick={() => handleDelete(service.id)} className={cn('p-2 rounded-lg transition-colors', isDark ? 'hover:bg-red-500/10 text-gray-400 hover:text-red-400' : 'hover:bg-red-50 text-gray-600 hover:text-red-500')}><Trash2 className="w-4 h-4" /></button></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                {loading ? (
+                    <div>
+                        <div className={cn('px-4 py-3 border-b', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-gray-50 border-gray-200')}>
+                            <div className="grid grid-cols-4 gap-4">
+                                {[...Array(4)].map((_, i) => <div key={i} className="skeleton-shimmer h-4" />)}
+                            </div>
+                        </div>
+                        <div className="divide-y divide-gray-800/40">
+                            {[...Array(5)].map((_, i) => (
+                                <div key={i} className="px-4 py-4 grid grid-cols-4 gap-4 items-center">
+                                    <div className="flex items-center gap-3">
+                                        <div className="skeleton-shimmer w-10 h-10 rounded-xl flex-shrink-0" />
+                                        <div className="skeleton-shimmer h-4 flex-1" />
+                                    </div>
+                                    <div className="skeleton-shimmer h-4" />
+                                    <div className="skeleton-shimmer h-4" />
+                                    <div className="skeleton-shimmer h-8 w-8 rounded-lg ml-auto" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <table className="w-full text-left text-sm">
+                        <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}>
+                            <tr><th className="p-4">Service Name</th><th className="p-4">Duration</th><th className="p-4">Price</th><th className="p-4 text-right">Actions</th></tr>
+                        </thead>
+                        <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-200')}>
+                            {filteredServices.map((service) => (
+                                <tr key={service.id} className={cn('transition-colors', isDark ? 'hover:bg-[#252525]' : 'hover:bg-gray-50')}>
+                                    <td className="p-4"><div className="flex items-center gap-3"><div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', isDark ? 'bg-[#0f0f0f]' : 'bg-gray-100')}><Stethoscope className="w-5 h-5 text-[#ff7a6b]" /></div><span className={cn('font-medium', isDark ? 'text-white' : 'text-gray-900')}>{service.name}</span></div></td>
+                                    <td className={cn('p-4', isDark ? 'text-gray-400' : 'text-gray-600')}>{service.duration} min</td>
+                                    <td className={cn('p-4 font-medium', isDark ? 'text-white' : 'text-gray-900')}>Rs{service.price}</td>
+                                    <td className="p-4 text-right"><button onClick={() => handleDelete(service.id)} className={cn('p-2 rounded-lg transition-colors', isDark ? 'hover:bg-red-500/10 text-gray-400 hover:text-red-400' : 'hover:bg-red-50 text-gray-600 hover:text-red-500')}><Trash2 className="w-4 h-4" /></button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
             {isModalOpen && (

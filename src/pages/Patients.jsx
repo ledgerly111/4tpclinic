@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Trash2, User, Phone, Calendar, X } from 'lucide-react';
+import { Search, Plus, Trash2, User, Phone, Calendar, X, Pencil } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { createPatient, deletePatient, fetchPatients } from '../lib/clinicApi';
+import { createPatient, deletePatient, fetchPatients, updatePatient } from '../lib/clinicApi';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
@@ -24,6 +24,8 @@ export function Patients() {
     contact: '',
     medicalHistory: '',
   });
+  const [editPatient, setEditPatient] = useState(null); // holds patient being edited
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const loadPatients = async () => {
     setIsLoading(true);
@@ -96,6 +98,36 @@ export function Patients() {
     }
   };
 
+  const openEditModal = (patient) => {
+    setEditPatient({
+      ...patient,
+      medicalHistory: (patient.medicalHistory || []).join(', '),
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await updatePatient(editPatient.id, {
+        name: editPatient.name,
+        age: editPatient.age,
+        gender: editPatient.gender,
+        contact: editPatient.contact,
+        medicalHistory: editPatient.medicalHistory
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+      setIsEditModalOpen(false);
+      setEditPatient(null);
+      await loadPatients();
+    } catch (err) {
+      setError(err.message || 'Failed to update patient.');
+    }
+  };
+
   return (
     <div className='space-y-4 sm:space-y-6'>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 dashboard-reveal">
@@ -130,8 +162,29 @@ export function Patients() {
       </div>
 
       {isLoading && (
-        <div className={cn('rounded-xl p-8 text-center', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-          <p className={cn('mt-1 text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>Loading patients...</p>
+        <div className={cn('rounded-2xl overflow-hidden', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+          <div className={cn('px-4 py-3 border-b', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-gray-50 border-gray-200')}>
+            <div className="grid grid-cols-6 gap-4">
+              {['Name', 'Age/Gender', 'Contact', 'Last Visit', 'Medical History', 'Actions'].map((h) => (
+                <div key={h} className="skeleton-shimmer h-4" />
+              ))}
+            </div>
+          </div>
+          <div className="divide-y divide-gray-800/40">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="px-4 py-4 grid grid-cols-6 gap-4 items-center">
+                <div className="flex items-center gap-3">
+                  <div className="skeleton-shimmer w-10 h-10 rounded-full flex-shrink-0" />
+                  <div className="skeleton-shimmer h-4 flex-1" />
+                </div>
+                <div className="skeleton-shimmer h-4" />
+                <div className="skeleton-shimmer h-4" />
+                <div className="skeleton-shimmer h-4" />
+                <div className="skeleton-shimmer h-4 w-3/4" />
+                <div className="skeleton-shimmer h-8 w-8 rounded-lg ml-auto" />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -183,12 +236,22 @@ export function Patients() {
                     </div>
                   </td>
                   <td className="p-4 text-right">
-                    <button
-                      onClick={() => handleDelete(patient.id)}
-                      className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/10 rounded-xl transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => openEditModal(patient)}
+                        className="text-blue-400 hover:text-blue-300 p-2 hover:bg-blue-500/10 rounded-xl transition-colors"
+                        title="Edit patient"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(patient.id)}
+                        className="text-red-400 hover:text-red-300 p-2 hover:bg-red-500/10 rounded-xl transition-colors"
+                        title="Delete patient"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -240,6 +303,55 @@ export function Patients() {
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className={cn("px-4 py-2 rounded-xl transition-colors", isDark ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100")}>Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] transition-colors">Save Patient</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Patient Modal ── */}
+      {isEditModalOpen && editPatient && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className={cn(
+            "rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto border shadow-xl",
+            isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-200"
+          )}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className={cn("text-xl font-bold", isDark ? "text-white" : "text-gray-900")}>Edit Patient</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className={cn("transition-colors", isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className={cn("block text-sm font-medium mb-2", isDark ? "text-gray-400" : "text-gray-700")}>Full Name</label>
+                <input required type="text" className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900")} value={editPatient.name} onChange={(e) => setEditPatient({ ...editPatient, name: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={cn("block text-sm font-medium mb-2", isDark ? "text-gray-400" : "text-gray-700")}>Age</label>
+                  <input type="number" className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900")} value={editPatient.age} onChange={(e) => setEditPatient({ ...editPatient, age: e.target.value })} />
+                </div>
+                <div>
+                  <label className={cn("block text-sm font-medium mb-2", isDark ? "text-gray-400" : "text-gray-700")}>Gender</label>
+                  <select className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900")} value={editPatient.gender} onChange={(e) => setEditPatient({ ...editPatient, gender: e.target.value })}>
+                    <option>Male</option>
+                    <option>Female</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={cn("block text-sm font-medium mb-2", isDark ? "text-gray-400" : "text-gray-700")}>Contact Number</label>
+                <input type="tel" className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900")} value={editPatient.contact} onChange={(e) => setEditPatient({ ...editPatient, contact: e.target.value })} />
+              </div>
+              <div>
+                <label className={cn("block text-sm font-medium mb-2", isDark ? "text-gray-400" : "text-gray-700")}>Medical History (comma separated)</label>
+                <textarea className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] resize-none transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900")} rows="3" value={editPatient.medicalHistory} onChange={(e) => setEditPatient({ ...editPatient, medicalHistory: e.target.value })} />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className={cn("px-4 py-2 rounded-xl transition-colors", isDark ? "text-gray-400 hover:text-white hover:bg-white/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100")}>Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] transition-colors">Save Changes</button>
               </div>
             </form>
           </div>

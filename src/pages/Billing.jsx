@@ -206,9 +206,10 @@ export function Billing() {
                             </div>
                             <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Cash Received</span>
                         </div>
-                        <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>
-                            {formatCurrency(summary.cashReceived)}
-                        </p>
+                        {loading
+                            ? <div className="skeleton-shimmer h-8 w-32 mt-1" />
+                            : <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(summary.cashReceived)}</p>
+                        }
                     </div>
                     <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
                         <div className="flex items-center gap-3 mb-2">
@@ -217,9 +218,10 @@ export function Billing() {
                             </div>
                             <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Pending</span>
                         </div>
-                        <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>
-                            {formatCurrency(summary.pendingAmount)}
-                        </p>
+                        {loading
+                            ? <div className="skeleton-shimmer h-8 w-32 mt-1" />
+                            : <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(summary.pendingAmount)}</p>
+                        }
                     </div>
                     <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
                         <div className="flex items-center gap-3 mb-2">
@@ -228,9 +230,10 @@ export function Billing() {
                             </div>
                             <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Overdue</span>
                         </div>
-                        <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>
-                            {formatCurrency(summary.overdueAmount)}
-                        </p>
+                        {loading
+                            ? <div className="skeleton-shimmer h-8 w-32 mt-1" />
+                            : <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(summary.overdueAmount)}</p>
+                        }
                     </div>
                 </div>
 
@@ -258,8 +261,25 @@ export function Billing() {
                 </div>
 
                 {loading && (
-                    <div className={cn("rounded-xl p-6 text-sm", isDark ? 'bg-[#1e1e1e] text-gray-400' : 'bg-white border border-gray-200 text-gray-600')}>
-                        Loading billing data...
+                    <div className={cn('rounded-2xl overflow-hidden', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
+                        <div className={cn('px-4 py-3 border-b', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-gray-50 border-gray-200')}>
+                            <div className="grid grid-cols-7 gap-4">
+                                {[...Array(7)].map((_, i) => <div key={i} className="skeleton-shimmer h-4" />)}
+                            </div>
+                        </div>
+                        <div className="divide-y divide-gray-800/40">
+                            {[...Array(5)].map((_, i) => (
+                                <div key={i} className="px-4 py-4 grid grid-cols-7 gap-4 items-center">
+                                    <div className="skeleton-shimmer h-4" />
+                                    <div className="skeleton-shimmer h-4" />
+                                    <div className="skeleton-shimmer h-4" />
+                                    <div className="skeleton-shimmer h-4" />
+                                    <div className="skeleton-shimmer h-4" />
+                                    <div className="skeleton-shimmer h-6 w-16 rounded-full" />
+                                    <div className="skeleton-shimmer h-8 w-16 rounded-lg ml-auto" />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 

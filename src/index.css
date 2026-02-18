@@ -299,13 +299,14 @@ a:focus-visible {
       rgba(255, 122, 107, 0.02) 100%);
 }
 
-/* Custom scrollbar for sidebar */
+/* Sidebar scrollbar — always visible, no layout shift */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
+  display: block;
   width: 3px;
 }
 
@@ -320,24 +321,6 @@ a:focus-visible {
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.2);
-}
-
-/* Hide scrollbar when not hovering (optional aesthetic) */
-.scrollbar-thin {
-  scrollbar-width: none;
-}
-
-.scrollbar-thin:hover {
-  scrollbar-width: thin;
-}
-
-.scrollbar-thin::-webkit-scrollbar {
-  display: none;
-}
-
-.scrollbar-thin:hover::-webkit-scrollbar {
-  display: block;
-  width: 3px;
 }
 
 /* Active navigation pulse */
@@ -357,4 +340,30 @@ a:focus-visible {
 
 .nav-active-pulse {
   animation: nav-pulse 2s infinite;
+}
+
+/* ── Global Skeleton / Shimmer Loading ─────────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg,
+      var(--skeleton-base, rgba(255, 255, 255, 0.06)) 25%,
+      var(--skeleton-shine, rgba(255, 255, 255, 0.14)) 50%,
+      var(--skeleton-base, rgba(255, 255, 255, 0.06)) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+.light-mode .skeleton-shimmer {
+  --skeleton-base: rgba(0, 0, 0, 0.06);
+  --skeleton-shine: rgba(0, 0, 0, 0.12);
 }

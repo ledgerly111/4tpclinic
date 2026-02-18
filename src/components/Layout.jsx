@@ -27,7 +27,7 @@ export function Layout() {
         <div className="flex min-h-[100dvh] transition-colors duration-300 bg-[var(--bg)]">
             <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
-            <main className="flex-1 lg:ml-20 transition-all duration-300 w-full">
+            <main className="flex-1 lg:ml-[76px] transition-all duration-300 w-full">
                 {isDashboard ? (
                     <div className="min-h-[100dvh] flex flex-col">
                         <Header onMenuClick={() => setIsMobileMenuOpen(true)} />

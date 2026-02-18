@@ -43,160 +43,146 @@ export function Sidebar({ isOpen, onClose }) {
         <>
             {/* Desktop Sidebar - Always visible on lg+ screens */}
             <aside className={cn(
-                "fixed left-0 top-0 z-40 hidden lg:flex h-screen w-20 flex-col items-center py-6 transition-all duration-300 sidebar-gradient",
+                "fixed left-0 top-0 z-40 hidden lg:flex h-screen w-[76px] flex-col transition-colors duration-300",
                 isDark
-                    ? "bg-[#0a0a0a] border-r border-[#1f1f1f]"
-                    : "bg-white border-r border-gray-200"
+                    ? "bg-[#0a0a0a] border-r border-white/[0.06]"
+                    : "bg-white border-r border-gray-100 shadow-sm"
             )}>
-                {/* Scrollable Container */}
-                <div className="flex-1 w-full overflow-y-auto overflow-x-hidden scrollbar-thin flex flex-col items-center py-6">
-                    {/* 4TP Logo */}
-                    <div className="mb-8 relative flex-shrink-0">
-                        <div className="w-14 h-14 shrink-0 transition-all duration-300 hover:scale-110">
-                            <img src="/clinic.svg" alt="4TP Logo" className="w-full h-full object-contain" />
+                {/* Top: Logo */}
+                <div className="flex items-center justify-center pt-5 pb-4 flex-shrink-0">
+                    <div className="relative group">
+                        <div className={cn(
+                            "w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-105",
+                            isDark ? "bg-white/5" : "bg-gray-50"
+                        )}>
+                            <img src="/clinic.svg" alt="4TP Logo" className="w-7 h-7 object-contain" />
                         </div>
-                        {/* Logo glow effect */}
-                        <div className="absolute inset-0 rounded-full bg-[#e8919a]/30 blur-xl opacity-0 hover:opacity-100 transition-opacity duration-300 -z-10" />
+                        {/* Glow */}
+                        <div className="absolute inset-0 rounded-2xl bg-[#ff7a6b]/20 blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
                     </div>
+                </div>
 
-                    {/* Main Navigation Icons */}
-                    <nav className="flex flex-col items-center gap-3 w-full px-3 flex-shrink-0">
-                        {navItems.map((item, index) => {
-                            const isActive = location.pathname === item.path;
-                            return (
-                                <NavLink
-                                    key={item.path}
-                                    to={item.path}
-                                    className="group relative w-full sidebar-icon-enter flex-shrink-0"
-                                    style={{ animationDelay: `${index * 50}ms` }}
-                                >
-                                    <div className={cn(
-                                        "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300 relative overflow-hidden",
-                                        isActive
-                                            ? "bg-gradient-to-br from-[#ff7a6b] to-[#ff6b5b] text-white shadow-lg shadow-[#ff7a6b]/30"
-                                            : isDark
-                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f]"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-                                    )}>
-                                        {/* Hover glow effect */}
-                                        {!isActive && (
-                                            <div className="absolute inset-0 bg-gradient-to-br from-[#ff7a6b]/0 to-[#ff7a6b]/0 group-hover:from-[#ff7a6b]/10 group-hover:to-transparent transition-all duration-300 rounded-2xl" />
-                                        )}
-                                        <item.icon className={cn(
-                                            "w-5 h-5 transition-all duration-300 relative z-10"
-                                        )} />
-                                    </div>
+                {/* Thin accent line below logo */}
+                <div className={cn("mx-4 h-px flex-shrink-0", isDark ? "bg-white/[0.06]" : "bg-gray-100")} />
 
-                                    {/* Tooltip with animation */}
-                                    <div className={cn(
-                                        "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
-                                        "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
-                                        "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
-                                        isDark
-                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl"
-                                            : "bg-white text-gray-900 border border-gray-200 shadow-xl"
-                                    )}>
-                                        {item.label}
-                                        {/* Arrow */}
-                                        <div className={cn(
-                                            "absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45",
-                                            isDark ? "bg-[#1f1f1f] border-l border-b border-gray-800" : "bg-white border-l border-b border-gray-200"
-                                        )} />
-                                    </div>
+                {/* Scrollable nav area */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin flex flex-col items-center py-3 gap-1 px-3">
+                    {navItems.map((item, index) => {
+                        const isActive = location.pathname === item.path;
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                className="group relative w-full flex-shrink-0 sidebar-icon-enter"
+                                style={{ animationDelay: `${index * 40}ms` }}
+                            >
+                                {/* Active left bar */}
+                                {isActive && (
+                                    <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-[#ff7a6b] shadow-[0_0_8px_rgba(255,122,107,0.7)]" />
+                                )}
 
-                                    {/* Active indicator dot */}
-                                    {isActive && (
-                                        <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#ff7a6b] shadow-lg shadow-[#ff7a6b]/50" />
-                                    )}
-                                </NavLink>
-                            );
-                        })}
-                    </nav>
-
-                    {/* Divider */}
-                    <div className={cn(
-                        "w-10 h-px my-4 flex-shrink-0",
-                        isDark ? "bg-gray-800" : "bg-gray-200"
-                    )} />
-
-                    {/* Bottom Navigation Icons (Settings, Help, Logout) */}
-                    <nav className="flex flex-col items-center gap-3 w-full px-3 flex-shrink-0 pb-4">
-                        {bottomNavItems.map((item) => {
-                            const isActive = location.pathname === item.path;
-                            return (
-                                <NavLink
-                                    key={item.path}
-                                    to={item.path}
-                                    className="group relative w-full flex-shrink-0"
-                                >
-                                    <div className={cn(
-                                        "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300 relative overflow-hidden",
-                                        isActive
-                                            ? isDark
-                                                ? "bg-[#1f1f1f] text-white shadow-lg"
-                                                : "bg-gray-200 text-gray-900 shadow-lg"
-                                            : isDark
-                                                ? "text-gray-500 hover:text-white hover:bg-[#1f1f1f]"
-                                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
-                                    )}>
-                                        <item.icon className={cn(
-                                            "w-5 h-5 transition-all duration-300",
-                                            isActive ? "" : "group-hover:rotate-12"
-                                        )} />
-                                    </div>
-
-                                    {/* Tooltip */}
-                                    <div className={cn(
-                                        "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
-                                        "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
-                                        "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
-                                        isDark
-                                            ? "bg-[#1f1f1f] text-white border border-gray-800 shadow-2xl"
-                                            : "bg-white text-gray-900 border border-gray-200 shadow-xl"
-                                    )}>
-                                        {item.label}
-                                        <div className={cn(
-                                            "absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45",
-                                            isDark ? "bg-[#1f1f1f] border-l border-b border-gray-800" : "bg-white border-l border-b border-gray-200"
-                                        )} />
-                                    </div>
-                                </NavLink>
-                            );
-                        })}
-
-                        {/* Logout Button */}
-                        <button
-                            onClick={logout}
-                            className="group relative w-full mt-2 flex-shrink-0"
-                        >
-                            <div className={cn(
-                                "w-full aspect-square rounded-2xl flex items-center justify-center transition-all duration-300",
-                                isDark
-                                    ? "text-red-400 hover:bg-red-500/10"
-                                    : "text-red-500 hover:bg-red-50"
-                            )}>
-                                <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12" />
-                            </div>
-
-                            {/* Tooltip */}
-                            <div className={cn(
-                                "absolute left-full ml-4 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap z-50 pointer-events-none",
-                                "opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out",
-                                "translate-x-2 group-hover:translate-x-0 scale-95 group-hover:scale-100",
-                                isDark
-                                    ? "bg-[#1f1f1f] text-red-400 border border-gray-800 shadow-2xl"
-                                    : "bg-white text-red-500 border border-gray-200 shadow-xl"
-                            )}>
-                                Logout
                                 <div className={cn(
-                                    "absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 rotate-45",
-                                    isDark ? "bg-[#1f1f1f] border-l border-b border-gray-800" : "bg-white border-l border-b border-gray-200"
-                                )} />
-                            </div>
-                        </button>
-                    </nav>
+                                    "w-full py-3 rounded-2xl flex items-center justify-center transition-all duration-200 relative overflow-hidden",
+                                    isActive
+                                        ? isDark
+                                            ? "bg-[#ff7a6b]/15 text-[#ff7a6b]"
+                                            : "bg-[#ff7a6b]/10 text-[#ff7a6b]"
+                                        : isDark
+                                            ? "text-gray-500 hover:text-gray-200 hover:bg-white/[0.06]"
+                                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                                )}>
+                                    <item.icon className={cn(
+                                        "w-[18px] h-[18px] transition-all duration-200 relative z-10 flex-shrink-0",
+                                        isActive ? "drop-shadow-[0_0_6px_rgba(255,122,107,0.6)]" : "group-hover:scale-110"
+                                    )} />
+                                </div>
+
+                                {/* Tooltip */}
+                                <div className={cn(
+                                    "absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap z-50 pointer-events-none",
+                                    "opacity-0 invisible group-hover:opacity-100 group-hover:visible",
+                                    "translate-x-1 group-hover:translate-x-0 transition-all duration-150 ease-out",
+                                    isDark
+                                        ? "bg-[#1a1a1a] text-white border border-white/10 shadow-xl shadow-black/40"
+                                        : "bg-gray-900 text-white shadow-xl"
+                                )}>
+                                    {item.label}
+                                    {/* Arrow */}
+                                    <div className={cn(
+                                        "absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent",
+                                        isDark ? "border-r-[#1a1a1a]" : "border-r-gray-900"
+                                    )} />
+                                </div>
+                            </NavLink>
+                        );
+                    })}
+                </div>
+
+                {/* Bottom: Settings, Help, Logout — pinned, never scrolls */}
+                <div className={cn("flex flex-col items-center gap-1 px-3 pb-4 pt-3 flex-shrink-0 border-t", isDark ? "border-white/[0.06]" : "border-gray-100")}>
+                    {bottomNavItems.map((item) => {
+                        const isActive = location.pathname === item.path;
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                className="group relative w-full flex-shrink-0"
+                            >
+                                <div className={cn(
+                                    "w-full py-3 rounded-2xl flex items-center justify-center transition-all duration-200",
+                                    isActive
+                                        ? isDark
+                                            ? "bg-white/10 text-white"
+                                            : "bg-gray-100 text-gray-900"
+                                        : isDark
+                                            ? "text-gray-500 hover:text-gray-200 hover:bg-white/[0.06]"
+                                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                                )}>
+                                    <item.icon className="w-[18px] h-[18px] transition-all duration-200 group-hover:scale-110" />
+                                </div>
+                                {/* Tooltip */}
+                                <div className={cn(
+                                    "absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap z-50 pointer-events-none",
+                                    "opacity-0 invisible group-hover:opacity-100 group-hover:visible",
+                                    "translate-x-1 group-hover:translate-x-0 transition-all duration-150 ease-out",
+                                    isDark
+                                        ? "bg-[#1a1a1a] text-white border border-white/10 shadow-xl shadow-black/40"
+                                        : "bg-gray-900 text-white shadow-xl"
+                                )}>
+                                    {item.label}
+                                    <div className={cn(
+                                        "absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent",
+                                        isDark ? "border-r-[#1a1a1a]" : "border-r-gray-900"
+                                    )} />
+                                </div>
+                            </NavLink>
+                        );
+                    })}
+
+                    {/* Logout */}
+                    <button onClick={logout} className="group relative w-full flex-shrink-0">
+                        <div className={cn(
+                            "w-full py-3 rounded-2xl flex items-center justify-center transition-all duration-200",
+                            isDark
+                                ? "text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                                : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+                        )}>
+                            <LogOut className="w-[18px] h-[18px] transition-all duration-200 group-hover:scale-110" />
+                        </div>
+                        {/* Tooltip */}
+                        <div className={cn(
+                            "absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap z-50 pointer-events-none",
+                            "opacity-0 invisible group-hover:opacity-100 group-hover:visible",
+                            "translate-x-1 group-hover:translate-x-0 transition-all duration-150 ease-out",
+                            "bg-gray-900 text-red-400 shadow-xl"
+                        )}>
+                            Logout
+                            <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
+                        </div>
+                    </button>
                 </div>
             </aside>
+
 
             {/* Mobile/Tablet Sidebar Drawer */}
             <div className={cn(

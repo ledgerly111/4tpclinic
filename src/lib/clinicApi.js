@@ -12,6 +12,13 @@ export async function createPatient(payload) {
   });
 }
 
+export async function updatePatient(patientId, payload) {
+  return request(`/patients/${encodeURIComponent(patientId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function deletePatient(patientId) {
   return request(`/patients/${encodeURIComponent(patientId)}`, {
     method: 'DELETE',
@@ -48,6 +55,13 @@ export async function createInventoryItem(payload) {
   });
 }
 
+export async function updateInventoryItem(itemId, payload) {
+  return request(`/inventory/${encodeURIComponent(itemId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function restockInventoryItem(itemId, payload) {
   return request(`/inventory/${encodeURIComponent(itemId)}/restock`, {
     method: 'PATCH',
@@ -63,6 +77,13 @@ export async function fetchAppointments(params = {}) {
 export async function createAppointment(payload) {
   return request('/appointments', {
     method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAppointment(appointmentId, payload) {
+  return request(`/appointments/${encodeURIComponent(appointmentId)}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }

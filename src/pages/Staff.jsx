@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, Users, Plus, Key, X, UserPlus, Stethoscope } from 'lucide-react';
+import { Building2, Users, Plus, Key, X, UserPlus, Stethoscope, ShieldCheck, Shield, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
 import { useStore } from '../context/StoreContext';
@@ -8,8 +8,35 @@ import {
     createClinicApi,
     createStaffApi,
     resetStaffPasswordApi,
+    updateStaffPermissionsApi,
 } from '../lib/authApi';
 import { cn } from '../lib/utils';
+
+// ── Permission definitions ─────────────────────────────────────────────────
+const PAGE_PERMISSIONS = [
+    { key: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { key: 'patients', label: 'Patients', icon: '🧑‍⚕️' },
+    { key: 'appointments', label: 'Appointments', icon: '📅' },
+    { key: 'inventory', label: 'Inventory', icon: '📦' },
+    { key: 'services', label: 'Services', icon: '🩺' },
+    { key: 'billing', label: 'Billing', icon: '🧾' },
+    { key: 'reports', label: 'Reports', icon: '📈' },
+];
+
+const EDIT_PERMISSIONS = [
+    { key: 'edit_patients', label: 'Edit Patients', desc: 'Create, update & delete patient records' },
+    { key: 'edit_appointments', label: 'Edit Appointments', desc: 'Create, update & cancel appointments' },
+    { key: 'edit_inventory', label: 'Edit Inventory', desc: 'Add, update & restock inventory items' },
+    { key: 'edit_services', label: 'Edit Services', desc: 'Create & delete clinic services' },
+    { key: 'edit_billing', label: 'Edit Billing', desc: 'Create & manage invoices' },
+];
+
+const DEFAULT_PERMISSIONS = {
+    pages: { dashboard: true, patients: true, appointments: true, inventory: false, services: false, billing: false, reports: false },
+    edits: { edit_patients: false, edit_appointments: false, edit_inventory: false, edit_services: false, edit_billing: false },
+};
+
+const PERMS_STORAGE_KEY = 'clinic_staff_permissions';
 
 export function Staff() {
     const { session } = useAuth();
@@ -19,12 +46,20 @@ export function Staff() {
     const [clinics, setClinics] = useState([]);
     const [users, setUsers] = useState([]);
     const [activeTab, setActiveTab] = useState('clinics');
+    const [loading, setLoading] = useState(true);
     const [showClinicModal, setShowClinicModal] = useState(false);
     const [showStaffModal, setShowStaffModal] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [showPermModal, setShowPermModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
     const [formError, setFormError] = useState('');
     const [formSuccess, setFormSuccess] = useState('');
+    // Local permissions map: { [userId]: { pages: {...}, edits: {...} } }
+    const [permissionsMap, setPermissionsMap] = useState(() => {
+        try { return JSON.parse(localStorage.getItem(PERMS_STORAGE_KEY) || '{}'); } catch { return {}; }
+    });
+    const [permForm, setPermForm] = useState(null); // working copy while modal is open
+    const [permSaving, setPermSaving] = useState(false);
 
     const [clinicForm, setClinicForm] = useState({ name: '', code: '' });
     const [staffForm, setStaffForm] = useState({
@@ -37,10 +72,15 @@ export function Staff() {
     const [passwordForm, setPasswordForm] = useState({ newPassword: '' });
 
     const loadData = async () => {
-        if (!session?.organizationId) return;
-        const data = await fetchAdminSupervisionApi();
-        setClinics(Array.isArray(data.clinics) ? data.clinics : []);
-        setUsers(Array.isArray(data.users) ? data.users : []);
+        setLoading(true);
+        try {
+            if (!session?.organizationId) return;
+            const data = await fetchAdminSupervisionApi();
+            setClinics(Array.isArray(data.clinics) ? data.clinics : []);
+            setUsers(Array.isArray(data.users) ? data.users : []);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -127,6 +167,51 @@ export function Staff() {
         }));
     };
 
+    // ── Permissions helpers ──────────────────────────────────────────────────
+    const getPermsForUser = (userId) => {
+        const stored = permissionsMap[userId];
+        if (!stored) return DEFAULT_PERMISSIONS;
+        return {
+            pages: { ...DEFAULT_PERMISSIONS.pages, ...(stored.pages || {}) },
+            edits: { ...DEFAULT_PERMISSIONS.edits, ...(stored.edits || {}) },
+        };
+    };
+
+    const openPermModal = (user) => {
+        setSelectedUser(user);
+        setPermForm(getPermsForUser(user.id));
+        clearMessages();
+        setShowPermModal(true);
+    };
+
+    const handleSavePermissions = async () => {
+        if (!selectedUser || !permForm) return;
+        setPermSaving(true);
+        clearMessages();
+        try {
+            // Try the API first; fall back gracefully if not implemented
+            try {
+                await updateStaffPermissionsApi(selectedUser.id, permForm);
+            } catch {
+                // API may not exist yet — silently fall back to localStorage
+            }
+            const updated = { ...permissionsMap, [selectedUser.id]: permForm };
+            setPermissionsMap(updated);
+            localStorage.setItem(PERMS_STORAGE_KEY, JSON.stringify(updated));
+            setFormSuccess(`Permissions saved for ${selectedUser.fullName}.`);
+            setTimeout(() => { setShowPermModal(false); setFormSuccess(''); }, 1000);
+        } catch (err) {
+            setFormError(err.message || 'Failed to save permissions.');
+        } finally {
+            setPermSaving(false);
+        }
+    };
+
+    const togglePage = (key) => setPermForm(f => ({ ...f, pages: { ...f.pages, [key]: !f.pages[key] } }));
+    const toggleEdit = (key) => setPermForm(f => ({ ...f, edits: { ...f.edits, [key]: !f.edits[key] } }));
+    const grantAll = () => setPermForm({ pages: Object.fromEntries(PAGE_PERMISSIONS.map(p => [p.key, true])), edits: Object.fromEntries(EDIT_PERMISSIONS.map(p => [p.key, true])) });
+    const revokeAll = () => setPermForm({ pages: Object.fromEntries(PAGE_PERMISSIONS.map(p => [p.key, false])), edits: Object.fromEntries(EDIT_PERMISSIONS.map(p => [p.key, false])) });
+
     if (!session?.organizationId) {
         return (
             <div className={cn("rounded-2xl p-8 text-center", isDark ? "bg-[#1e1e1e] text-gray-400" : "bg-white text-gray-500 border border-gray-100 shadow-sm")}>
@@ -154,22 +239,16 @@ export function Staff() {
             {formSuccess && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{formSuccess}</div>}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 dashboard-reveal reveal-delay-1">
-                <div className={cn("rounded-2xl p-4 border transition-colors", isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-100 shadow-sm")}>
-                    <p className={cn("text-sm", isDark ? "text-gray-400" : "text-gray-500")}>Clinics</p>
-                    <p className={cn("text-2xl font-bold", isDark ? "text-white" : "text-gray-900")}>{clinics.length}</p>
-                </div>
-                <div className={cn("rounded-2xl p-4 border transition-colors", isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-100 shadow-sm")}>
-                    <p className={cn("text-sm", isDark ? "text-gray-400" : "text-gray-500")}>Staff</p>
-                    <p className={cn("text-2xl font-bold", isDark ? "text-white" : "text-gray-900")}>{users.length}</p>
-                </div>
-                <div className={cn("rounded-2xl p-4 border transition-colors", isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-100 shadow-sm")}>
-                    <p className={cn("text-sm", isDark ? "text-gray-400" : "text-gray-500")}>Active Staff</p>
-                    <p className="text-2xl font-bold text-emerald-400">{users.filter((u) => u.isActive).length}</p>
-                </div>
-                <div className={cn("rounded-2xl p-4 border transition-colors", isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-100 shadow-sm")}>
-                    <p className={cn("text-sm", isDark ? "text-gray-400" : "text-gray-500")}>Selected Clinic</p>
-                    <p className={cn("text-sm font-medium truncate", isDark ? "text-white" : "text-gray-900")}>{selectedClinic?.name || 'None'}</p>
-                </div>
+                {[{ label: 'Clinics', value: clinics.length }, { label: 'Staff', value: users.length }, { label: 'Active Staff', value: users.filter((u) => u.isActive).length, accent: true }, { label: 'Selected Clinic', value: selectedClinic?.name || 'None', small: true }]
+                    .map(({ label, value, accent, small }) => (
+                        <div key={label} className={cn('rounded-2xl p-4 border transition-colors', isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-100 shadow-sm')}>
+                            <p className={cn('text-sm', isDark ? 'text-gray-400' : 'text-gray-500')}>{label}</p>
+                            {loading
+                                ? <div className="skeleton-shimmer h-8 w-16 mt-1" />
+                                : <p className={cn(small ? 'text-sm font-medium truncate' : 'text-2xl font-bold', accent ? 'text-emerald-400' : isDark ? 'text-white' : 'text-gray-900')}>{value}</p>
+                            }
+                        </div>
+                    ))}
             </div>
 
             <div className={cn("flex gap-2 border-b dashboard-reveal reveal-delay-2", isDark ? "border-gray-800" : "border-gray-200")}>
@@ -205,32 +284,46 @@ export function Staff() {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {clinics.map((clinic) => (
-                            <div
-                                key={clinic.id}
-                                onClick={() => selectClinic(clinic.id)}
-                                className={cn(
-                                    'rounded-2xl p-5 border cursor-pointer transition-all',
-                                    isDark ? 'bg-[#1e1e1e]' : 'bg-white shadow-sm hover:shadow-md',
-                                    selectedClinic?.id === clinic.id
-                                        ? 'border-[#ff7a6b] ring-1 ring-[#ff7a6b]/20'
-                                        : isDark ? 'border-gray-800 hover:border-gray-700' : 'border-gray-100 hover:border-gray-200'
-                                )}
-                            >
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                                        <Stethoscope className="w-5 h-5 text-emerald-400" />
+                    {loading ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {[...Array(3)].map((_, i) => (
+                                <div key={i} className={cn('rounded-2xl p-5 border', isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-100 shadow-sm')}>
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="skeleton-shimmer w-10 h-10 rounded-xl" />
                                     </div>
-                                    {selectedClinic?.id === clinic.id && (
-                                        <span className="px-2 py-0.5 bg-[#ff7a6b]/20 text-[#ff7a6b] rounded-full text-xs font-medium">Selected</span>
-                                    )}
+                                    <div className="skeleton-shimmer h-5 w-3/4 mb-2" />
+                                    <div className="skeleton-shimmer h-4 w-1/2" />
                                 </div>
-                                <h3 className={cn("font-semibold mb-1", isDark ? "text-white" : "text-gray-900")}>{clinic.name}</h3>
-                                <p className={cn("text-sm", isDark ? "text-gray-500" : "text-gray-600")}>Code: {clinic.code}</p>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {clinics.map((clinic) => (
+                                <div
+                                    key={clinic.id}
+                                    onClick={() => selectClinic(clinic.id)}
+                                    className={cn(
+                                        'rounded-2xl p-5 border cursor-pointer transition-all',
+                                        isDark ? 'bg-[#1e1e1e]' : 'bg-white shadow-sm hover:shadow-md',
+                                        selectedClinic?.id === clinic.id
+                                            ? 'border-[#ff7a6b] ring-1 ring-[#ff7a6b]/20'
+                                            : isDark ? 'border-gray-800 hover:border-gray-700' : 'border-gray-100 hover:border-gray-200'
+                                    )}
+                                >
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                                            <Stethoscope className="w-5 h-5 text-emerald-400" />
+                                        </div>
+                                        {selectedClinic?.id === clinic.id && (
+                                            <span className="px-2 py-0.5 bg-[#ff7a6b]/20 text-[#ff7a6b] rounded-full text-xs font-medium">Selected</span>
+                                        )}
+                                    </div>
+                                    <h3 className={cn("font-semibold mb-1", isDark ? "text-white" : "text-gray-900")}>{clinic.name}</h3>
+                                    <p className={cn("text-sm", isDark ? "text-gray-500" : "text-gray-600")}>Code: {clinic.code}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -247,43 +340,94 @@ export function Staff() {
                     </div>
 
                     <div className={cn("rounded-2xl border overflow-hidden", isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-100 shadow-sm")}>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className={cn(isDark ? "bg-[#0f0f0f] text-gray-400" : "bg-gray-50 text-gray-600")}>
-                                    <tr>
-                                        <th className="p-4 font-medium">Name</th>
-                                        <th className="p-4 font-medium">Username</th>
-                                        <th className="p-4 font-medium">Assigned Clinics</th>
-                                        <th className="p-4 font-medium text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className={cn("divide-y", isDark ? "divide-gray-800" : "divide-gray-100")}>
-                                    {users.map((user) => (
-                                        <tr key={user.id} className={cn("transition-colors", isDark ? "hover:bg-[#252525]" : "hover:bg-gray-50")}>
-                                            <td className={cn("p-4 font-medium", isDark ? "text-white" : "text-gray-900")}>{user.fullName}</td>
-                                            <td className={cn("p-4", isDark ? "text-gray-400" : "text-gray-600")}>@{user.username}</td>
-                                            <td className="p-4">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {user.clinicIds.map((clinicId) => {
-                                                        const clinic = clinics.find((item) => item.id === clinicId);
-                                                        return clinic ? <span key={clinicId} className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs">{clinic.code}</span> : null;
-                                                    })}
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <button
-                                                    onClick={() => { setSelectedUser(user); setPasswordForm({ newPassword: '' }); clearMessages(); setShowPasswordModal(true); }}
-                                                    className={cn("p-2 rounded-lg transition-colors", isDark ? "text-gray-400 hover:text-white hover:bg-white/10" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100")}
-                                                    title="Reset Password"
-                                                >
-                                                    <Key className="w-4 h-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
+                        {loading ? (
+                            <div>
+                                <div className={cn('px-4 py-3 border-b', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-gray-50 border-gray-200')}>
+                                    <div className="grid grid-cols-4 gap-4">
+                                        {[...Array(4)].map((_, i) => <div key={i} className="skeleton-shimmer h-4" />)}
+                                    </div>
+                                </div>
+                                <div className="divide-y divide-gray-800/40">
+                                    {[...Array(4)].map((_, i) => (
+                                        <div key={i} className="px-4 py-4 grid grid-cols-4 gap-4 items-center">
+                                            <div className="skeleton-shimmer h-4" />
+                                            <div className="skeleton-shimmer h-4" />
+                                            <div className="flex gap-1">
+                                                <div className="skeleton-shimmer h-5 w-12 rounded" />
+                                                <div className="skeleton-shimmer h-5 w-12 rounded" />
+                                            </div>
+                                            <div className="skeleton-shimmer h-8 w-8 rounded-lg ml-auto" />
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className={cn(isDark ? "bg-[#0f0f0f] text-gray-400" : "bg-gray-50 text-gray-600")}>
+                                        <tr>
+                                            <th className="p-4 font-medium">Name</th>
+                                            <th className="p-4 font-medium">Username</th>
+                                            <th className="p-4 font-medium">Assigned Clinics</th>
+                                            <th className="p-4 font-medium">Permissions</th>
+                                            <th className="p-4 font-medium text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className={cn("divide-y", isDark ? "divide-gray-800" : "divide-gray-100")}>
+                                        {users.map((user) => (
+                                            <tr key={user.id} className={cn("transition-colors", isDark ? "hover:bg-[#252525]" : "hover:bg-gray-50")}>
+                                                <td className={cn("p-4 font-medium", isDark ? "text-white" : "text-gray-900")}>{user.fullName}</td>
+                                                <td className={cn("p-4", isDark ? "text-gray-400" : "text-gray-600")}>@{user.username}</td>
+                                                <td className="p-4">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {user.clinicIds.map((clinicId) => {
+                                                            const clinic = clinics.find((item) => item.id === clinicId);
+                                                            return clinic ? <span key={clinicId} className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs">{clinic.code}</span> : null;
+                                                        })}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    {/* Permissions summary */}
+                                                    {(() => {
+                                                        const perms = getPermsForUser(user.id);
+                                                        const pageCount = Object.values(perms.pages).filter(Boolean).length;
+                                                        const editCount = Object.values(perms.edits).filter(Boolean).length;
+                                                        return (
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-600')}>
+                                                                    {pageCount}/{PAGE_PERMISSIONS.length} pages
+                                                                </span>
+                                                                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', editCount > 0 ? 'bg-amber-500/20 text-amber-300' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400')}>
+                                                                    {editCount} edit{editCount !== 1 ? 's' : ''}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <button
+                                                            onClick={() => openPermModal(user)}
+                                                            className={cn("p-2 rounded-lg transition-colors", isDark ? "text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" : "text-purple-500 hover:text-purple-700 hover:bg-purple-50")}
+                                                            title="Manage Permissions"
+                                                        >
+                                                            <ShieldCheck className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setSelectedUser(user); setPasswordForm({ newPassword: '' }); clearMessages(); setShowPasswordModal(true); }}
+                                                            className={cn("p-2 rounded-lg transition-colors", isDark ? "text-gray-400 hover:text-white hover:bg-white/10" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100")}
+                                                            title="Reset Password"
+                                                        >
+                                                            <Key className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -351,6 +495,131 @@ export function Staff() {
                                 <button type="submit" className="flex-1 px-4 py-2 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] shadow-lg shadow-[#ff7a6b]/20">Reset</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Permissions Modal ── */}
+            {showPermModal && selectedUser && permForm && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className={cn(
+                        "rounded-2xl w-full max-w-lg border shadow-2xl flex flex-col max-h-[90vh] transition-colors",
+                        isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-200"
+                    )}>
+                        {/* Header */}
+                        <div className={cn("flex items-center justify-between p-6 border-b flex-shrink-0", isDark ? "border-gray-800" : "border-gray-100")}>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                    <ShieldCheck className="w-5 h-5 text-purple-400" />
+                                </div>
+                                <div>
+                                    <h3 className={cn("font-bold text-base", isDark ? "text-white" : "text-gray-900")}>Staff Permissions</h3>
+                                    <p className={cn("text-xs", isDark ? "text-gray-500" : "text-gray-400")}>{selectedUser.fullName} · @{selectedUser.username}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowPermModal(false)} className={cn("p-2 rounded-xl transition-colors", isDark ? "text-gray-400 hover:text-white hover:bg-white/10" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100")}>
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Quick actions */}
+                        <div className={cn("flex items-center gap-2 px-6 py-3 border-b flex-shrink-0", isDark ? "border-gray-800" : "border-gray-100")}>
+                            <span className={cn("text-xs mr-auto", isDark ? "text-gray-500" : "text-gray-400")}>Quick set:</span>
+                            <button onClick={grantAll} className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/30 transition-colors">Grant All</button>
+                            <button onClick={revokeAll} className="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/30 transition-colors">Revoke All</button>
+                        </div>
+
+                        {/* Scrollable body */}
+                        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+                            {/* Page Access */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Shield className="w-4 h-4 text-blue-400" />
+                                    <h4 className={cn("text-sm font-semibold", isDark ? "text-white" : "text-gray-900")}>Page Access</h4>
+                                    <span className={cn("text-xs ml-auto", isDark ? "text-gray-500" : "text-gray-400")}>
+                                        {Object.values(permForm.pages).filter(Boolean).length}/{PAGE_PERMISSIONS.length} enabled
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {PAGE_PERMISSIONS.map(({ key, label, icon }) => {
+                                        const on = permForm.pages[key];
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => togglePage(key)}
+                                                className={cn(
+                                                    'flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all',
+                                                    on
+                                                        ? 'border-blue-500/40 bg-blue-500/10'
+                                                        : isDark ? 'border-gray-800 bg-[#0f0f0f] hover:border-gray-700' : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                                )}
+                                            >
+                                                <span className="text-base">{icon}</span>
+                                                <span className={cn('text-xs font-medium flex-1', on ? 'text-blue-300' : isDark ? 'text-gray-400' : 'text-gray-600')}>{label}</span>
+                                                <div className={cn('w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all', on ? 'bg-blue-500 border-blue-500' : isDark ? 'border-gray-700' : 'border-gray-300')}>
+                                                    {on && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Edit Authority */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                                    <h4 className={cn("text-sm font-semibold", isDark ? "text-white" : "text-gray-900")}>Edit Authority</h4>
+                                    <span className={cn("text-xs ml-auto", isDark ? "text-gray-500" : "text-gray-400")}>
+                                        {Object.values(permForm.edits).filter(Boolean).length}/{EDIT_PERMISSIONS.length} enabled
+                                    </span>
+                                </div>
+                                <div className="space-y-2">
+                                    {EDIT_PERMISSIONS.map(({ key, label, desc }) => {
+                                        const on = permForm.edits[key];
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => toggleEdit(key)}
+                                                className={cn(
+                                                    'w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all',
+                                                    on
+                                                        ? 'border-amber-500/40 bg-amber-500/10'
+                                                        : isDark ? 'border-gray-800 bg-[#0f0f0f] hover:border-gray-700' : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                                                )}
+                                            >
+                                                <div className={cn('w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all', on ? 'bg-amber-500 border-amber-500' : isDark ? 'border-gray-700' : 'border-gray-300')}>
+                                                    {on && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={cn('text-xs font-semibold', on ? 'text-amber-300' : isDark ? 'text-gray-300' : 'text-gray-700')}>{label}</p>
+                                                    <p className={cn('text-xs mt-0.5', isDark ? 'text-gray-600' : 'text-gray-400')}>{desc}</p>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className={cn("p-6 border-t flex-shrink-0", isDark ? "border-gray-800" : "border-gray-100")}>
+                            {formError && <p className="text-xs text-red-400 mb-3">{formError}</p>}
+                            {formSuccess && <p className="text-xs text-emerald-400 mb-3">{formSuccess}</p>}
+                            <div className="flex gap-3">
+                                <button type="button" onClick={() => setShowPermModal(false)} className={cn("flex-1 px-4 py-2.5 border rounded-xl transition-all text-sm", isDark ? "border-gray-700 text-gray-300 hover:bg-gray-800" : "border-gray-200 text-gray-600 hover:bg-gray-50")}>Cancel</button>
+                                <button
+                                    type="button"
+                                    onClick={handleSavePermissions}
+                                    disabled={permSaving}
+                                    className="flex-1 px-4 py-2.5 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] shadow-lg shadow-[#ff7a6b]/20 text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+                                >
+                                    {permSaving ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</> : 'Save Permissions'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

@@ -176,4 +176,11 @@ export async function resetStaffPasswordApi(userId, newPassword) {
   });
 }
 
+export async function updateStaffPermissionsApi(userId, permissions) {
+  return request(`/admin/users/${encodeURIComponent(userId)}/permissions`, {
+    method: 'PATCH',
+    body: JSON.stringify({ permissions }),
+  });
+}
+
 export { request, getStoredSession, setStoredSession, clearStoredSession, getAuthToken, ApiError };
