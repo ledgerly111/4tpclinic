@@ -58,7 +58,7 @@ export function Sidebar({ isOpen, onClose }) {
                             <img src="/clinic.svg" alt="4TP Logo" className="w-7 h-7 object-contain" />
                         </div>
                         {/* Glow */}
-                        <div className="absolute inset-0 rounded-2xl bg-[#ff7a6b]/20 blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
+                        <div className="absolute inset-0 rounded-2xl bg-[#512c31]/10 blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
                     </div>
                 </div>
 
@@ -78,22 +78,22 @@ export function Sidebar({ isOpen, onClose }) {
                             >
                                 {/* Active left bar */}
                                 {isActive && (
-                                    <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-[#ff7a6b] shadow-[0_0_8px_rgba(255,122,107,0.7)]" />
+                                    <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-[#e8919a] shadow-[0_0_8px_rgba(232,145,154,0.7)]" />
                                 )}
 
                                 <div className={cn(
                                     "w-full py-3 rounded-2xl flex items-center justify-center transition-all duration-200 relative overflow-hidden",
                                     isActive
                                         ? isDark
-                                            ? "bg-[#ff7a6b]/15 text-[#ff7a6b]"
-                                            : "bg-[#ff7a6b]/10 text-[#ff7a6b]"
+                                            ? "bg-[#e8919a]/15 text-[#e8919a]"
+                                            : "bg-[#512c31] text-white shadow-lg shadow-[#512c31]/20 scale-105"
                                         : isDark
                                             ? "text-gray-500 hover:text-gray-200 hover:bg-white/[0.06]"
-                                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                                            : "text-[#512c31]/60 hover:text-[#512c31] hover:bg-[#fef9f3]"
                                 )}>
                                     <item.icon className={cn(
                                         "w-[18px] h-[18px] transition-all duration-200 relative z-10 flex-shrink-0",
-                                        isActive ? "drop-shadow-[0_0_6px_rgba(255,122,107,0.6)]" : "group-hover:scale-110"
+                                        isActive ? "drop-shadow-sm" : "group-hover:scale-110"
                                     )} />
                                 </div>
 
@@ -133,10 +133,10 @@ export function Sidebar({ isOpen, onClose }) {
                                     isActive
                                         ? isDark
                                             ? "bg-white/10 text-white"
-                                            : "bg-gray-100 text-gray-900"
+                                            : "bg-[#512c31] text-white shadow-lg shadow-[#512c31]/20 scale-105"
                                         : isDark
                                             ? "text-gray-500 hover:text-gray-200 hover:bg-white/[0.06]"
-                                            : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                                            : "text-[#512c31]/60 hover:text-[#512c31] hover:bg-[#fef9f3]"
                                 )}>
                                     <item.icon className="w-[18px] h-[18px] transition-all duration-200 group-hover:scale-110" />
                                 </div>
@@ -165,7 +165,7 @@ export function Sidebar({ isOpen, onClose }) {
                             "w-full py-3 rounded-2xl flex items-center justify-center transition-all duration-200",
                             isDark
                                 ? "text-gray-500 hover:text-red-400 hover:bg-red-500/10"
-                                : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+                                : "text-[#512c31]/60 hover:text-red-500 hover:bg-red-50"
                         )}>
                             <LogOut className="w-[18px] h-[18px] transition-all duration-200 group-hover:scale-110" />
                         </div>

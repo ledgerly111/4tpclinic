@@ -224,12 +224,12 @@ export function Staff() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 dashboard-reveal">
                 <div>
-                    <h1 className={cn("text-2xl font-bold", isDark ? "text-white" : "text-gray-900")}>Supervision</h1>
-                    <p className={cn(isDark ? "text-gray-400" : "text-gray-600")}>
-                        Manage clinics and staff for <span className={cn(isDark ? "text-white" : "text-gray-900 font-semibold")}>{selectedOrganization?.name || 'your organization'}</span>
+                    <h1 className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Supervision</h1>
+                    <p className={cn("text-sm sm:text-base font-bold uppercase tracking-widest mt-1", isDark ? "text-white/40" : "text-[#512c31]/60")}>
+                        Manage clinics and staff for <span className={cn("font-black text-[#e8919a]")}>{selectedOrganization?.name || 'your organization'}</span>
                     </p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-full text-sm">
+                <div className="flex items-center gap-2 px-4 py-2 bg-[#512c31] text-white rounded-xl shadow-lg shadow-[#512c31]/20 text-xs sm:text-sm font-bold uppercase tracking-widest">
                     <Building2 className="w-4 h-4" />
                     <span>Admin Controls</span>
                 </div>
@@ -238,25 +238,25 @@ export function Staff() {
             {formError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{formError}</div>}
             {formSuccess && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{formSuccess}</div>}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 dashboard-reveal reveal-delay-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 dashboard-reveal reveal-delay-1">
                 {[{ label: 'Clinics', value: clinics.length }, { label: 'Staff', value: users.length }, { label: 'Active Staff', value: users.filter((u) => u.isActive).length, accent: true }, { label: 'Selected Clinic', value: selectedClinic?.name || 'None', small: true }]
                     .map(({ label, value, accent, small }) => (
-                        <div key={label} className={cn('rounded-2xl p-4 border transition-colors', isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-100 shadow-sm')}>
-                            <p className={cn('text-sm', isDark ? 'text-gray-400' : 'text-gray-500')}>{label}</p>
+                        <div key={label} className={cn('rounded-[2rem] p-6 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
+                            <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{label}</p>
                             {loading
                                 ? <div className="skeleton-shimmer h-8 w-16 mt-1" />
-                                : <p className={cn(small ? 'text-sm font-medium truncate' : 'text-2xl font-bold', accent ? 'text-emerald-400' : isDark ? 'text-white' : 'text-gray-900')}>{value}</p>
+                                : <p className={cn(small ? 'text-sm sm:text-base font-black truncate mt-2' : 'text-3xl sm:text-4xl font-black tracking-tight', accent ? 'text-[#e8919a]' : isDark ? 'text-white' : 'text-[#512c31]')}>{value}</p>
                             }
                         </div>
                     ))}
             </div>
 
-            <div className={cn("flex gap-2 border-b dashboard-reveal reveal-delay-2", isDark ? "border-gray-800" : "border-gray-200")}>
+            <div className={cn("flex gap-2 p-1.5 rounded-2xl w-fit dashboard-reveal reveal-delay-2 shadow-inner border-2", isDark ? "bg-[#0f0f0f] border-white/5" : "bg-[#fef9f3] border-gray-100")}>
                 <button
                     onClick={() => setActiveTab('clinics')}
                     className={cn(
-                        'px-4 py-3 text-sm font-medium transition-colors border-b-2',
-                        activeTab === 'clinics' ? 'text-[#ff7a6b] border-[#ff7a6b]' : 'text-gray-400 border-transparent hover:text-white'
+                        'px-6 py-2.5 text-xs sm:text-sm font-bold uppercase tracking-widest rounded-xl transition-all',
+                        activeTab === 'clinics' ? 'bg-white text-[#512c31] shadow-md dark:bg-white/10 dark:text-white' : 'text-gray-500 hover:text-[#512c31] dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5'
                     )}
                 >
                     Clinics
@@ -264,8 +264,8 @@ export function Staff() {
                 <button
                     onClick={() => setActiveTab('staff')}
                     className={cn(
-                        'px-4 py-3 text-sm font-medium transition-colors border-b-2',
-                        activeTab === 'staff' ? 'text-[#ff7a6b] border-[#ff7a6b]' : 'text-gray-400 border-transparent hover:text-white'
+                        'px-6 py-2.5 text-xs sm:text-sm font-bold uppercase tracking-widest rounded-xl transition-all',
+                        activeTab === 'staff' ? 'bg-white text-[#512c31] shadow-md dark:bg-white/10 dark:text-white' : 'text-gray-500 hover:text-[#512c31] dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5'
                     )}
                 >
                     Staff
@@ -274,11 +274,11 @@ export function Staff() {
 
             {activeTab === 'clinics' && (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <h2 className={cn("text-lg font-bold", isDark ? "text-white" : "text-gray-900")}>Clinics & Branches</h2>
+                    <div className="flex justify-between items-center px-2">
+                        <h2 className={cn("text-xl sm:text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Clinics & Branches</h2>
                         <button
                             onClick={() => { clearMessages(); setShowClinicModal(true); }}
-                            className="px-3 py-2 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] flex items-center gap-2 text-sm transition-colors"
+                            className="px-4 py-2.5 bg-[#512c31] text-white rounded-xl hover:bg-[#e8919a] flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-widest transition-all shadow-lg hover:shadow-xl hover:scale-105"
                         >
                             <Plus className="w-4 h-4" /> Add Clinic
                         </button>
@@ -297,29 +297,30 @@ export function Staff() {
                             ))}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                             {clinics.map((clinic) => (
                                 <div
                                     key={clinic.id}
                                     onClick={() => selectClinic(clinic.id)}
                                     className={cn(
-                                        'rounded-2xl p-5 border cursor-pointer transition-all',
-                                        isDark ? 'bg-[#1e1e1e]' : 'bg-white shadow-sm hover:shadow-md',
+                                        'rounded-[2.5rem] p-6 border-4 cursor-pointer transition-all hover:-translate-y-1 shadow-xl hover:shadow-2xl group relative overflow-hidden',
+                                        isDark ? 'bg-[#1e1e1e]' : 'bg-white',
                                         selectedClinic?.id === clinic.id
-                                            ? 'border-[#ff7a6b] ring-1 ring-[#ff7a6b]/20'
-                                            : isDark ? 'border-gray-800 hover:border-gray-700' : 'border-gray-100 hover:border-gray-200'
+                                            ? isDark ? 'border-white/20 ring-4 ring-white/5' : 'border-[#e8919a] ring-4 ring-[#e8919a]/20'
+                                            : isDark ? 'border-white/5 hover:border-white/10' : 'border-gray-50 hover:border-gray-100'
                                     )}
                                 >
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                                            <Stethoscope className="w-5 h-5 text-emerald-400" />
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#e8919a]/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-700 pointer-events-none" />
+                                    <div className="flex items-start justify-between mb-6 relative z-10">
+                                        <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform", isDark ? "bg-[#0f0f0f]" : "bg-[#fef9f3]")}>
+                                            <Stethoscope className={cn("w-7 h-7", isDark ? "text-[#e8919a]" : "text-[#512c31]")} />
                                         </div>
                                         {selectedClinic?.id === clinic.id && (
-                                            <span className="px-2 py-0.5 bg-[#ff7a6b]/20 text-[#ff7a6b] rounded-full text-xs font-medium">Selected</span>
+                                            <span className="px-3 py-1 bg-[#512c31] text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-md">Selected</span>
                                         )}
                                     </div>
-                                    <h3 className={cn("font-semibold mb-1", isDark ? "text-white" : "text-gray-900")}>{clinic.name}</h3>
-                                    <p className={cn("text-sm", isDark ? "text-gray-500" : "text-gray-600")}>Code: {clinic.code}</p>
+                                    <h3 className={cn("text-xl font-black tracking-tight mb-1 relative z-10", isDark ? "text-white" : "text-[#512c31]")}>{clinic.name}</h3>
+                                    <p className={cn("text-[11px] font-bold uppercase tracking-widest relative z-10", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Code: {clinic.code}</p>
                                 </div>
                             ))}
                         </div>
@@ -329,17 +330,17 @@ export function Staff() {
 
             {activeTab === 'staff' && (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <h2 className={cn("text-lg font-bold", isDark ? "text-white" : "text-gray-900")}>Staff Members</h2>
+                    <div className="flex justify-between items-center px-2">
+                        <h2 className={cn("text-xl sm:text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Staff Members</h2>
                         <button
                             onClick={() => { clearMessages(); setShowStaffModal(true); }}
-                            className="px-3 py-2 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] flex items-center gap-2 text-sm transition-colors"
+                            className="px-4 py-2.5 bg-[#512c31] text-white rounded-xl hover:bg-[#e8919a] flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-widest transition-all shadow-lg hover:shadow-xl hover:scale-105"
                         >
                             <UserPlus className="w-4 h-4" /> Add Staff
                         </button>
                     </div>
 
-                    <div className={cn("rounded-2xl border overflow-hidden", isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-100 shadow-sm")}>
+                    <div className={cn("rounded-[2.5rem] border-4 overflow-hidden shadow-2xl dashboard-reveal reveal-delay-2", isDark ? "bg-[#1e1e1e] border-white/5 shadow-black/50" : "bg-white border-white/50 shadow-[#512c31]/5")}>
                         {loading ? (
                             <div>
                                 <div className={cn('px-4 py-3 border-b', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-gray-50 border-gray-200')}>
@@ -363,59 +364,58 @@ export function Staff() {
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead className={cn(isDark ? "bg-[#0f0f0f] text-gray-400" : "bg-gray-50 text-gray-600")}>
+                                <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? "bg-[#0f0f0f] text-gray-400" : "bg-[#fef9f3] text-[#512c31]/60")}>
                                         <tr>
-                                            <th className="p-4 font-medium">Name</th>
-                                            <th className="p-4 font-medium">Username</th>
-                                            <th className="p-4 font-medium">Assigned Clinics</th>
-                                            <th className="p-4 font-medium">Permissions</th>
-                                            <th className="p-4 font-medium text-right">Actions</th>
+                                            <th className="px-5 sm:px-6 py-5">Name</th>
+                                            <th className="px-5 sm:px-6 py-5">Username</th>
+                                            <th className="px-5 sm:px-6 py-5">Assigned Clinics</th>
+                                            <th className="px-5 sm:px-6 py-5">Permissions</th>
+                                            <th className="px-5 sm:px-6 py-5 text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className={cn("divide-y", isDark ? "divide-gray-800" : "divide-gray-100")}>
+                                    <tbody className={cn("divide-y", isDark ? "divide-gray-800" : "divide-gray-50")}>
                                         {users.map((user) => (
-                                            <tr key={user.id} className={cn("transition-colors", isDark ? "hover:bg-[#252525]" : "hover:bg-gray-50")}>
-                                                <td className={cn("p-4 font-medium", isDark ? "text-white" : "text-gray-900")}>{user.fullName}</td>
-                                                <td className={cn("p-4", isDark ? "text-gray-400" : "text-gray-600")}>@{user.username}</td>
-                                                <td className="p-4">
+                                            <tr key={user.id} className={cn("transition-all duration-300 group", isDark ? "hover:bg-[#252525]" : "hover:bg-[#fef9f3]")}>
+                                                <td className={cn("px-5 sm:px-6 py-5 font-black text-sm", isDark ? "text-white" : "text-[#512c31]")}>{user.fullName}</td>
+                                                <td className={cn("px-5 sm:px-6 py-5 text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-400" : "text-[#512c31]/60")}>@{user.username}</td>
+                                                <td className="px-5 sm:px-6 py-5">
                                                     <div className="flex flex-wrap gap-1">
                                                         {user.clinicIds.map((clinicId) => {
                                                             const clinic = clinics.find((item) => item.id === clinicId);
-                                                            return clinic ? <span key={clinicId} className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs">{clinic.code}</span> : null;
+                                                            return clinic ? <span key={clinicId} className="px-3 py-1 bg-[#512c31]/10 dark:bg-emerald-500/20 text-[#512c31] dark:text-emerald-400 rounded-lg text-[10px] font-black uppercase tracking-widest">{clinic.code}</span> : null;
                                                         })}
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    {/* Permissions summary */}
+                                                <td className="px-5 sm:px-6 py-5">
                                                     {(() => {
                                                         const perms = getPermsForUser(user.id);
                                                         const pageCount = Object.values(perms.pages).filter(Boolean).length;
                                                         const editCount = Object.values(perms.edits).filter(Boolean).length;
                                                         return (
                                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                                                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-600')}>
+                                                                <span className={cn('px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest', isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-600')}>
                                                                     {pageCount}/{PAGE_PERMISSIONS.length} pages
                                                                 </span>
-                                                                <span className={cn('px-2 py-0.5 rounded text-xs font-medium', editCount > 0 ? 'bg-amber-500/20 text-amber-300' : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400')}>
+                                                                <span className={cn('px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest', editCount > 0 ? (isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-50 text-amber-600') : isDark ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400')}>
                                                                     {editCount} edit{editCount !== 1 ? 's' : ''}
                                                                 </span>
                                                             </div>
                                                         );
                                                     })()}
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="px-5 sm:px-6 py-5 text-right">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button
                                                             onClick={() => openPermModal(user)}
-                                                            className={cn("p-2 rounded-lg transition-colors", isDark ? "text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" : "text-purple-500 hover:text-purple-700 hover:bg-purple-50")}
+                                                            className={cn("p-2 rounded-xl transition-colors shadow-sm", isDark ? "text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" : "bg-purple-50 text-purple-600 hover:bg-purple-100")}
                                                             title="Manage Permissions"
                                                         >
                                                             <ShieldCheck className="w-4 h-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => { setSelectedUser(user); setPasswordForm({ newPassword: '' }); clearMessages(); setShowPasswordModal(true); }}
-                                                            className={cn("p-2 rounded-lg transition-colors", isDark ? "text-gray-400 hover:text-white hover:bg-white/10" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100")}
+                                                            className={cn("p-2 rounded-xl transition-colors shadow-sm", isDark ? "text-gray-400 hover:text-white hover:bg-white/10" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}
                                                             title="Reset Password"
                                                         >
                                                             <Key className="w-4 h-4" />

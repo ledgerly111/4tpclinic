@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import { fetchInvoices, fetchAccountingSummary } from '../lib/accountingApi';
 import { fetchAppointments, fetchInventory } from '../lib/clinicApi';
+import { getLocalDateString } from '../lib/utils';
 
 const StoreContext = createContext();
 
@@ -31,7 +32,7 @@ function buildWeeklyRevenue(invoices) {
   for (let i = 6; i >= 0; i -= 1) {
     const date = new Date(today);
     date.setDate(today.getDate() - i);
-    const dateKey = date.toISOString().split('T')[0];
+    const dateKey = getLocalDateString(date);
     days.push({
       day: date.toLocaleDateString('en-US', { weekday: 'short' }),
       amount: Number((amountByDate.get(dateKey) || 0).toFixed(2)),

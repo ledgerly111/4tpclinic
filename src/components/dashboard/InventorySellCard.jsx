@@ -11,58 +11,55 @@ export function InventorySellCard() {
     const handleSellClick = () => {
         // Navigate to inventory with a query param or state to trigger a "Sell" mode if implemented later
         // For now, just going to inventory is a good start
-        navigate('/inventory');
+        navigate('/app/inventory');
     };
 
     return (
         <div className={cn(
-            "rounded-3xl p-5 h-full flex flex-col transition-colors duration-300 relative overflow-hidden group",
-            isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200'
+            "rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-6 h-full flex flex-col transition-all duration-300 shadow-xl border-4 border-white/50 group",
+            isDark ? 'bg-[#1e1e1e]' : 'bg-[#fef9f3] hover:shadow-2xl hover:-translate-y-1'
         )}>
             {/* Header */}
             <div className="flex items-center justify-between mb-4 z-10">
                 <h2 className={cn(
-                    "text-lg font-bold tracking-wide flex items-center gap-2",
-                    isDark ? 'text-white' : 'text-gray-900'
+                    "text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2",
+                    isDark ? 'text-white' : 'text-[#512c31]'
                 )}>
-                    <ShoppingCart className="w-5 h-5 text-emerald-500" />
-                    SELL INVENTORY
+                    Insta-Sell
                 </h2>
                 <button
                     onClick={handleSellClick}
                     className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
-                        isDark
-                            ? 'bg-white/10 text-white hover:bg-white/20'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        "w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all bg-white shadow-sm border border-gray-100 group-hover:bg-[#512c31] group-hover:text-white group-hover:rotate-12",
+                        isDark ? 'bg-white/10 text-white' : 'text-[#512c31]'
                     )}
                 >
-                    <ArrowUpRight className="w-4 h-4" />
+                    <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
             </div>
 
             {/* Content */}
             <div className="flex-1 flex flex-col justify-center z-10">
                 <p className={cn(
-                    "text-sm mb-6 leading-relaxed",
-                    isDark ? 'text-gray-400' : 'text-gray-600'
+                    "text-xs sm:text-sm font-bold uppercase tracking-widest leading-relaxed mb-4 sm:mb-6",
+                    isDark ? 'text-gray-400' : 'text-[#512c31]/60'
                 )}>
-                    Directly sell products and supplies from your clinic's inventory. Track sales and update stock levels instantly.
+                    Directly sell products and supplies.
                 </p>
 
                 <button
                     onClick={handleSellClick}
-                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-lg hover:shadow-emerald-500/25 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-[#512c31] text-white font-black shadow-xl hover:bg-[#e8919a] hover:scale-105 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base border border-transparent hover:border-white/20"
                 >
-                    <Tag className="w-4 h-4" />
+                    <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
                     New Sale
                 </button>
             </div>
 
             {/* Decorative Background Elements */}
             <div className={cn(
-                "absolute -bottom-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-10 pointer-events-none transition-colors",
-                isDark ? 'bg-emerald-500' : 'bg-emerald-400'
+                "absolute -bottom-10 -right-10 w-32 h-32 rounded-full blur-3xl opacity-30 pointer-events-none transition-transform duration-700 group-hover:scale-150",
+                isDark ? 'bg-emerald-500' : 'bg-[#e8919a]'
             )} />
         </div>
     );

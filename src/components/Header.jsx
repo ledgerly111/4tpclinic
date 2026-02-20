@@ -130,8 +130,8 @@ export function Header({ onMenuClick }) {
 
       {/* Main Header */}
       <header className={cn(
-        "sticky top-0 z-40 border-b px-4 py-3 backdrop-blur-xl transition-colors duration-300 lg:rounded-t-3xl lg:px-5 lg:py-4",
-        isDark ? "bg-black/88 border-white/10" : "bg-white/80 border-gray-200"
+        "sticky top-0 z-40 border-b px-4 py-3 backdrop-blur-2xl transition-colors duration-300 lg:rounded-t-3xl lg:px-5 lg:py-4",
+        isDark ? "bg-black/88 border-white/10" : "bg-white/80 border-gray-100 shadow-sm"
       )}>
         {/* Desktop Header */}
         <div className="hidden xl:flex xl:items-center xl:justify-between">
@@ -142,7 +142,7 @@ export function Header({ onMenuClick }) {
                 "flex items-center justify-center w-10 h-10 rounded-xl transition-colors border shadow-sm",
                 isDark
                   ? "bg-[#1f1f1f] text-gray-300 hover:text-white border-white/5"
-                  : "bg-white text-gray-600 hover:text-gray-900 border-gray-200 hover:bg-gray-50"
+                  : "bg-white text-[#512c31] hover:text-[#e8919a] border-gray-100 hover:bg-[#fef9f3]"
               )}
             >
               <Menu className="w-5 h-5" />
@@ -156,10 +156,10 @@ export function Header({ onMenuClick }) {
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <h1 className={cn("text-lg font-semibold sm:text-xl", isDark ? "text-slate-100" : "text-gray-900")}>{subtitle}</h1>
                 <span className={cn(
-                  "rounded-full px-2.5 py-1 text-xs font-medium border",
+                  "rounded-full px-2.5 py-1 text-xs font-bold border uppercase tracking-wider",
                   isDark
                     ? "bg-slate-800/70 text-slate-200 border-slate-700/50"
-                    : "bg-gray-100 text-gray-700 border-gray-200"
+                    : "bg-[#fef9f3] text-[#512c31] border-gray-100"
                 )}>
                   {todayLabel}
                 </span>
@@ -176,10 +176,10 @@ export function Header({ onMenuClick }) {
                 <button
                   onClick={() => setShowLocationDropdown((prev) => !prev)}
                   className={cn(
-                    "flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition border",
+                    "flex h-10 items-center gap-2 rounded-full px-3 text-sm font-bold transition border",
                     isDark
                       ? "bg-slate-800/70 text-slate-100 border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25"
-                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                      : "bg-white text-[#512c31] border-gray-100 hover:bg-[#fef9f3]"
                   )}
                 >
                   <Building2 className={cn("w-4 h-4", isDark ? "text-slate-300" : "text-gray-500")} />
@@ -275,10 +275,10 @@ export function Header({ onMenuClick }) {
 
             {/* Notifications */}
             <button className={cn(
-              "relative flex h-10 w-10 items-center justify-center rounded-full border transition",
+              "relative flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200",
               isDark
                 ? "border-slate-700/60 bg-slate-900/45 text-slate-300 hover:border-slate-500 hover:text-white"
-                : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                : "border-gray-100 bg-white text-[#512c31] hover:bg-[#fef9f3] hover:text-[#e8919a] hover:scale-105"
             )}>
               <Bell className="h-4 w-4" />
               {notifications > 0 && (
@@ -293,8 +293,8 @@ export function Header({ onMenuClick }) {
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className={cn(
-                  "flex items-center gap-2 h-10 px-2 rounded-full transition-colors",
-                  isDark ? "hover:bg-slate-800/50" : "hover:bg-gray-100"
+                  "flex items-center gap-2 h-10 px-2 rounded-full transition-all duration-200",
+                  isDark ? "hover:bg-slate-800/50" : "hover:bg-[#fef9f3] hover:scale-105"
                 )}
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center">

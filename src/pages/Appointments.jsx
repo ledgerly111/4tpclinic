@@ -223,12 +223,12 @@ export function Appointments() {
     const hasDot = (d) => d && monthDots[d.toISOString().split('T')[0]] > 0;
 
     const inputCls = cn(
-        'w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition-colors',
+        'w-full rounded-2xl border-2 px-4 py-3.5 text-sm font-medium outline-none transition-all',
         isDark
-            ? 'bg-[#0f0f0f] border-gray-800 text-white placeholder-gray-600 focus:border-[#ff7a6b]'
-            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-[#ff7a6b] focus:bg-white'
+            ? 'bg-[#0f0f0f] border-gray-800 text-white placeholder-gray-600 focus:border-[#e8919a]'
+            : 'bg-[#fef9f3] border-transparent text-[#512c31] placeholder-gray-400 focus:border-[#e8919a] focus:bg-white'
     );
-    const labelCls = cn('block text-xs font-semibold uppercase tracking-wide mb-1.5', isDark ? 'text-gray-500' : 'text-gray-400');
+    const labelCls = cn('block text-[10px] font-bold uppercase tracking-widest mb-2', isDark ? 'text-gray-500' : 'text-[#512c31]/60');
 
     // ─── Render ───────────────────────────────────────────────────────────────
     return (
@@ -236,16 +236,17 @@ export function Appointments() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                    <h1 className={cn('text-xl sm:text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Appointments</h1>
-                    <p className={cn('text-sm mt-0.5', isDark ? 'text-gray-400' : 'text-gray-500')}>
+                    <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Appointments</h1>
+                    <p className={cn('text-sm sm:text-base font-bold uppercase tracking-widest mt-1', isDark ? 'text-white/40' : 'text-[#512c31]/60')}>
                         {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                     </p>
                 </div>
                 <button
                     onClick={openModal}
-                    className="w-full sm:w-auto bg-[#ff7a6b] text-white px-4 py-2.5 rounded-xl hover:bg-[#ff6b5b] flex items-center justify-center gap-2 text-sm font-medium transition-all active:scale-95 shadow-lg shadow-[#ff7a6b]/20"
+                    className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
                 >
-                    <Plus className="w-4 h-4" /> New Appointment
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="text-sm sm:text-base">New Appointment</span>
                 </button>
             </div>
 
@@ -259,32 +260,32 @@ export function Appointments() {
             <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 sm:gap-6 items-start">
 
                 {/* ── Month Calendar ── */}
-                <div className={cn('rounded-2xl border overflow-hidden', isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-100 shadow-sm')}>
+                <div className={cn('rounded-3xl border-4 overflow-hidden shadow-xl', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-[#fef9f3] border-white/50')}>
                     {/* Calendar header */}
-                    <div className={cn('flex items-center justify-between px-4 py-3 border-b', isDark ? 'border-gray-800' : 'border-gray-100')}>
-                        <button onClick={prevMonth} className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500')}>
-                            <ChevronLeft className="w-4 h-4" />
+                    <div className={cn('flex items-center justify-between px-5 py-4 border-b', isDark ? 'border-gray-800' : 'border-[#512c31]/5')}>
+                        <button onClick={prevMonth} className={cn('p-1.5 rounded-xl transition-colors', isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white text-[#512c31]')}>
+                            <ChevronLeft className="w-5 h-5" />
                         </button>
                         <div className="flex items-center gap-2">
-                            <span className={cn('font-semibold text-sm', isDark ? 'text-white' : 'text-gray-900')}>
+                            <span className={cn('font-black text-sm uppercase tracking-widest', isDark ? 'text-white' : 'text-[#512c31]')}>
                                 {viewMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                             </span>
                             <button
                                 onClick={goToday}
-                                className={cn('text-xs px-2 py-0.5 rounded-md font-medium transition-colors', isDark ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                                className={cn('text-xs px-2.5 py-1 rounded-lg font-bold transition-all shadow-sm group-hover:shadow-md', isDark ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-white text-[#512c31] hover:text-[#e8919a]')}
                             >
                                 Today
                             </button>
                         </div>
-                        <button onClick={nextMonth} className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500')}>
-                            <ChevronRight className="w-4 h-4" />
+                        <button onClick={nextMonth} className={cn('p-1.5 rounded-xl transition-colors', isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white text-[#512c31]')}>
+                            <ChevronRight className="w-5 h-5" />
                         </button>
                     </div>
 
                     {/* Day-of-week headers */}
                     <div className="grid grid-cols-7 px-3 pt-3 pb-1">
                         {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                            <div key={d} className={cn('text-center text-[10px] font-bold uppercase tracking-wider pb-2', isDark ? 'text-gray-600' : 'text-gray-400')}>
+                            <div key={d} className={cn('text-center text-[10px] font-black uppercase tracking-wider pb-2', isDark ? 'text-gray-600' : 'text-[#512c31]/40')}>
                                 {d}
                             </div>
                         ))}
@@ -302,24 +303,24 @@ export function Appointments() {
                                     key={idx}
                                     onClick={() => selectDay(date)}
                                     className={cn(
-                                        'relative flex flex-col items-center justify-center aspect-square rounded-xl text-sm font-medium transition-all duration-150 mx-0.5',
+                                        'relative flex flex-col items-center justify-center aspect-square rounded-xl text-sm font-bold transition-all duration-300 mx-0.5',
                                         _isSelected
-                                            ? 'bg-[#ff7a6b] text-white shadow-md shadow-[#ff7a6b]/30'
+                                            ? 'bg-[#512c31] text-white shadow-xl scale-110'
                                             : _isToday
                                                 ? isDark
-                                                    ? 'ring-1 ring-[#ff7a6b] text-[#ff7a6b] hover:bg-[#ff7a6b]/10'
-                                                    : 'ring-1 ring-[#ff7a6b] text-[#ff7a6b] hover:bg-[#ff7a6b]/5'
+                                                    ? 'ring-2 ring-[#e8919a] text-[#e8919a] hover:bg-[#e8919a]/10'
+                                                    : 'ring-2 ring-[#e8919a] text-[#512c31] hover:bg-white'
                                                 : isDark
                                                     ? 'text-gray-300 hover:bg-white/[0.07]'
-                                                    : 'text-gray-700 hover:bg-gray-100'
+                                                    : 'text-[#512c31]/80 hover:bg-white hover:shadow-md'
                                     )}
                                 >
                                     {date.getDate()}
                                     {/* Appointment dot */}
                                     {_hasDot && (
                                         <span className={cn(
-                                            'absolute bottom-1 w-1 h-1 rounded-full',
-                                            _isSelected ? 'bg-white/70' : 'bg-[#ff7a6b]'
+                                            'absolute bottom-1 w-1.5 h-1.5 rounded-full shadow-sm',
+                                            _isSelected ? 'bg-[#e8919a]' : 'bg-[#e8919a]'
                                         )} />
                                     )}
                                 </button>
@@ -328,24 +329,24 @@ export function Appointments() {
                     </div>
 
                     {/* Legend */}
-                    <div className={cn('flex items-center gap-4 px-4 py-3 border-t text-xs', isDark ? 'border-gray-800 text-gray-500' : 'border-gray-100 text-gray-400')}>
-                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#ff7a6b] inline-block" /> Has appointments</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-md ring-1 ring-[#ff7a6b] inline-block" /> Today</span>
+                    <div className={cn('flex items-center gap-4 px-5 py-4 border-t text-[10px] font-bold uppercase tracking-widest', isDark ? 'border-gray-800 text-gray-500' : 'border-[#512c31]/5 text-[#512c31]/60')}>
+                        <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#e8919a] inline-block shadow-sm" /> Has appointments</span>
+                        <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded-md ring-2 ring-[#e8919a] inline-block" /> Today</span>
                     </div>
                 </div>
 
                 {/* ── Day Panel ── */}
-                <div className={cn('rounded-2xl border', isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-100 shadow-sm')}>
+                <div className={cn('rounded-3xl border-4 shadow-xl flex flex-col', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
                     {/* Day panel header */}
-                    <div className={cn('flex items-center justify-between px-5 py-4 border-b', isDark ? 'border-gray-800' : 'border-gray-100')}>
-                        <div className="flex items-center gap-2">
-                            <CalendarDays className="w-4 h-4 text-[#ff7a6b]" />
-                            <span className={cn('font-semibold text-sm', isDark ? 'text-white' : 'text-gray-900')}>
+                    <div className={cn('flex items-center justify-between px-6 py-5 border-b', isDark ? 'border-gray-800' : 'border-[#512c31]/5')}>
+                        <div className="flex items-center gap-3">
+                            <CalendarDays className="w-5 h-5 text-[#e8919a]" />
+                            <span className={cn('font-black text-sm uppercase tracking-widest', isDark ? 'text-white' : 'text-[#512c31]')}>
                                 {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                             </span>
                         </div>
                         {!loading && (
-                            <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', isDark ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600')}>
+                            <span className={cn('text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full shadow-sm', isDark ? 'bg-white/10 text-gray-300' : 'bg-[#fef9f3] text-[#512c31]')}>
                                 {appointments.length} {appointments.length === 1 ? 'appointment' : 'appointments'}
                             </span>
                         )}
@@ -370,8 +371,8 @@ export function Appointments() {
                                 <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center mb-4', isDark ? 'bg-white/5' : 'bg-gray-100')}>
                                     <Calendar className={cn('w-8 h-8', isDark ? 'text-gray-600' : 'text-gray-300')} />
                                 </div>
-                                <p className={cn('font-medium text-sm', isDark ? 'text-gray-400' : 'text-gray-500')}>No appointments</p>
-                                <p className={cn('text-xs mt-1', isDark ? 'text-gray-600' : 'text-gray-400')}>Click "New Appointment" to schedule one</p>
+                                <p className={cn('font-bold text-sm', isDark ? 'text-gray-400' : 'text-[#512c31]')}>No appointments</p>
+                                <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-600' : 'text-[#512c31]/60')}>Click "New Appointment" to schedule one</p>
                             </div>
                         ) : (
                             // Appointment cards
@@ -379,29 +380,29 @@ export function Appointments() {
                                 <div
                                     key={apt.id}
                                     className={cn(
-                                        'group rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 transition-all border',
+                                        'group rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 transition-all duration-300 border-2',
                                         isDark
-                                            ? 'bg-[#141414] border-gray-800/60 hover:border-gray-700'
-                                            : 'bg-gray-50 border-transparent hover:border-gray-200 hover:bg-white'
+                                            ? 'bg-[#252525] border-white/5 hover:border-white/10'
+                                            : 'bg-[#fef9f3] border-transparent hover:border-white hover:shadow-xl hover:-translate-y-1'
                                     )}
                                 >
                                     {/* Time + avatar */}
-                                    <div className="flex items-center gap-3 sm:w-[120px] flex-shrink-0">
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#60a5fa] to-[#8b5cf6] flex items-center justify-center flex-shrink-0">
-                                            <User className="w-5 h-5 text-white" />
+                                    <div className="flex items-center gap-3 sm:w-[130px] flex-shrink-0">
+                                        <div className="w-12 h-12 rounded-2xl bg-[#e8919a] flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform group-hover:rotate-6">
+                                            <User className="w-6 h-6 text-white" />
                                         </div>
                                         <div className="flex items-center gap-1.5">
-                                            <Clock className={cn('w-3 h-3 flex-shrink-0', isDark ? 'text-gray-500' : 'text-gray-400')} />
-                                            <span className={cn('text-sm font-semibold tabular-nums', isDark ? 'text-white' : 'text-gray-900')}>{apt.time}</span>
+                                            <Clock className={cn('w-4 h-4 flex-shrink-0', isDark ? 'text-gray-500' : 'text-[#512c31]/60')} />
+                                            <span className={cn('text-sm font-black tabular-nums', isDark ? 'text-white' : 'text-[#512c31]')}>{apt.time}</span>
                                         </div>
                                     </div>
 
                                     {/* Patient info */}
                                     <div className="flex-1 min-w-0">
-                                        <p className={cn('font-semibold text-sm truncate', isDark ? 'text-white' : 'text-gray-900')}>{apt.patient}</p>
-                                        <p className={cn('text-xs flex items-center gap-1 mt-0.5', isDark ? 'text-gray-500' : 'text-gray-400')}>
-                                            <Stethoscope className="w-3 h-3" /> {apt.type}
-                                            {apt.doctor && <> · <User className="w-3 h-3" /> {apt.doctor}</>}
+                                        <p className={cn('font-black text-base truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{apt.patient}</p>
+                                        <p className={cn('text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
+                                            <Stethoscope className="w-3.5 h-3.5" /> {apt.type}
+                                            {apt.doctor && <> · <User className="w-3.5 h-3.5" /> {apt.doctor}</>}
                                         </p>
                                     </div>
 
@@ -447,27 +448,27 @@ export function Appointments() {
             {showModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
                     <div className={cn(
-                        'w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border shadow-2xl transition-colors flex flex-col max-h-[92dvh]',
-                        isDark ? 'bg-[#161616] border-gray-800' : 'bg-white border-gray-200'
+                        'w-full sm:max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] border-4 shadow-2xl transition-all flex flex-col max-h-[92dvh]',
+                        isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-white/50'
                     )}>
                         {/* Modal header */}
-                        <div className={cn('flex items-center justify-between px-5 pt-5 pb-4 border-b flex-shrink-0', isDark ? 'border-gray-800' : 'border-gray-100')}>
+                        <div className={cn('flex items-center justify-between px-6 pt-6 pb-5 border-b flex-shrink-0', isDark ? 'border-gray-800' : 'border-[#512c31]/5')}>
                             <div>
-                                <h2 className={cn('text-base font-bold', isDark ? 'text-white' : 'text-gray-900')}>New Appointment</h2>
-                                <p className={cn('text-xs mt-0.5', isDark ? 'text-gray-500' : 'text-gray-400')}>
-                                    {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                <h2 className={cn('text-xl sm:text-2xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>New Appointment</h2>
+                                <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
+                                    {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                                 </p>
                             </div>
                             <button
                                 onClick={() => setShowModal(false)}
-                                className={cn('p-2 rounded-xl transition-colors', isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500')}
+                                className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-all', isDark ? 'hover:bg-white/10 text-gray-400' : 'bg-[#fef9f3] text-[#512c31] hover:bg-[#e8919a] hover:text-white')}
                             >
-                                <X className="w-4 h-4" />
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 
                         {/* Tabs */}
-                        <div className={cn('flex gap-1 px-5 pt-4 flex-shrink-0')}>
+                        <div className={cn('flex gap-2 px-6 pt-5 flex-shrink-0')}>
                             {[
                                 { key: 'existing', label: 'Existing Patient', icon: Search },
                                 { key: 'new', label: 'New Patient', icon: UserPlus },
@@ -476,15 +477,15 @@ export function Appointments() {
                                     key={key}
                                     onClick={() => setModalTab(key)}
                                     className={cn(
-                                        'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all flex-1 justify-center',
+                                        'flex items-center gap-2 px-4 py-3 rounded-2xl text-[10px] font-bold uppercase tracking-widest transition-all flex-1 justify-center',
                                         modalTab === key
-                                            ? 'bg-[#ff7a6b] text-white shadow-md shadow-[#ff7a6b]/20'
+                                            ? 'bg-[#512c31] text-white shadow-xl scale-[1.02]'
                                             : isDark
                                                 ? 'text-gray-400 hover:bg-white/[0.06]'
-                                                : 'text-gray-500 hover:bg-gray-100'
+                                                : 'text-[#512c31]/60 bg-[#fef9f3] hover:bg-[#ffe3e0] hover:text-[#512c31]'
                                     )}
                                 >
-                                    <Icon className="w-3.5 h-3.5" /> {label}
+                                    <Icon className="w-4 h-4" /> {label}
                                 </button>
                             ))}
                         </div>
@@ -518,8 +519,8 @@ export function Appointments() {
                                 {/* ── New patient tab ── */}
                                 {modalTab === 'new' && (
                                     <div className="space-y-3">
-                                        <div className={cn('rounded-xl p-3 border', isDark ? 'bg-[#ff7a6b]/5 border-[#ff7a6b]/20' : 'bg-[#ff7a6b]/5 border-[#ff7a6b]/20')}>
-                                            <p className="text-xs text-[#ff7a6b] font-medium">A new patient record will be created automatically.</p>
+                                        <div className={cn('rounded-2xl p-4 border-2', isDark ? 'bg-[#e8919a]/5 border-[#e8919a]/20' : 'bg-[#e8919a]/5 border-[#e8919a]/20')}>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-[#e8919a]">A new patient record will be created automatically.</p>
                                         </div>
                                         <div>
                                             <label className={labelCls}>Full Name</label>
@@ -535,11 +536,11 @@ export function Appointments() {
                                             <div>
                                                 <label className={labelCls}>Phone</label>
                                                 <div className="relative">
-                                                    <Phone className={cn('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5', isDark ? 'text-gray-600' : 'text-gray-400')} />
+                                                    <Phone className={cn('absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4', isDark ? 'text-gray-600' : 'text-gray-400')} />
                                                     <input
                                                         value={newPatientForm.contact}
                                                         onChange={e => setNewPatientForm(f => ({ ...f, contact: e.target.value }))}
-                                                        className={cn(inputCls, 'pl-8')}
+                                                        className={cn(inputCls, 'pl-10')}
                                                         placeholder="Phone number"
                                                     />
                                                 </div>
@@ -566,12 +567,12 @@ export function Appointments() {
                                                         type="button"
                                                         onClick={() => setNewPatientForm(f => ({ ...f, gender: g }))}
                                                         className={cn(
-                                                            'flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-all border',
+                                                            'flex-1 py-3.5 rounded-2xl text-[10px] uppercase tracking-widest font-bold border-2 transition-all',
                                                             newPatientForm.gender === g
-                                                                ? 'bg-[#ff7a6b] text-white border-[#ff7a6b] shadow-md shadow-[#ff7a6b]/20'
+                                                                ? 'bg-[#512c31] text-white border-[#512c31] shadow-xl'
                                                                 : isDark
                                                                     ? 'border-gray-800 text-gray-400 hover:border-gray-700'
-                                                                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                                                                    : 'border-transparent bg-[#fef9f3] text-[#512c31]/60 hover:bg-white'
                                                         )}
                                                     >
                                                         {g}
@@ -633,16 +634,16 @@ export function Appointments() {
                             </div>
 
                             {/* Submit */}
-                            <div className={cn('px-5 pb-5 pt-2 flex-shrink-0 border-t', isDark ? 'border-gray-800' : 'border-gray-100')}>
+                            <div className={cn('px-6 pb-6 pt-4 flex-shrink-0 border-t', isDark ? 'border-gray-800' : 'border-[#512c31]/5')}>
                                 <button
                                     type="submit"
                                     disabled={submitting}
-                                    className="w-full rounded-xl bg-[#ff7a6b] py-3 text-white font-semibold text-sm hover:bg-[#ff6b5b] transition-all active:scale-[0.98] shadow-lg shadow-[#ff7a6b]/20 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    className="w-full rounded-2xl bg-[#512c31] py-4 text-white font-bold tracking-wide hover:bg-[#e8919a] hover:scale-[1.02] transition-all shadow-xl disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     {submitting ? (
-                                        <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating…</>
+                                        <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating…</>
                                     ) : (
-                                        <><Plus className="w-4 h-4" /> {modalTab === 'new' ? 'Create Patient & Appointment' : 'Create Appointment'}</>
+                                        <><Plus className="w-5 h-5" /> {modalTab === 'new' ? 'Create Patient & Appointment' : 'Create Appointment'}</>
                                     )}
                                 </button>
                             </div>
@@ -655,18 +656,18 @@ export function Appointments() {
             {showEditModal && editApt && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
                     <div className={cn(
-                        'w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border shadow-2xl flex flex-col max-h-[92dvh]',
-                        isDark ? 'bg-[#161616] border-gray-800' : 'bg-white border-gray-200'
+                        'w-full sm:max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] border-4 shadow-2xl flex flex-col max-h-[92dvh]',
+                        isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-white/50'
                     )}>
-                        <div className={cn('flex items-center justify-between px-5 pt-5 pb-4 border-b flex-shrink-0', isDark ? 'border-gray-800' : 'border-gray-100')}>
+                        <div className={cn('flex items-center justify-between px-6 pt-6 pb-5 border-b flex-shrink-0', isDark ? 'border-gray-800' : 'border-[#512c31]/5')}>
                             <div>
-                                <h2 className={cn('text-base font-bold', isDark ? 'text-white' : 'text-gray-900')}>Edit Appointment</h2>
-                                <p className={cn('text-xs mt-0.5', isDark ? 'text-gray-500' : 'text-gray-400')}>
-                                    {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                <h2 className={cn('text-xl sm:text-2xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Edit Appointment</h2>
+                                <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
+                                    {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                                 </p>
                             </div>
-                            <button onClick={() => setShowEditModal(false)} className={cn('p-2 rounded-xl transition-colors', isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500')}>
-                                <X className="w-4 h-4" />
+                            <button onClick={() => setShowEditModal(false)} className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-all', isDark ? 'hover:bg-white/10 text-gray-400' : 'bg-[#fef9f3] text-[#512c31] hover:bg-[#e8919a] hover:text-white')}>
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
                         <form onSubmit={handleEditApt} className="overflow-y-auto flex-1">
@@ -730,16 +731,16 @@ export function Appointments() {
                                     />
                                 </div>
                             </div>
-                            <div className={cn('px-5 pb-5 pt-2 flex-shrink-0 border-t', isDark ? 'border-gray-800' : 'border-gray-100')}>
+                            <div className={cn('px-6 pb-6 pt-4 flex-shrink-0 border-t', isDark ? 'border-gray-800' : 'border-[#512c31]/5')}>
                                 <button
                                     type="submit"
                                     disabled={editSubmitting}
-                                    className="w-full rounded-xl bg-[#ff7a6b] py-3 text-white font-semibold text-sm hover:bg-[#ff6b5b] transition-all active:scale-[0.98] shadow-lg shadow-[#ff7a6b]/20 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    className="w-full rounded-2xl bg-[#512c31] py-4 text-white font-bold tracking-wide hover:bg-[#e8919a] hover:scale-[1.02] transition-all shadow-xl disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     {editSubmitting ? (
-                                        <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
+                                        <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
                                     ) : (
-                                        <><Pencil className="w-4 h-4" /> Save Changes</>
+                                        <><Pencil className="w-5 h-5" /> Save Changes</>
                                     )}
                                 </button>
                             </div>

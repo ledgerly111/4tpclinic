@@ -270,10 +270,10 @@ export function Reports() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 dashboard-reveal">
         <div>
-          <h1 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Reports & Analytics</h1>
-          <p className={cn('text-sm mt-1', isDark ? 'text-gray-400' : 'text-gray-600')}>
+          <h1 className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>Reports & Analytics</h1>
+          <p className={cn("text-sm sm:text-base font-bold uppercase tracking-widest mt-1", isDark ? 'text-white/40' : 'text-[#512c31]/60')}>
             Real-time financial and operational insights
           </p>
         </div>
@@ -281,15 +281,15 @@ export function Reports() {
           onClick={loadData}
           disabled={loading}
           className={cn(
-            'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all',
-            loading && 'opacity-50 cursor-not-allowed',
+            'w-full sm:w-auto px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all',
+            loading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105',
             isDark
-              ? 'bg-[#1e1e1e] text-white hover:bg-[#252525] border border-gray-800'
-              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 shadow-sm'
+              ? 'bg-[#512c31] text-white hover:bg-[#e8919a]'
+              : 'bg-[#512c31] text-white hover:bg-[#e8919a]'
           )}
         >
-          <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-          Refresh
+          <RefreshCw className={cn('w-4 h-4 sm:w-5 sm:h-5', loading && 'animate-spin')} />
+          <span className="text-sm sm:text-base">Refresh</span>
         </button>
       </div>
 
@@ -300,38 +300,36 @@ export function Reports() {
       )}
 
       {/* ── KPI Cards ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         {kpis.map((kpi, idx) => (
           <div
             key={kpi.title}
             className={cn(
-              'relative overflow-hidden rounded-2xl p-5 border transition-all duration-300 hover:scale-[1.02] group dashboard-reveal',
-              isDark ? 'bg-[#1e1e1e] border-gray-800 hover:border-gray-700' : 'bg-white border-gray-200 hover:shadow-lg'
+              'relative rounded-[2rem] p-6 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl group dashboard-reveal',
+              isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
             )}
             style={{ animationDelay: `${idx * 80}ms` }}
           >
-            {/* subtle gradient overlay */}
-            <div className={cn('absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500', kpi.gradient)} />
             <div className="relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110', kpi.iconBg)}>
-                  <kpi.icon className={cn('w-5 h-5', kpi.accent)} />
+              <div className="flex items-center justify-between mb-4">
+                <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner pt-0.5 transition-transform group-hover:scale-110', kpi.iconBg)}>
+                  <kpi.icon className={cn('w-6 h-6', kpi.accent)} />
                 </div>
                 {kpi.change !== undefined && (
                   <div className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold',
-                    kpi.change >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                    'flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-sm border border-transparent',
+                    kpi.change >= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20'
                   )}>
-                    {kpi.change >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                    {kpi.change >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
                     {Math.abs(kpi.change).toFixed(1)}%
                   </div>
                 )}
               </div>
-              <p className={cn('text-sm mb-1', isDark ? 'text-gray-400' : 'text-gray-500')}>{kpi.title}</p>
+              <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{kpi.title}</p>
               {loading ? <Skeleton className="h-8 w-32 mt-1" /> : (
-                <p className={cn('text-2xl font-bold tracking-tight', isDark ? 'text-white' : 'text-gray-900')}>{kpi.value}</p>
+                <p className={cn('text-3xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>{kpi.value}</p>
               )}
-              <p className={cn('text-xs mt-2', isDark ? 'text-gray-600' : 'text-gray-400')}>{kpi.sub}</p>
+              <p className={cn('text-xs font-bold mt-2', isDark ? 'text-gray-500' : 'text-[#512c31]/80')}>{kpi.sub}</p>
             </div>
           </div>
         ))}
@@ -339,16 +337,18 @@ export function Reports() {
 
       {/* ── Quick Stats Strip ──────────────────────────────────── */}
       <div className={cn(
-        'rounded-2xl border p-4 flex flex-wrap gap-x-8 gap-y-3',
-        isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
+        'rounded-3xl border-4 p-5 sm:p-6 flex flex-wrap gap-x-10 gap-y-6 shadow-lg dashboard-reveal reveal-delay-2',
+        isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
       )}>
         {quickStats.map((s) => (
-          <div key={s.label} className="flex items-center gap-2.5 min-w-[140px]">
-            <s.icon className={cn('w-4 h-4', s.color)} />
+          <div key={s.label} className="flex items-center gap-4 min-w-[140px] group">
+            <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner transition-transform group-hover:scale-110", isDark ? 'bg-[#0f0f0f]' : 'bg-[#fef9f3]')}>
+              <s.icon className={cn('w-6 h-6', s.color)} />
+            </div>
             <div>
-              <p className={cn('text-xs', isDark ? 'text-gray-500' : 'text-gray-500')}>{s.label}</p>
-              {loading ? <Skeleton className="h-5 w-12 mt-0.5" /> : (
-                <p className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-gray-900')}>{s.value.toLocaleString()}</p>
+              <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{s.label}</p>
+              {loading ? <Skeleton className="h-6 w-12 mt-0.5" /> : (
+                <p className={cn('text-xl font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{s.value.toLocaleString()}</p>
               )}
             </div>
           </div>
@@ -359,26 +359,26 @@ export function Reports() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Area Chart */}
         <div className={cn(
-          'rounded-2xl p-5 sm:p-6 lg:col-span-2 border dashboard-reveal reveal-delay-4',
-          isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
+          'rounded-[2rem] p-6 lg:col-span-2 border-4 shadow-xl dashboard-reveal reveal-delay-4',
+          isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
         )}>
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className={cn('font-semibold flex items-center gap-2', isDark ? 'text-white' : 'text-gray-900')}>
-                <TrendingUp className="w-5 h-5 text-[#ff7a6b]" />
+              <h3 className={cn('font-black text-xl flex items-center gap-3', isDark ? 'text-white' : 'text-[#512c31]')}>
+                <div className="p-2 bg-[#ff7a6b]/10 rounded-xl"><TrendingUp className="w-6 h-6 text-[#ff7a6b]" /></div>
                 Revenue Trend
               </h3>
-              <p className={cn('text-xs mt-1', isDark ? 'text-gray-500' : 'text-gray-500')}>
+              <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
                 Monthly revenue from invoices
               </p>
             </div>
             {!loading && (
               <div className={cn(
-                'text-right px-3 py-1.5 rounded-lg',
-                isDark ? 'bg-[#252525]' : 'bg-gray-50'
+                'text-right px-4 py-2 rounded-2xl shadow-inner border',
+                isDark ? 'bg-[#0f0f0f] border-white/5' : 'bg-[#fef9f3] border-[#512c31]/5'
               )}>
-                <p className={cn('text-[10px] uppercase tracking-wider', isDark ? 'text-gray-500' : 'text-gray-400')}>Total</p>
-                <p className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(totalRevenue)}</p>
+                <p className={cn('text-[10px] font-bold uppercase tracking-widest', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>Total</p>
+                <p className={cn('text-lg font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(totalRevenue)}</p>
               </div>
             )}
           </div>
@@ -423,15 +423,15 @@ export function Reports() {
 
         {/* Invoice Status Donut */}
         <div className={cn(
-          'rounded-2xl p-5 sm:p-6 border flex flex-col dashboard-reveal reveal-delay-5',
-          isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
+          'rounded-[2rem] p-6 border-4 shadow-xl flex flex-col dashboard-reveal reveal-delay-5',
+          isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
         )}>
-          <div className="mb-4">
-            <h3 className={cn('font-semibold flex items-center gap-2', isDark ? 'text-white' : 'text-gray-900')}>
-              <PieChartIcon className="w-5 h-5 text-violet-500" />
+          <div className="mb-6">
+            <h3 className={cn('font-black text-xl flex items-center gap-3', isDark ? 'text-white' : 'text-[#512c31]')}>
+              <div className="p-2 bg-violet-500/10 rounded-xl"><PieChartIcon className="w-6 h-6 text-violet-500" /></div>
               Invoice Status
             </h3>
-            <p className={cn('text-xs mt-1', isDark ? 'text-gray-500' : 'text-gray-500')}>
+            <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
               {invoices.length} total invoices
             </p>
           </div>
@@ -469,14 +469,14 @@ export function Reports() {
             </div>
           </div>
           {/* Donut legend */}
-          <div className="space-y-2 mt-3 pt-3 border-t border-dashed" style={{ borderColor: isDark ? '#333' : '#e5e7eb' }}>
+          <div className="space-y-3 mt-4 pt-4 border-t-2 border-dashed" style={{ borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(81, 44, 49, 0.1)' }}>
             {statusDonut.map((e) => (
               <div key={e.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
-                  <span className={cn('text-sm', isDark ? 'text-gray-300' : 'text-gray-700')}>{e.name}</span>
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: e.color }} />
+                  <span className={cn('text-xs font-bold uppercase tracking-wider', isDark ? 'text-gray-300' : 'text-[#512c31]')}>{e.name}</span>
                 </div>
-                <span className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-gray-900')}>{e.value}</span>
+                <span className={cn('text-sm font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{e.value}</span>
               </div>
             ))}
           </div>
@@ -487,22 +487,22 @@ export function Reports() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue vs Invoices Composite */}
         <div className={cn(
-          'rounded-2xl p-5 sm:p-6 border',
-          isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
+          'rounded-[2rem] p-6 border-4 shadow-xl',
+          isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
         )}>
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row gap-4 mb-6">
             <div>
-              <h3 className={cn('font-semibold flex items-center gap-2', isDark ? 'text-white' : 'text-gray-900')}>
-                <BarChart3 className="w-5 h-5 text-sky-500" />
-                Revenue vs Invoice Volume
+              <h3 className={cn('font-black text-xl flex items-center gap-3', isDark ? 'text-white' : 'text-[#512c31]')}>
+                <div className="p-2 bg-sky-500/10 rounded-xl"><BarChart3 className="w-6 h-6 text-sky-500" /></div>
+                Revenue vs Invoices
               </h3>
-              <p className={cn('text-xs mt-1', isDark ? 'text-gray-500' : 'text-gray-500')}>
+              <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
                 Monthly comparison
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#ff7a6b]" /><span className={cn('text-[11px]', isDark ? 'text-gray-500' : 'text-gray-400')}>Revenue</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-sky-500" /><span className={cn('text-[11px]', isDark ? 'text-gray-500' : 'text-gray-400')}>Invoices</span></div>
+            <div className="flex items-center gap-4 bg-gray-50 dark:bg-[#0f0f0f] px-3 py-2 rounded-xl border dark:border-white/5">
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#ff7a6b] shadow-sm" /><span className={cn('text-[10px] font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]')}>Revenue</span></div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-sky-500 shadow-sm" /><span className={cn('text-[10px] font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]')}>Invoices</span></div>
             </div>
           </div>
           <div className="h-64">
@@ -533,44 +533,44 @@ export function Reports() {
 
         {/* Top Services by Revenue */}
         <div className={cn(
-          'rounded-2xl p-5 sm:p-6 border',
-          isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
+          'rounded-[2rem] p-6 border-4 shadow-xl',
+          isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
         )}>
-          <div className="mb-5">
-            <h3 className={cn('font-semibold flex items-center gap-2', isDark ? 'text-white' : 'text-gray-900')}>
-              <Stethoscope className="w-5 h-5 text-emerald-500" />
-              Top Services by Revenue
+          <div className="mb-6">
+            <h3 className={cn('font-black text-xl flex items-center gap-3', isDark ? 'text-white' : 'text-[#512c31]')}>
+              <div className="p-2 bg-emerald-500/10 rounded-xl"><Stethoscope className="w-6 h-6 text-emerald-500" /></div>
+              Top Services
             </h3>
-            <p className={cn('text-xs mt-1', isDark ? 'text-gray-500' : 'text-gray-500')}>
+            <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
               Breakdown from invoice line items
             </p>
           </div>
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full rounded-2xl" />)}
             </div>
           ) : topServices.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-sm text-gray-500">No service data from invoices</div>
+            <div className="h-48 flex items-center justify-center text-sm font-bold text-gray-400">No service data from invoices</div>
           ) : (
-            <div className="space-y-3.5">
+            <div className="space-y-5">
               {topServices.map((svc, idx) => {
                 const pct = topServicesTotal > 0 ? (svc.value / topServicesTotal) * 100 : 0;
                 return (
-                  <div key={svc.name}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: svc.color }} />
-                        <span className={cn('text-sm font-medium truncate max-w-[180px]', isDark ? 'text-gray-200' : 'text-gray-800')}>{svc.name}</span>
+                  <div key={svc.name} className="group">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: svc.color }} />
+                        <span className={cn('text-sm font-bold truncate max-w-[180px]', isDark ? 'text-gray-200' : 'text-[#512c31]')}>{svc.name}</span>
                       </div>
-                      <span className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(svc.value)}</span>
+                      <span className={cn('text-sm font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(svc.value)}</span>
                     </div>
-                    <div className={cn('w-full h-2 rounded-full overflow-hidden', isDark ? 'bg-gray-800' : 'bg-gray-100')}>
+                    <div className={cn('w-full h-3 rounded-full overflow-hidden shadow-inner', isDark ? 'bg-[#0f0f0f]' : 'bg-[#fef9f3]')}>
                       <div
                         className="h-full rounded-full transition-all duration-700 ease-out"
                         style={{
                           width: `${pct}%`,
                           backgroundColor: svc.color,
-                          boxShadow: `0 0 8px ${svc.color}40`,
+                          boxShadow: `0 0 10px ${svc.color}60`,
                         }}
                       />
                     </div>
@@ -584,17 +584,17 @@ export function Reports() {
 
       {/* ── Recent Invoices Table ──────────────────────────────── */}
       <div className={cn(
-        'rounded-2xl overflow-hidden border',
-        isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
+        'rounded-[2.5rem] overflow-hidden border-4 shadow-2xl',
+        isDark ? 'bg-[#1e1e1e] border-white/5 shadow-black/50' : 'bg-white border-white/50 shadow-[#512c31]/5'
       )}>
-        <div className={cn('px-5 sm:px-6 py-4 border-b flex items-center justify-between', isDark ? 'border-gray-800' : 'border-gray-200')}>
-          <h3 className={cn('font-semibold flex items-center gap-2', isDark ? 'text-white' : 'text-gray-900')}>
-            <ReceiptText className="w-5 h-5 text-[#ff7a6b]" />
+        <div className={cn('px-6 sm:px-8 py-6 border-b-2 flex items-center justify-between', isDark ? 'border-gray-800' : 'border-gray-50')}>
+          <h3 className={cn('font-black text-xl flex items-center gap-3', isDark ? 'text-white' : 'text-[#512c31]')}>
+            <div className="p-2 bg-[#e8919a]/10 rounded-xl"><ReceiptText className="w-6 h-6 text-[#e8919a]" /></div>
             Recent Invoices
           </h3>
           <span className={cn(
-            'text-xs px-2.5 py-1 rounded-full font-medium',
-            isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'
+            'text-[10px] px-3 py-1.5 rounded-full font-bold uppercase tracking-widest shadow-inner',
+            isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60'
           )}>
             {invoices.length} total
           </span>
@@ -602,50 +602,52 @@ export function Reports() {
 
         {loading ? (
           <div className="px-6 py-10 flex items-center justify-center">
-            <div className="animate-spin w-7 h-7 border-2 border-[#ff7a6b] border-t-transparent rounded-full" />
+            <div className="animate-spin w-7 h-7 border-4 border-[#e8919a] border-t-transparent rounded-full" />
           </div>
         ) : recentInvoices.length === 0 ? (
-          <div className="px-6 py-10 text-center">
-            <ReceiptText className={cn('w-10 h-10 mx-auto mb-3', isDark ? 'text-gray-700' : 'text-gray-300')} />
-            <p className={cn('text-sm', isDark ? 'text-gray-500' : 'text-gray-400')}>No invoices created yet</p>
+          <div className="px-6 py-16 text-center">
+            <ReceiptText className={cn('w-12 h-12 mx-auto mb-4', isDark ? 'text-gray-700' : 'text-[#512c31]/20')} />
+            <p className={cn('text-sm font-bold uppercase tracking-widest', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>No invoices created yet</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className={cn(isDark ? 'bg-[#151515]' : 'bg-gray-50/80')}>
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>
                 <tr>
-                  <th className={cn('text-left px-5 sm:px-6 py-3 text-xs font-semibold uppercase tracking-wider', isDark ? 'text-gray-500' : 'text-gray-500')}>Invoice</th>
-                  <th className={cn('text-left px-5 sm:px-6 py-3 text-xs font-semibold uppercase tracking-wider', isDark ? 'text-gray-500' : 'text-gray-500')}>Patient</th>
-                  <th className={cn('text-left px-5 sm:px-6 py-3 text-xs font-semibold uppercase tracking-wider', isDark ? 'text-gray-500' : 'text-gray-500')}>Date</th>
-                  <th className={cn('text-right px-5 sm:px-6 py-3 text-xs font-semibold uppercase tracking-wider', isDark ? 'text-gray-500' : 'text-gray-500')}>Amount</th>
-                  <th className={cn('text-center px-5 sm:px-6 py-3 text-xs font-semibold uppercase tracking-wider', isDark ? 'text-gray-500' : 'text-gray-500')}>Status</th>
+                  <th className="text-left px-5 sm:px-6 py-5">Invoice</th>
+                  <th className="text-left px-5 sm:px-6 py-5">Patient</th>
+                  <th className="text-left px-5 sm:px-6 py-5">Date</th>
+                  <th className="text-right px-5 sm:px-6 py-5">Amount</th>
+                  <th className="text-center px-5 sm:px-6 py-5">Status</th>
                 </tr>
               </thead>
-              <tbody className={cn('divide-y', isDark ? 'divide-gray-800/70' : 'divide-gray-100')}>
+              <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
                 {recentInvoices.map((inv) => (
-                  <tr key={inv.id} className={cn('transition-colors', isDark ? 'hover:bg-[#222]' : 'hover:bg-gray-50/50')}>
-                    <td className={cn('px-5 sm:px-6 py-4 font-mono text-xs font-semibold', isDark ? 'text-gray-300' : 'text-gray-700')}>
+                  <tr key={inv.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
+                    <td className={cn('px-5 sm:px-6 py-5 font-black text-sm', isDark ? 'text-gray-300' : 'text-[#512c31]')}>
                       #{inv.invoiceNumber}
                     </td>
-                    <td className="px-5 sm:px-6 py-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#ff7a6b] to-[#8b5cf6] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                    <td className="px-5 sm:px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#512c31] text-white flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-md">
                           {(inv.patient || '-')[0]?.toUpperCase()}
                         </div>
-                        <span className={cn('text-sm', isDark ? 'text-white' : 'text-gray-900')}>{inv.patient || '-'}</span>
+                        <span className={cn('font-bold', isDark ? 'text-white' : 'text-[#512c31]')}>{inv.patient || '-'}</span>
                       </div>
                     </td>
-                    <td className={cn('px-5 sm:px-6 py-4 text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>{fmtDate(inv.date)}</td>
-                    <td className={cn('px-5 sm:px-6 py-4 text-right text-sm font-semibold', isDark ? 'text-white' : 'text-gray-900')}>
+                    <td className={cn('px-5 sm:px-6 py-5 text-xs font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
+                      {fmtDate(inv.date)}
+                    </td>
+                    <td className={cn('px-5 sm:px-6 py-5 text-right font-black text-sm', isDark ? 'text-white' : 'text-[#512c31]')}>
                       {formatCurrency(inv.amount)}
                     </td>
-                    <td className="px-5 sm:px-6 py-4 text-center">
+                    <td className="px-5 sm:px-6 py-5 text-center">
                       <span className={cn(
-                        'inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide uppercase',
-                        inv.status === 'paid' && 'bg-emerald-500/15 text-emerald-400',
-                        inv.status === 'pending' && 'bg-amber-500/15 text-amber-400',
-                        inv.status === 'overdue' && 'bg-red-500/15 text-red-400',
-                        (!inv.status || inv.status === 'void') && 'bg-gray-500/15 text-gray-400'
+                        'inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase shadow-sm border',
+                        inv.status === 'paid' && 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20',
+                        inv.status === 'pending' && 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20',
+                        inv.status === 'overdue' && 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20',
+                        (!inv.status || inv.status === 'void') && 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-500/10 dark:text-gray-400 dark:border-gray-500/20'
                       )}>
                         {inv.status || 'void'}
                       </span>

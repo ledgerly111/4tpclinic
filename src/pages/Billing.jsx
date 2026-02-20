@@ -175,16 +175,16 @@ export function Billing() {
     return (
         <>
             <div className="space-y-4 sm:space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 dashboard-reveal">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 dashboard-reveal">
                     <div>
-                        <h1 className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>Billing</h1>
-                        <p className={cn("text-sm sm:text-base", isDark ? 'text-gray-400' : 'text-gray-600')}>Manage invoices and payments</p>
+                        <h1 className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>Billing</h1>
+                        <p className={cn("text-sm sm:text-base font-bold uppercase tracking-widest mt-1", isDark ? 'text-white/40' : 'text-[#512c31]/60')}>Manage invoices and payments</p>
                     </div>
                     <button
                         onClick={() => navigate('/app/invoices/new')}
-                        className="w-full sm:w-auto bg-[#ff7a6b] text-white px-3 py-2 sm:px-4 sm:py-2 rounded-xl hover:bg-[#ff6b5b] flex items-center justify-center gap-2 transition-colors"
+                        className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
                     >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                         <span className="text-sm sm:text-base">Create Invoice</span>
                     </button>
                 </div>
@@ -198,52 +198,52 @@ export function Billing() {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 dashboard-reveal reveal-delay-1">
-                    <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
-                                <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 dashboard-reveal reveal-delay-1">
+                    <div className={cn("rounded-3xl p-6 sm:p-8 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl", isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-green-50 flex items-center justify-center shadow-inner pt-0.5">
+                                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
                             </div>
-                            <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Cash Received</span>
+                            <span className={cn("text-[10px] font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Cash Received</span>
                         </div>
                         {loading
                             ? <div className="skeleton-shimmer h-8 w-32 mt-1" />
-                            : <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(summary.cashReceived)}</p>
+                            : <p className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(summary.cashReceived)}</p>
                         }
                     </div>
-                    <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
-                                <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+                    <div className={cn("rounded-3xl p-6 sm:p-8 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl", isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-yellow-50 flex items-center justify-center shadow-inner pt-0.5">
+                                <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
                             </div>
-                            <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Pending</span>
+                            <span className={cn("text-[10px] font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Pending</span>
                         </div>
                         {loading
                             ? <div className="skeleton-shimmer h-8 w-32 mt-1" />
-                            : <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(summary.pendingAmount)}</p>
+                            : <p className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(summary.pendingAmount)}</p>
                         }
                     </div>
-                    <div className={cn("rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
-                                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+                    <div className={cn("rounded-3xl p-6 sm:p-8 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl", isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-red-50 flex items-center justify-center shadow-inner pt-0.5">
+                                <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
                             </div>
-                            <span className={cn("text-xs sm:text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>Overdue</span>
+                            <span className={cn("text-[10px] font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Overdue</span>
                         </div>
                         {loading
                             ? <div className="skeleton-shimmer h-8 w-32 mt-1" />
-                            : <p className={cn("text-xl sm:text-2xl font-bold", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(summary.overdueAmount)}</p>
+                            : <p className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(summary.overdueAmount)}</p>
                         }
                     </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 dashboard-reveal reveal-delay-2">
-                    <div className={cn("flex-1 rounded-xl flex items-center gap-3 px-4 transition-colors", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200 shadow-sm')}>
-                        <Search className="w-5 h-5 text-gray-500" />
+                    <div className={cn("flex-1 rounded-3xl flex items-center gap-3 px-5 sm:px-6 transition-all border-4 shadow-lg", isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
+                        <Search className="w-5 h-5 text-gray-400" />
                         <input
                             type="text"
                             placeholder="Search invoices..."
-                            className={cn("flex-1 py-3 outline-none placeholder-gray-500 bg-transparent text-sm", isDark ? 'text-white' : 'text-gray-900')}
+                            className={cn("flex-1 py-4 outline-none placeholder-gray-400 bg-transparent text-sm sm:text-base font-medium", isDark ? 'text-white' : 'text-[#512c31]')}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -251,7 +251,7 @@ export function Billing() {
                     <select
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
-                        className={cn("w-full sm:w-auto px-4 py-3 rounded-xl outline-none border text-sm", isDark ? 'bg-[#1e1e1e] text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200')}
+                        className={cn("w-full sm:w-auto px-5 py-4 rounded-3xl outline-none border-4 font-bold text-sm shadow-lg tracking-wide transition-all cursor-pointer focus:border-[#e8919a]", isDark ? 'bg-[#1e1e1e] text-white border-gray-800' : 'bg-white text-[#512c31] border-gray-50 focus:bg-white')}
                     >
                         <option value="all">All Status</option>
                         <option value="paid">Paid</option>
@@ -284,47 +284,48 @@ export function Billing() {
                 )}
 
                 {!loading && filteredInvoices.length === 0 && (
-                    <div className={cn("rounded-xl p-6 text-sm", isDark ? 'bg-[#1e1e1e] text-gray-400' : 'bg-white border border-gray-200 text-gray-600')}>
-                        No invoices found. Create your first invoice to start tracking payments.
+                    <div className={cn("rounded-3xl p-12 text-center border-4 border-dashed", isDark ? 'bg-[#1e1e1e]/50 border-white/5 text-gray-400' : 'bg-[#fef9f3]/50 border-[#512c31]/10 text-[#512c31]')}>
+                        <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4', isDark ? 'bg-white/5' : 'bg-white shadow-xl')}>
+                            <FileText className={cn('w-8 h-8', isDark ? 'text-gray-600' : 'text-[#e8919a]')} />
+                        </div>
+                        <p className={cn("font-bold text-lg", isDark ? 'text-white' : 'text-[#512c31]')}>No invoices found</p>
+                        <p className={cn("text-[10px] font-bold uppercase tracking-widest mt-2", isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>Create your first invoice to start tracking payments.</p>
                     </div>
                 )}
 
                 {!loading && filteredInvoices.length > 0 && (
                     <>
-                        <div className="sm:hidden space-y-3">
+                        <div className="sm:hidden space-y-4">
                             {filteredInvoices.map((invoice) => (
-                                <div key={invoice.id} className={cn("p-4 rounded-xl", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                                    <div className="flex items-start justify-between mb-3">
+                                <div key={invoice.id} className={cn("p-5 rounded-3xl border-2 shadow-lg", isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-transparent')}>
+                                    <div className="flex items-start justify-between mb-4">
                                         <div>
-                                            <p className={cn("font-medium", isDark ? 'text-white' : 'text-gray-900')}>#{invoice.invoiceNumber}</p>
-                                            <p className={cn("text-sm", isDark ? 'text-gray-400' : 'text-gray-600')}>{invoice.patient}</p>
+                                            <p className={cn("font-black text-lg", isDark ? 'text-white' : 'text-[#512c31]')}>#{invoice.invoiceNumber}</p>
+                                            <p className={cn("text-sm font-bold mt-1", isDark ? 'text-gray-300' : 'text-[#512c31]')}>{invoice.patient}</p>
                                         </div>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
+                                        <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(invoice.status)}`}>
                                             {invoice.status}
                                         </span>
                                     </div>
-                                    <div className="space-y-1 text-sm">
-                                        <p className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>{invoice.service || '-'}</p>
-                                        <p className={cn(isDark ? 'text-gray-400' : 'text-gray-600')}>{formatDate(invoice.date)}</p>
+                                    <div className="space-y-1 mt-2">
+                                        <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>{invoice.service || 'No Service'}</p>
+                                        <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>{formatDate(invoice.date)}</p>
                                     </div>
-                                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700/30">
-                                        <p className={cn("font-medium", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(invoice.amount)}</p>
+                                    <div className="flex items-center justify-between mt-4 pt-4 border-t-2 border-dashed border-gray-200 dark:border-gray-800">
+                                        <p className={cn("font-black text-xl", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(invoice.amount)}</p>
                                         <div className="flex items-center gap-2">
                                             {invoice.status !== 'paid' && (
                                                 <button
                                                     onClick={() => handleMarkPaid(invoice.id)}
                                                     disabled={actionInvoiceId === invoice.id}
-                                                    className={cn(
-                                                        "p-2 rounded-lg transition-colors",
-                                                        isDark ? 'hover:bg-white/10 text-emerald-400' : 'hover:bg-gray-100 text-emerald-600'
-                                                    )}
+                                                    className="text-emerald-500 hover:text-white p-3 bg-emerald-50 hover:bg-emerald-500 rounded-xl transition-all shadow-sm"
                                                     title="Mark as paid"
                                                 >
-                                                    <CheckCircle2 className="w-4 h-4" />
+                                                    <CheckCircle2 className="w-5 h-5" />
                                                 </button>
                                             )}
-                                            <button onClick={() => handlePreview(invoice.id)} className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}>
-                                                <Eye className="w-4 h-4" />
+                                            <button onClick={() => handlePreview(invoice.id)} className="text-[#ff7a6b] hover:text-white p-3 bg-red-50 hover:bg-[#ff7a6b] rounded-xl transition-all shadow-sm">
+                                                <Eye className="w-5 h-5" />
                                             </button>
                                         </div>
                                     </div>
@@ -332,46 +333,46 @@ export function Billing() {
                             ))}
                         </div>
 
-                        <div className={cn("hidden sm:block rounded-2xl overflow-hidden dashboard-reveal reveal-delay-3", isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                            <table className="w-full text-left text-sm">
-                                <thead className={cn(isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-gray-50 text-gray-600')}>
+                        <div className={cn("hidden sm:block rounded-[2.5rem] overflow-hidden dashboard-reveal reveal-delay-3 border-4 shadow-2xl overflow-x-auto", isDark ? 'bg-[#1e1e1e] border-white/5 shadow-black/50' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
+                            <table className="w-full text-left text-sm whitespace-nowrap">
+                                <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>
                                     <tr>
-                                        <th className="p-4">Invoice ID</th>
-                                        <th className="p-4">Patient</th>
-                                        <th className="p-4">Service</th>
-                                        <th className="p-4">Date</th>
-                                        <th className="p-4">Amount</th>
-                                        <th className="p-4">Status</th>
-                                        <th className="p-4 text-right">Actions</th>
+                                        <th className="p-5 sm:p-6">Invoice ID</th>
+                                        <th className="p-5 sm:p-6">Patient</th>
+                                        <th className="p-5 sm:p-6">Service</th>
+                                        <th className="p-5 sm:p-6">Date</th>
+                                        <th className="p-5 sm:p-6">Amount</th>
+                                        <th className="p-5 sm:p-6">Status</th>
+                                        <th className="p-5 sm:p-6 text-right">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className={cn("divide-y", isDark ? 'divide-gray-800' : 'divide-gray-200')}>
+                                <tbody className={cn("divide-y", isDark ? 'divide-gray-800' : 'divide-gray-50')}>
                                     {filteredInvoices.map((invoice) => (
-                                        <tr key={invoice.id} className={cn("transition-colors", isDark ? 'hover:bg-[#252525]' : 'hover:bg-gray-50')}>
-                                            <td className={cn("p-4 font-medium", isDark ? 'text-white' : 'text-gray-900')}>#{invoice.invoiceNumber}</td>
-                                            <td className={cn("p-4", isDark ? 'text-gray-300' : 'text-gray-700')}>{invoice.patient}</td>
-                                            <td className={cn("p-4", isDark ? 'text-gray-400' : 'text-gray-600')}>{invoice.service || '-'}</td>
-                                            <td className={cn("p-4", isDark ? 'text-gray-400' : 'text-gray-600')}>{formatDate(invoice.date)}</td>
-                                            <td className={cn("p-4 font-medium", isDark ? 'text-white' : 'text-gray-900')}>{formatCurrency(invoice.amount)}</td>
-                                            <td className="p-4">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
+                                        <tr key={invoice.id} className={cn("transition-all duration-300 group", isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
+                                            <td className={cn("p-5 sm:p-6 font-bold", isDark ? 'text-white' : 'text-[#512c31]')}>#{invoice.invoiceNumber}</td>
+                                            <td className={cn("p-5 sm:p-6 font-bold", isDark ? 'text-gray-300' : 'text-[#512c31]')}>{invoice.patient}</td>
+                                            <td className={cn("p-5 sm:p-6 font-medium", isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{invoice.service || '-'}</td>
+                                            <td className={cn("p-5 sm:p-6 font-medium", isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{formatDate(invoice.date)}</td>
+                                            <td className={cn("p-5 sm:p-6 font-black", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(invoice.amount)}</td>
+                                            <td className="p-5 sm:p-6">
+                                                <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${getStatusColor(invoice.status)}`}>
                                                     {invoice.status}
                                                 </span>
                                             </td>
-                                            <td className="p-4 text-right">
-                                                <div className="inline-flex items-center gap-2">
+                                            <td className="p-5 sm:p-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
                                                     {invoice.status !== 'paid' && (
                                                         <button
                                                             onClick={() => handleMarkPaid(invoice.id)}
                                                             disabled={actionInvoiceId === invoice.id}
-                                                            className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-emerald-400' : 'hover:bg-gray-100 text-emerald-600')}
+                                                            className="text-emerald-500 hover:text-white p-2 sm:p-3 bg-emerald-50 hover:bg-emerald-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
                                                             title="Mark as paid"
                                                         >
-                                                            <CheckCircle2 className="w-4 h-4" />
+                                                            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
                                                         </button>
                                                     )}
-                                                    <button onClick={() => handlePreview(invoice.id)} className={cn("p-2 rounded-lg transition-colors", isDark ? 'hover:bg-white/10 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900')}>
-                                                        <Eye className="w-4 h-4" />
+                                                    <button onClick={() => handlePreview(invoice.id)} className="text-[#ff7a6b] hover:text-white p-2 sm:p-3 bg-red-50 hover:bg-[#ff7a6b] rounded-xl transition-all shadow-sm group-hover:scale-105">
+                                                        <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -387,18 +388,18 @@ export function Billing() {
                 <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center text-white">Loading preview...</div>
             )}
             {previewInvoice && (
-                <div className="fixed inset-0 bg-black/80 z-50 p-2 sm:p-4 backdrop-blur-sm flex flex-col items-center justify-center">
+                <div className="fixed inset-0 bg-black/70 z-50 p-0 sm:p-4 backdrop-blur-sm flex flex-col items-center justify-end sm:justify-center">
                     <div className={cn(
-                        "h-[95vh] w-full max-w-6xl rounded-2xl overflow-hidden border shadow-2xl transition-colors flex flex-col",
-                        isDark ? "bg-[#1e1e1e] border-gray-800" : "bg-white border-gray-200"
+                        "h-[95dvh] w-full max-w-6xl rounded-t-[2.5rem] sm:rounded-[2.5rem] overflow-hidden border-4 shadow-2xl transition-all flex flex-col",
+                        isDark ? "bg-[#1e1e1e] border-white/5" : "bg-[#fef9f3] border-white/50"
                     )}>
                         <div className={cn(
-                            "h-14 sm:h-16 px-4 sm:px-6 flex items-center justify-between border-b shrink-0",
-                            isDark ? "border-gray-800 text-white" : "border-gray-200 text-gray-900 bg-gray-50"
+                            "h-16 sm:h-20 px-6 sm:px-8 flex items-center justify-between border-b shrink-0",
+                            isDark ? "border-white/5" : "border-[#512c31]/5 bg-white/50"
                         )}>
                             <div className="flex flex-col">
-                                <span className="font-bold text-sm sm:text-base">Invoice Preview</span>
-                                <span className="text-[10px] sm:text-xs opacity-60">#{previewInvoice.invoiceNumber}</span>
+                                <span className={cn("font-black text-lg", isDark ? 'text-white' : 'text-[#512c31]')}>Invoice Preview</span>
+                                <span className={cn("text-[10px] font-bold uppercase tracking-widest mt-0.5", isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>#{previewInvoice.invoiceNumber}</span>
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -422,14 +423,14 @@ export function Billing() {
                                     }
                                     fileName={`Invoice-${previewInvoice.invoiceNumber}.pdf`}
                                     className={cn(
-                                        "p-2 rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2",
-                                        isDark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-900"
+                                        "px-4 py-2.5 rounded-2xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 font-bold text-xs tracking-wider uppercase",
+                                        isDark ? "bg-[#512c31] text-white hover:bg-[#e8919a]" : "bg-[#512c31] hover:bg-[#e8919a] text-white shadow-lg"
                                     )}
                                 >
                                     {({ loading }) => (
                                         <>
-                                            <Download className="w-4 h-4 sm:w-5 sm:h-5 text-[#ff7a6b]" />
-                                            <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider">{loading ? '...' : 'Download'}</span>
+                                            <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+                                            <span className="hidden sm:inline pt-0.5">{loading ? '...' : 'Download'}</span>
                                         </>
                                     )}
                                 </PDFDownloadLink>
@@ -437,18 +438,18 @@ export function Billing() {
                                 <button
                                     onClick={handleShare}
                                     className={cn(
-                                        "p-2 rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2",
-                                        isDark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-900"
+                                        "px-4 py-2.5 rounded-2xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2 font-bold text-xs tracking-wider uppercase",
+                                        isDark ? "bg-white/10 hover:bg-white/20 text-white" : "bg-white hover:bg-[#ffe3e0] text-[#512c31] shadow-lg border-2 border-transparent"
                                     )}
                                 >
-                                    <Share2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#ff7a6b]" />
-                                    <span className="hidden sm:inline text-xs font-bold uppercase tracking-wider">Share</span>
+                                    <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    <span className="hidden sm:inline pt-0.5">Share</span>
                                 </button>
 
-                                <div className="w-px h-6 bg-gray-700/30 mx-1" />
+                                <div className="w-px h-6 bg-gray-300 dark:bg-gray-800 mx-2" />
 
-                                <button onClick={() => setPreviewInvoice(null)} className={cn("p-2 rounded-xl transition-colors hover:bg-red-500/10 text-red-400")}>
-                                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                                <button onClick={() => setPreviewInvoice(null)} className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-all", isDark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-white hover:bg-[#e8919a] hover:text-white text-[#512c31] shadow-md")}>
+                                    <X className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>

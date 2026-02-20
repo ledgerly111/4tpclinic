@@ -3,7 +3,7 @@ import { PDFViewer } from '@react-pdf/renderer';
 import { ArrowLeft, Eye, Plus, Save, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import { cn } from '../lib/utils';
+import { cn, getLocalDateString } from '../lib/utils';
 import { createInvoice } from '../lib/accountingApi';
 import { fetchInventory, fetchPatients, fetchServices } from '../lib/clinicApi';
 import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
@@ -25,7 +25,7 @@ export function CreateInvoice() {
     const [formState, setFormState] = useState({
         patientId: '',
         invoiceNumber: `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        date: new Date().toISOString().split('T')[0],
+        date: getLocalDateString(),
         items: [],
         discount: 0,
         taxPercent: 0,
@@ -160,9 +160,10 @@ export function CreateInvoice() {
                 total: calculatedTotals.total,
             });
             await refreshDashboard();
-            navigate('/billing');
-        } catch (error) {
-            setSubmitError(error.message || 'Failed to save invoice.');
+            // In a real app, this would be an API call
+            navigate('/app/billing');
+        } catch (err) {
+            setSubmitError(err.message || 'Failed to save invoice.');
         } finally {
             setSubmitting(false);
         }
@@ -184,34 +185,39 @@ export function CreateInvoice() {
 
     return (
         <div className="space-y-6 p-4">
-            <div className={cn('w-full rounded-3xl p-6', isDark ? 'bg-[#1e1e1e]' : 'bg-white border border-gray-200')}>
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => navigate(-1)} className={cn('p-2 rounded-full transition-colors', isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500')}>
+            <div className={cn('w-full rounded-[2.5rem] p-6 sm:p-8 border-4 shadow-2xl dashboard-reveal transition-all', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4 sm:gap-6">
+                        <button onClick={() => navigate(-1)} className={cn('w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm hover:shadow-md hover:scale-105', isDark ? 'bg-[#0f0f0f] text-gray-400 hover:text-white' : 'bg-[#fef9f3] text-[#512c31] hover:bg-[#e8919a] hover:text-white')}>
                             <ArrowLeft className="w-5 h-5" />
                         </button>
-                        <h1 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Create Invoice</h1>
+                        <div>
+                            <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Create Invoice</h1>
+                            <p className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>New Billing Record</p>
+                        </div>
                     </div>
                     <button
                         onClick={() => setShowPreview(true)}
-                        className="px-4 py-2 rounded-xl bg-[#2a2a2a] text-white hover:bg-[#333] border border-gray-700 flex items-center gap-2"
+                        className="px-4 py-2.5 sm:px-6 sm:py-3 rounded-2xl bg-[#512c31] text-white hover:bg-[#e8919a] hover:scale-105 transition-all flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-widest shadow-xl hover:shadow-2xl"
                     >
                         <Eye className="w-4 h-4" /> Preview
                     </button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <label className={cn('text-sm font-medium', isDark ? 'text-gray-300' : 'text-gray-700')}>Select Patient</label>
-                        <select value={formState.patientId} onChange={(e) => setFormState({ ...formState, patientId: e.target.value })} className={cn('w-full p-3 rounded-xl outline-none border', isDark ? 'bg-[#2a2a2a] border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900')}>
-                            <option value="">Select a patient...</option>
-                            {patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
+                    <div className="space-y-5">
+                        <div>
+                            <label className={cn('block text-xs font-bold uppercase tracking-widest mb-2.5', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Select Patient</label>
+                            <select value={formState.patientId} onChange={(e) => setFormState({ ...formState, patientId: e.target.value })} className={cn('w-full p-4 rounded-2xl outline-none border-2 transition-all font-bold text-sm focus:border-[#512c31]', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}>
+                                <option value="">Select a patient...</option>
+                                {patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
 
-                        <div className="space-y-2">
-                            <label className={cn('text-sm font-medium', isDark ? 'text-gray-300' : 'text-gray-700')}>Add Service / Medicine</label>
+                        <div>
+                            <label className={cn('block text-xs font-bold uppercase tracking-widest mb-2.5', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Add Service / Medicine</label>
                             <div className="relative">
-                                <Plus className={cn('absolute left-3 top-3 w-4 h-4', isDark ? 'text-gray-400' : 'text-gray-500')} />
+                                <Plus className={cn('absolute left-4 top-4 w-5 h-5', isDark ? 'text-gray-500' : 'text-[#512c31]/40')} />
                                 <input
                                     type="text"
                                     value={itemQuery}
@@ -221,12 +227,12 @@ export function CreateInvoice() {
                                     }}
                                     onFocus={() => setShowItemPicker(true)}
                                     placeholder="Search service or medicine..."
-                                    className={cn('w-full pl-9 pr-4 py-2 rounded-lg text-sm outline-none border', isDark ? 'bg-[#2a2a2a] border-gray-700 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500')}
+                                    className={cn('w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold outline-none border-2 transition-all placeholder:font-bold placeholder:uppercase placeholder:tracking-widest focus:border-[#512c31]', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white placeholder-gray-500 focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] placeholder-[#512c31]/40')}
                                 />
                                 {showItemPicker && (
-                                    <div className={cn('absolute z-20 mt-2 w-full max-h-60 overflow-y-auto rounded-xl border shadow-xl', isDark ? 'bg-[#1e1e1e] border-gray-700' : 'bg-white border-gray-200')}>
+                                    <div className={cn('absolute z-20 mt-2 w-full max-h-60 overflow-y-auto rounded-2xl border-4 shadow-2xl p-2 space-y-1', isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-50')}>
                                         {availableItems.length === 0 ? (
-                                            <div className={cn('px-3 py-2 text-sm', isDark ? 'text-gray-400' : 'text-gray-600')}>
+                                            <div className={cn('px-4 py-3 text-sm font-bold', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
                                                 No matching items
                                             </div>
                                         ) : (
@@ -235,10 +241,10 @@ export function CreateInvoice() {
                                                     key={`${item.kind}-${item.id}`}
                                                     type="button"
                                                     onClick={() => handleAddItem(item.kind, item.id)}
-                                                    className={cn('w-full px-3 py-2 text-left transition-colors', isDark ? 'hover:bg-[#2a2a2a]' : 'hover:bg-gray-50')}
+                                                    className={cn('w-full px-4 py-3 rounded-xl text-left transition-all', isDark ? 'hover:bg-[#0f0f0f]' : 'hover:bg-[#fef9f3]')}
                                                 >
-                                                    <div className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-gray-900')}>{item.name}</div>
-                                                    <div className={cn('text-xs', isDark ? 'text-gray-400' : 'text-gray-600')}>{item.subtitle} • Rs {item.price}</div>
+                                                    <div className={cn('text-sm font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</div>
+                                                    <div className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>{item.subtitle} • Rs {item.price}</div>
                                                 </button>
                                             ))
                                         )}
@@ -248,17 +254,17 @@ export function CreateInvoice() {
                         </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className={cn('p-4 rounded-xl space-y-3', isDark ? 'bg-[#252525]' : 'bg-gray-50')}>
-                            <div className="flex justify-between items-center"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Subtotal</span><span className={cn('font-medium', isDark ? 'text-white' : 'text-gray-900')}>Rs{calculatedTotals.subtotal.toFixed(2)}</span></div>
-                            <div className="flex justify-between items-center gap-4"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Tax (%)</span><input type="number" value={formState.taxPercent} onChange={(e) => setFormState({ ...formState, taxPercent: parseFloat(e.target.value) || 0 })} className={cn('w-20 p-1 rounded text-right outline-none bg-transparent border-b', isDark ? 'border-gray-600 text-white' : 'border-gray-300 text-gray-900')} /></div>
-                            <div className="flex justify-between items-center gap-4"><span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Discount (Rs)</span><input type="number" value={formState.discount} onChange={(e) => setFormState({ ...formState, discount: parseFloat(e.target.value) || 0 })} className={cn('w-20 p-1 rounded text-right outline-none bg-transparent border-b', isDark ? 'border-gray-600 text-white' : 'border-gray-300 text-gray-900')} /></div>
-                            <div className="pt-3 border-t border-gray-700 flex justify-between items-center"><span className="font-bold text-lg text-[#ff9a8b]">Total</span><span className={cn('font-bold text-lg', isDark ? 'text-white' : 'text-gray-900')}>Rs{calculatedTotals.total.toFixed(2)}</span></div>
+                    <div className="space-y-6">
+                        <div className={cn('p-6 sm:p-8 rounded-[2rem] space-y-4 border-4 shadow-xl', isDark ? 'bg-[#0f0f0f] border-white/5' : 'bg-[#fef9f3] border-gray-50')}>
+                            <div className="flex justify-between items-center"><span className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Subtotal</span><span className={cn('font-black text-lg', isDark ? 'text-white' : 'text-[#512c31]')}>Rs{calculatedTotals.subtotal.toFixed(2)}</span></div>
+                            <div className="flex justify-between items-center gap-4"><span className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Tax (%)</span><input type="number" value={formState.taxPercent} onChange={(e) => setFormState({ ...formState, taxPercent: parseFloat(e.target.value) || 0 })} className={cn('w-24 p-2 rounded-xl text-right outline-none font-black text-sm transition-all border-2 focus:border-[#512c31]', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-white border-transparent text-[#512c31]')} /></div>
+                            <div className="flex justify-between items-center gap-4"><span className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Discount (Rs)</span><input type="number" value={formState.discount} onChange={(e) => setFormState({ ...formState, discount: parseFloat(e.target.value) || 0 })} className={cn('w-24 p-2 rounded-xl text-right outline-none font-black text-sm transition-all border-2 focus:border-[#512c31]', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-white border-transparent text-[#512c31]')} /></div>
+                            <div className={cn("pt-4 border-t-2 flex justify-between items-center", isDark ? "border-gray-800" : "border-gray-200")}><span className={cn("font-black text-xl tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Total</span><span className={cn('font-black text-3xl tracking-tight text-[#e8919a]')}>Rs{calculatedTotals.total.toFixed(2)}</span></div>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                            <label className={cn('text-sm font-medium', isDark ? 'text-gray-300' : 'text-gray-700')}>Invoice Status</label>
-                            <select value={invoiceStatus} onChange={(e) => setInvoiceStatus(e.target.value)} className={cn('px-3 py-2 rounded-lg text-sm outline-none border', isDark ? 'bg-[#2a2a2a] border-gray-700 text-white' : 'bg-gray-50 border-gray-200 text-gray-900')}>
+                        <div className="flex items-center justify-between gap-3 p-4 rounded-2xl border-2 dark:border-gray-800">
+                            <label className={cn('text-xs font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Invoice Status</label>
+                            <select value={invoiceStatus} onChange={(e) => setInvoiceStatus(e.target.value)} className={cn('px-4 py-2 rounded-xl text-sm font-bold outline-none border-2 transition-all cursor-pointer', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}>
                                 <option value="pending">Pending</option>
                                 <option value="paid">Paid</option>
                                 <option value="overdue">Overdue</option>
@@ -267,21 +273,21 @@ export function CreateInvoice() {
                     </div>
                 </div>
 
-                <div className="space-y-3 mt-6">
+                <div className="space-y-3 mt-8">
                     {formState.items.map((item, index) => (
-                        <div key={item.id} className={cn('flex items-center gap-3 p-3 rounded-xl border', isDark ? 'bg-[#252525] border-gray-700' : 'bg-gray-50 border-gray-200')}>
-                            <div className="flex-1">
-                                <p className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-gray-900')}>{item.name}</p>
-                                <p className={cn('text-xs', isDark ? 'text-gray-500' : 'text-gray-500')}>Rs{item.price} {item.itemType === 'inventory' ? `(inventory)` : `(service)`}</p>
+                        <div key={item.id} className={cn('flex items-center gap-4 p-4 rounded-[1.5rem] border-2 shadow-sm transition-all hover:shadow-md group', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-white border-gray-100 hover:border-gray-200')}>
+                            <div className="flex-1 min-w-0">
+                                <p className={cn('text-base font-black truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</p>
+                                <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-0.5', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>Rs{item.price} • {item.itemType === 'inventory' ? `Inventory` : `Service`}</p>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <input type="number" min="1" value={item.quantity} onChange={(e) => updateItemQuantity(index, e.target.value)} className={cn('w-16 p-1.5 rounded-lg text-sm text-center outline-none border', isDark ? 'bg-[#1e1e1e] border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900')} />
-                                <button onClick={() => removeItem(index)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                                <input type="number" min="1" value={item.quantity} onChange={(e) => updateItemQuantity(index, e.target.value)} className={cn('w-16 sm:w-20 p-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')} />
+                                <button onClick={() => removeItem(index)} className={cn("p-2 sm:p-3 rounded-xl transition-all shadow-sm hover:scale-110", isDark ? "bg-red-500/10 text-red-400 hover:bg-red-500/20" : "bg-red-50 text-red-500 hover:bg-red-100")}><Trash2 className="w-4 h-4 sm:w-5 sm:h-5" /></button>
                             </div>
                         </div>
                     ))}
                     {formState.items.length === 0 && (
-                        <div className={cn('text-center py-8 rounded-xl border border-dashed', isDark ? 'border-gray-700 text-gray-500' : 'border-gray-300 text-gray-400')}>No items added yet</div>
+                        <div className={cn('text-center py-12 rounded-[2rem] border-4 border-dashed', isDark ? 'border-gray-800 text-gray-500' : 'border-gray-100 text-[#512c31]/40 font-bold uppercase tracking-widest text-xs')}>No items added yet</div>
                     )}
                 </div>
 
@@ -291,8 +297,8 @@ export function CreateInvoice() {
                     </div>
                 )}
 
-                <button onClick={handleSaveInvoice} disabled={submitting} className="mt-4 w-full bg-[#ff7a6b] text-white py-3 rounded-xl hover:bg-[#ff6b5b] transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-                    <Save className="w-4 h-4" />
+                <button onClick={handleSaveInvoice} disabled={submitting} className="mt-6 w-full bg-[#512c31] text-white py-4 sm:py-5 rounded-2xl hover:bg-[#e8919a] transition-all flex items-center justify-center gap-2 text-sm sm:text-base font-bold uppercase tracking-widest shadow-xl hover:shadow-2xl hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed">
+                    <Save className="w-5 h-5" />
                     {submitting ? 'Saving...' : 'Save Invoice'}
                 </button>
             </div>

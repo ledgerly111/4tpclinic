@@ -93,16 +93,16 @@ export function Settings() {
 
     // Card base styles
     const card = cn(
-        'rounded-2xl border p-5 transition-colors',
-        isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200 shadow-sm'
+        'rounded-[2rem] border-4 p-6 sm:p-8 transition-all hover:-translate-y-1 shadow-xl hover:shadow-2xl dashboard-reveal reveal-delay-2',
+        isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
     );
 
     return (
         <div className="space-y-6 max-w-xl">
             {/* Header */}
-            <div>
-                <h1 className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-gray-900')}>Settings</h1>
-                <p className={cn('text-sm mt-1', isDark ? 'text-gray-400' : 'text-gray-500')}>
+            <div className="dashboard-reveal">
+                <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Settings</h1>
+                <p className={cn('text-sm sm:text-base font-bold uppercase tracking-widest mt-1', isDark ? 'text-white/40' : 'text-[#512c31]/60')}>
                     {session?.fullName ? `Signed in as ${session.fullName}` : 'Manage your preferences'}
                 </p>
             </div>
@@ -118,10 +118,10 @@ export function Settings() {
                             }
                         </div>
                         <div>
-                            <p className={cn('font-semibold text-sm', isDark ? 'text-white' : 'text-gray-900')}>
+                            <p className={cn('font-black text-sm sm:text-base', isDark ? 'text-white' : 'text-[#512c31]')}>
                                 {isDark ? 'Dark Mode' : 'Light Mode'}
                             </p>
-                            <p className={cn('text-xs mt-0.5', isDark ? 'text-gray-500' : 'text-gray-400')}>
+                            <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
                                 Toggle between light and dark theme
                             </p>
                         </div>
@@ -130,14 +130,14 @@ export function Settings() {
                     <button
                         onClick={toggleTheme}
                         className={cn(
-                            'w-12 h-6 rounded-full transition-colors relative flex-shrink-0',
-                            isDark ? 'bg-[#ff7a6b]' : 'bg-gray-300'
+                            'w-14 h-7 rounded-full transition-all relative flex-shrink-0 shadow-inner',
+                            isDark ? 'bg-[#e8919a]' : 'bg-gray-200'
                         )}
                         aria-label="Toggle theme"
                     >
                         <span className={cn(
-                            'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
-                            isDark ? 'translate-x-7' : 'translate-x-1'
+                            'absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform',
+                            isDark ? 'translate-x-8' : 'translate-x-1'
                         )} />
                     </button>
                 </div>
@@ -150,19 +150,19 @@ export function Settings() {
                         <Download className="w-5 h-5 text-[#ff7a6b]" />
                     </div>
                     <div>
-                        <p className={cn('font-semibold text-sm', isDark ? 'text-white' : 'text-gray-900')}>Install App</p>
-                        <p className={cn('text-xs mt-0.5', isDark ? 'text-gray-500' : 'text-gray-400')}>
+                        <p className={cn('font-black text-sm sm:text-base', isDark ? 'text-white' : 'text-[#512c31]')}>Install App</p>
+                        <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
                             Add 4TP Clinic to your device for quick access
                         </p>
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col sm:flex-row gap-3">
                     {/* Native install button (shows when browser supports it) */}
                     {canInstall && (
                         <button
                             onClick={handleNativeInstall}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#ff7a6b] text-white rounded-xl hover:bg-[#ff6b5b] transition-all text-sm font-semibold shadow-lg shadow-[#ff7a6b]/20"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#512c31] text-white rounded-2xl hover:bg-[#e8919a] hover:scale-[1.02] transition-all text-xs font-bold uppercase tracking-widest shadow-xl hover:shadow-2xl"
                         >
                             <Download className="w-4 h-4" />
                             Install Now
@@ -171,10 +171,10 @@ export function Settings() {
                     <button
                         onClick={() => setShowInstallModal(true)}
                         className={cn(
-                            'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-sm font-medium',
+                            'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 transition-all text-xs font-bold uppercase tracking-widest hover:scale-[1.02] shadow-sm hover:shadow-md',
                             isDark
-                                ? 'border-gray-700 text-gray-300 hover:border-[#ff7a6b] hover:text-[#ff7a6b]'
-                                : 'border-gray-200 text-gray-600 hover:border-[#ff7a6b] hover:text-[#ff7a6b]'
+                                ? 'border-gray-700 text-gray-300 hover:border-white hover:text-white'
+                                : 'border-gray-100 text-[#512c31] hover:border-[#512c31] hover:text-[#512c31]'
                         )}
                     >
                         <Smartphone className="w-4 h-4" />
@@ -191,18 +191,18 @@ export function Settings() {
                             <LogOut className="w-5 h-5 text-red-400" />
                         </div>
                         <div>
-                            <p className={cn('font-semibold text-sm', isDark ? 'text-white' : 'text-gray-900')}>Sign Out</p>
-                            <p className={cn('text-xs mt-0.5', isDark ? 'text-gray-500' : 'text-gray-400')}>
+                            <p className={cn('font-black text-sm sm:text-base', isDark ? 'text-white' : 'text-[#512c31]')}>Sign Out</p>
+                            <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
                                 Sign out of your account
                             </p>
                         </div>
                     </div>
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium"
+                        className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest shadow-sm hover:shadow-md hover:scale-105"
                     >
                         Sign Out
-                        <ChevronRight className="w-4 h-4" />
+                        <LogOut className="w-4 h-4" />
                     </button>
                 </div>
             </div>
@@ -211,25 +211,25 @@ export function Settings() {
             {showInstallModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
                     <div className={cn(
-                        'w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border shadow-2xl flex flex-col max-h-[92dvh]',
-                        isDark ? 'bg-[#161616] border-gray-800' : 'bg-white border-gray-200'
+                        'w-full sm:max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] border-4 shadow-2xl flex flex-col max-h-[92dvh] transition-all',
+                        isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-white/50'
                     )}>
                         {/* Modal header */}
-                        <div className={cn('flex items-center justify-between px-6 pt-6 pb-4 border-b flex-shrink-0', isDark ? 'border-gray-800' : 'border-gray-100')}>
+                        <div className={cn('flex items-center justify-between px-6 pt-8 pb-4 border-b-2 flex-shrink-0', isDark ? 'border-white/5' : 'border-gray-50')}>
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-[#ff7a6b]/10 flex items-center justify-center">
-                                    <img src="/clinic.svg" alt="4TP Clinic" className="w-6 h-6 object-contain" />
+                                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner", isDark ? "bg-[#0f0f0f]" : "bg-[#fef9f3]")}>
+                                    <img src="/clinic.svg" alt="4TP Clinic" className="w-7 h-7 object-contain" />
                                 </div>
                                 <div>
-                                    <h2 className={cn('font-bold text-base', isDark ? 'text-white' : 'text-gray-900')}>Install 4TP Clinic</h2>
-                                    <p className={cn('text-xs', isDark ? 'text-gray-500' : 'text-gray-400')}>Choose your platform</p>
+                                    <h2 className={cn('font-black text-xl tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Install 4TP Clinic</h2>
+                                    <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-0.5', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Choose your platform</p>
                                 </div>
                             </div>
                             <button
                                 onClick={() => setShowInstallModal(false)}
-                                className={cn('p-2 rounded-xl transition-colors', isDark ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100')}
+                                className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-all', isDark ? 'text-white bg-white/5 hover:bg-white/10' : 'bg-[#fef9f3] text-[#512c31] hover:bg-[#e8919a] hover:text-white')}
                             >
-                                <X className="w-4 h-4" />
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 
