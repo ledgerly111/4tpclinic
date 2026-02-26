@@ -50,17 +50,19 @@ function App() {
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
-              
+
               {/* Protected Routes with Layout */}
               <Route path="/app" element={
                 <ProtectedRoute>
-                  <Layout />
+                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                    <Layout />
+                  </RoleGuard>
                 </ProtectedRoute>
               }>
                 {/* Dashboard - Accessible by all roles */}
                 <Route index element={<Dashboard />} />
                 <Route path="dashboard" element={<Dashboard />} />
-                
+
                 {/* Regular pages - Accessible by admin and staff */}
                 <Route path="patients" element={
                   <RoleGuard allowedRoles={['admin', 'staff']}>
@@ -102,7 +104,7 @@ function App() {
                     <Staff />
                   </RoleGuard>
                 } />
-                
+
                 {/* Settings - All roles can access but with different capabilities */}
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />

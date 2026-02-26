@@ -36,8 +36,16 @@ const bottomNavItems = [
 export function Sidebar({ isOpen, onClose }) {
     const location = useLocation();
     const { theme } = useStore();
-    const { logout } = useAuth();
+    const { session, logout } = useAuth();
     const isDark = theme === 'dark';
+
+    const isSuperAdmin = session?.role === 'super_admin';
+
+    const currentNavItems = isSuperAdmin
+        ? [{ icon: LayoutGrid, label: 'Dashboard', path: '/super-admin' }]
+        : navItems;
+
+    const currentBottomNavItems = isSuperAdmin ? [] : bottomNavItems;
 
     return (
         <>
@@ -67,7 +75,7 @@ export function Sidebar({ isOpen, onClose }) {
 
                 {/* Scrollable nav area */}
                 <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin flex flex-col items-center py-3 gap-1 px-3">
-                    {navItems.map((item, index) => {
+                    {currentNavItems.map((item, index) => {
                         const isActive = location.pathname === item.path;
                         return (
                             <NavLink
@@ -120,7 +128,7 @@ export function Sidebar({ isOpen, onClose }) {
 
                 {/* Bottom: Settings, Help, Logout — pinned, never scrolls */}
                 <div className={cn("flex flex-col items-center gap-1 px-3 pb-4 pt-3 flex-shrink-0 border-t", isDark ? "border-white/[0.06]" : "border-gray-100")}>
-                    {bottomNavItems.map((item) => {
+                    {currentBottomNavItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         return (
                             <NavLink
@@ -236,7 +244,7 @@ export function Sidebar({ isOpen, onClose }) {
                             Main Menu
                         </div>
                         <div className="space-y-1">
-                            {navItems.map((item) => {
+                            {currentNavItems.map((item) => {
                                 const active = location.pathname === item.path;
                                 return (
                                     <NavLink
@@ -270,41 +278,45 @@ export function Sidebar({ isOpen, onClose }) {
                         </div>
 
                         {/* System Section with Settings */}
-                        <div className={cn("text-xs font-semibold uppercase tracking-wider mt-6 mb-3 px-3", isDark ? "text-gray-500" : "text-gray-400")}>
-                            System
-                        </div>
-                        <div className="space-y-1">
-                            {bottomNavItems.map((item) => {
-                                const active = location.pathname === item.path;
-                                return (
-                                    <NavLink
-                                        key={item.path}
-                                        to={item.path}
-                                        onClick={onClose}
-                                        className={cn(
-                                            "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200",
-                                            active
-                                                ? isDark
-                                                    ? "bg-[#1f1f1f] text-white"
-                                                    : "bg-gray-200 text-gray-900"
-                                                : isDark
-                                                    ? "text-gray-300 hover:bg-[#1f1f1f]"
-                                                    : "text-gray-700 hover:bg-gray-100"
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            "w-10 h-10 rounded-xl flex items-center justify-center",
-                                            active
-                                                ? isDark ? "bg-[#0f0f0f]" : "bg-white"
-                                                : isDark ? "bg-[#1f1f1f]" : "bg-gray-100"
-                                        )}>
-                                            <item.icon className="w-5 h-5" />
-                                        </div>
-                                        <span className="font-medium">{item.label}</span>
-                                    </NavLink>
-                                );
-                            })}
-                        </div>
+                        {currentBottomNavItems.length > 0 && (
+                            <>
+                                <div className={cn("text-xs font-semibold uppercase tracking-wider mt-6 mb-3 px-3", isDark ? "text-gray-500" : "text-gray-400")}>
+                                    System
+                                </div>
+                                <div className="space-y-1">
+                                    {currentBottomNavItems.map((item) => {
+                                        const active = location.pathname === item.path;
+                                        return (
+                                            <NavLink
+                                                key={item.path}
+                                                to={item.path}
+                                                onClick={onClose}
+                                                className={cn(
+                                                    "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200",
+                                                    active
+                                                        ? isDark
+                                                            ? "bg-[#1f1f1f] text-white"
+                                                            : "bg-gray-200 text-gray-900"
+                                                        : isDark
+                                                            ? "text-gray-300 hover:bg-[#1f1f1f]"
+                                                            : "text-gray-700 hover:bg-gray-100"
+                                                )}
+                                            >
+                                                <div className={cn(
+                                                    "w-10 h-10 rounded-xl flex items-center justify-center",
+                                                    active
+                                                        ? isDark ? "bg-[#0f0f0f]" : "bg-white"
+                                                        : isDark ? "bg-[#1f1f1f]" : "bg-gray-100"
+                                                )}>
+                                                    <item.icon className="w-5 h-5" />
+                                                </div>
+                                                <span className="font-medium">{item.label}</span>
+                                            </NavLink>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
                     </nav>
 
                     {/* Footer with Logout */}
