@@ -3,10 +3,14 @@ import { Plus, Search, Stethoscope, Clock, DollarSign, Trash2, X } from 'lucide-
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 import { createService, deleteService, fetchServices } from '../lib/clinicApi';
+import { useAuth } from '../context/AuthContext';
+import { hasEditAccess } from '../lib/permissions';
 
 export function Services() {
     const { theme } = useStore();
+    const { session } = useAuth();
     const isDark = theme === 'dark';
+    const canEditServices = hasEditAccess(session, 'edit_services');
     const [services, setServices] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,6 +45,10 @@ export function Services() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        if (!canEditServices) {
+            setError('You do not have permission to edit services.');
+            return;
+        }
         try {
             await createService({
                 ...newService,
@@ -57,6 +65,10 @@ export function Services() {
 
     const handleDelete = async (serviceId) => {
         setError('');
+        if (!canEditServices) {
+            setError('You do not have permission to edit services.');
+            return;
+        }
         try {
             await deleteService(serviceId);
             setServices((prev) => prev.filter((item) => item.id !== serviceId));
@@ -77,10 +89,12 @@ export function Services() {
                     <h1 className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>Services</h1>
                     <p className={cn("text-sm sm:text-base font-bold uppercase tracking-widest mt-1", isDark ? 'text-white/40' : 'text-[#512c31]/60')}>Manage clinic services and pricing</p>
                 </div>
-                <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide shadow-xl hover:shadow-2xl hover:scale-105 hover:bg-[#e8919a] flex items-center justify-center gap-2 transition-all">
-                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="text-sm sm:text-base">Add Service</span>
-                </button>
+                {canEditServices && (
+                    <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide shadow-xl hover:shadow-2xl hover:scale-105 hover:bg-[#e8919a] flex items-center justify-center gap-2 transition-all">
+                        <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span className="text-sm sm:text-base">Add Service</span>
+                    </button>
+                )}
             </div>
 
             {error && (
@@ -143,7 +157,9 @@ export function Services() {
                                     <td className="px-5 sm:px-6 py-5"><div className="flex items-center gap-3"><div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform', isDark ? 'bg-[#0f0f0f]' : 'bg-white')}><Stethoscope className={cn("w-5 h-5", isDark ? "text-[#e8919a]" : "text-[#512c31]")} /></div><span className={cn('font-black text-sm', isDark ? 'text-white' : 'text-[#512c31]')}>{service.name}</span></div></td>
                                     <td className={cn('px-5 sm:px-6 py-5 text-xs font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{service.duration} min</td>
                                     <td className={cn('px-5 sm:px-6 py-5 font-black text-sm', isDark ? 'text-white' : 'text-[#512c31]')}>Rs{service.price}</td>
-                                    <td className="px-5 sm:px-6 py-5 text-right"><button onClick={() => handleDelete(service.id)} className={cn('p-2 rounded-xl transition-colors shadow-sm', isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300' : 'bg-red-50 text-red-500 hover:bg-red-100')}><Trash2 className="w-4 h-4" /></button></td>
+                                    <td className="px-5 sm:px-6 py-5 text-right">
+                                        {canEditServices && <button onClick={() => handleDelete(service.id)} className={cn('p-2 rounded-xl transition-colors shadow-sm', isDark ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300' : 'bg-red-50 text-red-500 hover:bg-red-100')}><Trash2 className="w-4 h-4" /></button>}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

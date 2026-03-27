@@ -16,16 +16,17 @@ import {
 import { cn } from '../lib/utils';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
+import { hasPageAccess } from '../lib/permissions';
 
 const navItems = [
-    { icon: LayoutGrid, label: 'Dashboard', path: '/app' },
-    { icon: CalendarClock, label: 'Appointments', path: '/app/appointments' },
-    { icon: Users, label: 'Patients', path: '/app/patients' },
-    { icon: Stethoscope, label: 'Services', path: '/app/services' },
-    { icon: Receipt, label: 'Billing', path: '/app/billing' },
-    { icon: Package, label: 'Inventory', path: '/app/inventory' },
-    { icon: BarChart3, label: 'Reports', path: '/app/reports' },
-    { icon: UserCog, label: 'Supervision', path: '/app/staff' },
+    { icon: LayoutGrid, label: 'Dashboard', path: '/app', pageKey: 'dashboard' },
+    { icon: CalendarClock, label: 'Appointments', path: '/app/appointments', pageKey: 'appointments' },
+    { icon: Users, label: 'Patients', path: '/app/patients', pageKey: 'patients' },
+    { icon: Stethoscope, label: 'Services', path: '/app/services', pageKey: 'services' },
+    { icon: Receipt, label: 'Billing', path: '/app/billing', pageKey: 'billing' },
+    { icon: Package, label: 'Inventory', path: '/app/inventory', pageKey: 'inventory' },
+    { icon: BarChart3, label: 'Reports', path: '/app/reports', pageKey: 'reports' },
+    { icon: UserCog, label: 'Supervision', path: '/app/staff', adminOnly: true },
 ];
 
 const bottomNavItems = [
@@ -43,7 +44,10 @@ export function Sidebar({ isOpen, onClose }) {
 
     const currentNavItems = isSuperAdmin
         ? [{ icon: LayoutGrid, label: 'Dashboard', path: '/super-admin' }]
-        : navItems;
+        : navItems.filter((item) => {
+            if (item.adminOnly && session?.role !== 'admin') return false;
+            return !item.pageKey || hasPageAccess(session, item.pageKey);
+        });
 
     const currentBottomNavItems = isSuperAdmin ? [] : bottomNavItems;
 

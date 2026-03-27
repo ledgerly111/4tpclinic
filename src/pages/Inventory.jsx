@@ -3,10 +3,14 @@ import { Plus, Search, Package, AlertTriangle, CheckCircle, TrendingDown, Box, X
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
 import { createInventoryItem, fetchInventory, restockInventoryItem, updateInventoryItem } from '../lib/clinicApi';
+import { useAuth } from '../context/AuthContext';
+import { hasEditAccess } from '../lib/permissions';
 
 export function Inventory() {
     const { theme } = useStore();
+    const { session } = useAuth();
     const isDark = theme === 'dark';
+    const canEditInventory = hasEditAccess(session, 'edit_inventory');
     const [items, setItems] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [error, setError] = useState('');
@@ -73,6 +77,10 @@ export function Inventory() {
     const handleAddItem = async (e) => {
         e.preventDefault();
         setError('');
+        if (!canEditInventory) {
+            setError('You do not have permission to edit inventory.');
+            return;
+        }
         try {
             await createInventoryItem({
                 ...addForm,
@@ -94,6 +102,10 @@ export function Inventory() {
         e.preventDefault();
         if (!selectedItem) return;
         setError('');
+        if (!canEditInventory) {
+            setError('You do not have permission to edit inventory.');
+            return;
+        }
         try {
             await restockInventoryItem(selectedItem.id, {
                 quantity: Number(restockForm.quantity),
@@ -126,6 +138,10 @@ export function Inventory() {
     const handleEditItem = async (e) => {
         e.preventDefault();
         setError('');
+        if (!canEditInventory) {
+            setError('You do not have permission to edit inventory.');
+            return;
+        }
         try {
             await updateInventoryItem(editForm.id, {
                 name: editForm.name,
@@ -151,13 +167,15 @@ export function Inventory() {
                     <h1 className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>Inventory</h1>
                     <p className={cn("text-sm sm:text-base font-bold uppercase tracking-widest mt-1", isDark ? 'text-white/40' : 'text-[#512c31]/60')}>Track and manage medical supplies</p>
                 </div>
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
-                >
-                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="text-sm sm:text-base">Add Item</span>
-                </button>
+                {canEditInventory && (
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
+                    >
+                        <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span className="text-sm sm:text-base">Add Item</span>
+                    </button>
+                )}
             </div>
 
             {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
@@ -247,16 +265,18 @@ export function Inventory() {
                                     <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-gray-400' : 'text-[#512c31]')}>Rs{item.sellPrice}</td>
                                     <td className="p-5 sm:p-6"><span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
                                     <td className="p-5 sm:p-6 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => openEditModal(item)}
-                                                className="p-3 text-blue-500 hover:text-white bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
-                                                title="Edit item"
-                                            >
-                                                <Pencil className="w-5 h-5" />
-                                            </button>
-                                            <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), expiryDate: item.expiryDate || '' }); setShowRestockModal(true); }} className="px-4 py-2.5 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-xs font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
-                                        </div>
+                                        {canEditInventory && (
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => openEditModal(item)}
+                                                    className="p-3 text-blue-500 hover:text-white bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                                                    title="Edit item"
+                                                >
+                                                    <Pencil className="w-5 h-5" />
+                                                </button>
+                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), expiryDate: item.expiryDate || '' }); setShowRestockModal(true); }} className="px-4 py-2.5 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-xs font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
+                                            </div>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

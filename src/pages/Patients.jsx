@@ -6,12 +6,14 @@ import { createPatient, deletePatient, fetchPatients, updatePatient } from '../l
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
+import { hasEditAccess } from '../lib/permissions';
 
 export function Patients() {
   const { theme } = useStore();
   const { session } = useAuth();
   const { selectedOrganizationId, selectedClinicId } = useTenant();
   const isDark = theme === 'dark';
+  const canEditPatients = hasEditAccess(session, 'edit_patients');
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,7 +48,7 @@ export function Patients() {
     loadPatients();
 
     // Check for 'new' action in URL
-    if (searchParams.get('action') === 'new') {
+    if (canEditPatients && searchParams.get('action') === 'new') {
       setIsModalOpen(true);
       // Clean up URL without reloading
       setSearchParams({}, { replace: true });
@@ -63,6 +65,11 @@ export function Patients() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!canEditPatients) {
+      setError('You do not have permission to edit patients.');
+      return;
+    }
 
     if (!selectedClinicId) {
       setError('Please select a clinic before creating a patient.');
@@ -90,6 +97,10 @@ export function Patients() {
 
   const handleDelete = async (patientId) => {
     setError('');
+    if (!canEditPatients) {
+      setError('You do not have permission to edit patients.');
+      return;
+    }
     try {
       await deletePatient(patientId);
       setPatients((prev) => prev.filter((p) => p.id !== patientId));
@@ -109,6 +120,10 @@ export function Patients() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!canEditPatients) {
+      setError('You do not have permission to edit patients.');
+      return;
+    }
     try {
       await updatePatient(editPatient.id, {
         name: editPatient.name,
@@ -135,13 +150,15 @@ export function Patients() {
           <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Patients</h1>
           <p className={cn('text-sm sm:text-base font-bold uppercase tracking-widest mt-1', isDark ? 'text-white/40' : 'text-[#512c31]/60')}>Manage patient records</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
-        >
-          <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="text-sm sm:text-base">Add Patient</span>
-        </button>
+        {canEditPatients && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
+          >
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-sm sm:text-base">Add Patient</span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -236,22 +253,24 @@ export function Patients() {
                     </div>
                   </td>
                   <td className="p-4 sm:p-6 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openEditModal(patient)}
-                        className="text-blue-500 hover:text-white p-2 sm:p-3 bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
-                        title="Edit patient"
-                      >
-                        <Pencil className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(patient.id)}
-                        className="text-red-500 hover:text-white p-2 sm:p-3 bg-red-50 hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
-                        title="Delete patient"
-                      >
-                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
-                    </div>
+                    {canEditPatients && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEditModal(patient)}
+                          className="text-blue-500 hover:text-white p-2 sm:p-3 bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                          title="Edit patient"
+                        >
+                          <Pencil className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(patient.id)}
+                          className="text-red-500 hover:text-white p-2 sm:p-3 bg-red-50 hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                          title="Delete patient"
+                        >
+                          <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

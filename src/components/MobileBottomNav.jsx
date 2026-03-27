@@ -12,27 +12,35 @@ import {
 import { cn } from '../lib/utils';
 import { useStore } from '../context/StoreContext';
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { hasPageAccess } from '../lib/permissions';
 
 const mainNavItems = [
-    { icon: LayoutDashboard, label: 'Home', path: '/app' },
-    { icon: Calendar, label: 'Appointments', path: '/app/appointments' },
-    { icon: Users, label: 'Patients', path: '/app/patients' },
-    { icon: CreditCard, label: 'Billing', path: '/app/billing' },
+    { icon: LayoutDashboard, label: 'Home', path: '/app', pageKey: 'dashboard' },
+    { icon: Calendar, label: 'Appointments', path: '/app/appointments', pageKey: 'appointments' },
+    { icon: Users, label: 'Patients', path: '/app/patients', pageKey: 'patients' },
+    { icon: CreditCard, label: 'Billing', path: '/app/billing', pageKey: 'billing' },
 ];
 
 const moreNavItems = [
-    { icon: Stethoscope, label: 'Services', path: '/app/services' },
-    { icon: Package, label: 'Inventory', path: '/app/inventory' },
-    { icon: LayoutDashboard, label: 'Reports', path: '/app/reports' },
-    { icon: Users, label: 'Supervision', path: '/app/staff' },
+    { icon: Stethoscope, label: 'Services', path: '/app/services', pageKey: 'services' },
+    { icon: Package, label: 'Inventory', path: '/app/inventory', pageKey: 'inventory' },
+    { icon: LayoutDashboard, label: 'Reports', path: '/app/reports', pageKey: 'reports' },
+    { icon: Users, label: 'Supervision', path: '/app/staff', adminOnly: true },
     { icon: Settings, label: 'Settings', path: '/app/settings' },
 ];
 
 export function MobileBottomNav() {
     const location = useLocation();
     const { theme } = useStore();
+    const { session } = useAuth();
     const isDark = theme === 'dark';
     const [showMore, setShowMore] = useState(false);
+    const visibleMainNavItems = mainNavItems.filter((item) => !item.pageKey || hasPageAccess(session, item.pageKey));
+    const visibleMoreNavItems = moreNavItems.filter((item) => {
+        if (item.adminOnly && session?.role !== 'admin') return false;
+        return !item.pageKey || hasPageAccess(session, item.pageKey);
+    });
 
     const isActive = (path) => location.pathname === path;
 
@@ -51,7 +59,7 @@ export function MobileBottomNav() {
                             : "bg-white border-gray-200"
                     )}>
                         <div className="grid grid-cols-4 gap-4">
-                            {moreNavItems.map((item) => (
+                            {visibleMoreNavItems.map((item) => (
                                 <NavLink
                                     key={item.path}
                                     to={item.path}
@@ -82,7 +90,7 @@ export function MobileBottomNav() {
                     : "bg-white/95 backdrop-blur-md border-gray-200"
             )}>
                 <div className="flex items-center justify-around px-2 py-2">
-                    {mainNavItems.map((item) => (
+                    {visibleMainNavItems.map((item) => (
                         <NavLink
                             key={item.path}
                             to={item.path}

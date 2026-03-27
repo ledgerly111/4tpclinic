@@ -1,12 +1,13 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { hasRequiredRole } from '../lib/tenantScope';
+import { hasPageAccess } from '../lib/permissions';
 
 /**
  * RoleGuard - Ensures user has required role or higher
  * Shows access denied or redirects if unauthorized
  */
-export function RoleGuard({ children, allowedRoles, requireAll = false }) {
+export function RoleGuard({ children, allowedRoles, requireAll = false, requiredPage }) {
   const { session, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
@@ -26,8 +27,9 @@ export function RoleGuard({ children, allowedRoles, requireAll = false }) {
   const hasAccess = requireAll
     ? allowedRoles.every((role) => session.role === role)
     : allowedRoles.some((role) => hasRequiredRole(session, role));
+  const hasPagePermission = requiredPage ? hasPageAccess(session, requiredPage) : true;
 
-  if (!hasAccess) {
+  if (!hasAccess || !hasPagePermission) {
     // Redirect to appropriate dashboard based on role
     const redirectPath = getRedirectPath(session.role);
     return <Navigate to={redirectPath} replace />;

@@ -65,37 +65,37 @@ function App() {
 
                 {/* Regular pages - Accessible by admin and staff */}
                 <Route path="patients" element={
-                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="patients">
                     <Patients />
                   </RoleGuard>
                 } />
                 <Route path="appointments" element={
-                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="appointments">
                     <Appointments />
                   </RoleGuard>
                 } />
                 <Route path="billing" element={
-                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="billing">
                     <Billing />
                   </RoleGuard>
                 } />
                 <Route path="invoices/new" element={
-                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="billing">
                     <CreateInvoice />
                   </RoleGuard>
                 } />
                 <Route path="inventory" element={
-                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="inventory">
                     <Inventory />
                   </RoleGuard>
                 } />
                 <Route path="services" element={
-                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="services">
                     <Services />
                   </RoleGuard>
                 } />
                 <Route path="reports" element={
-                  <RoleGuard allowedRoles={['admin', 'staff']}>
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="reports">
                     <Reports />
                   </RoleGuard>
                 } />

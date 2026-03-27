@@ -11,6 +11,7 @@ import {
     updateStaffPermissionsApi,
 } from '../lib/authApi';
 import { cn } from '../lib/utils';
+import { DEFAULT_STAFF_PERMISSIONS } from '../lib/permissions';
 
 // ── Permission definitions ─────────────────────────────────────────────────
 const PAGE_PERMISSIONS = [
@@ -31,11 +32,6 @@ const EDIT_PERMISSIONS = [
     { key: 'edit_billing', label: 'Edit Billing', desc: 'Create & manage invoices' },
 ];
 
-const DEFAULT_PERMISSIONS = {
-    pages: { dashboard: true, patients: true, appointments: true, inventory: false, services: false, billing: false, reports: false },
-    edits: { edit_patients: false, edit_appointments: false, edit_inventory: false, edit_services: false, edit_billing: false },
-};
-
 const PERMS_STORAGE_KEY = 'clinic_staff_permissions';
 
 export function Staff() {
@@ -54,10 +50,7 @@ export function Staff() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [formError, setFormError] = useState('');
     const [formSuccess, setFormSuccess] = useState('');
-    // Local permissions map: { [userId]: { pages: {...}, edits: {...} } }
-    const [permissionsMap, setPermissionsMap] = useState(() => {
-        try { return JSON.parse(localStorage.getItem(PERMS_STORAGE_KEY) || '{}'); } catch { return {}; }
-    });
+    const [permissionsMap, setPermissionsMap] = useState({});
     const [permForm, setPermForm] = useState(null); // working copy while modal is open
     const [permSaving, setPermSaving] = useState(false);
 
@@ -168,18 +161,18 @@ export function Staff() {
     };
 
     // ── Permissions helpers ──────────────────────────────────────────────────
-    const getPermsForUser = (userId) => {
-        const stored = permissionsMap[userId];
-        if (!stored) return DEFAULT_PERMISSIONS;
+    const getPermsForUser = (userRecord) => {
+        const stored = userRecord?.permissions;
+        if (!stored) return DEFAULT_STAFF_PERMISSIONS;
         return {
-            pages: { ...DEFAULT_PERMISSIONS.pages, ...(stored.pages || {}) },
-            edits: { ...DEFAULT_PERMISSIONS.edits, ...(stored.edits || {}) },
+            pages: { ...DEFAULT_STAFF_PERMISSIONS.pages, ...(stored.pages || {}) },
+            edits: { ...DEFAULT_STAFF_PERMISSIONS.edits, ...(stored.edits || {}) },
         };
     };
 
     const openPermModal = (user) => {
         setSelectedUser(user);
-        setPermForm(getPermsForUser(user.id));
+        setPermForm(getPermsForUser(user));
         clearMessages();
         setShowPermModal(true);
     };
@@ -189,6 +182,13 @@ export function Staff() {
         setPermSaving(true);
         clearMessages();
         try {
+            await updateStaffPermissionsApi(selectedUser.id, permForm);
+            setUsers((prev) => prev.map((user) => (
+                user.id === selectedUser.id ? { ...user, permissions: permForm } : user
+            )));
+            setFormSuccess(`Permissions saved for ${selectedUser.fullName}.`);
+            setTimeout(() => { setShowPermModal(false); setFormSuccess(''); }, 1000);
+            return;
             // Try the API first; fall back gracefully if not implemented
             try {
                 await updateStaffPermissionsApi(selectedUser.id, permForm);
@@ -389,7 +389,7 @@ export function Staff() {
                                                 </td>
                                                 <td className="px-5 sm:px-6 py-5">
                                                     {(() => {
-                                                        const perms = getPermsForUser(user.id);
+                                                        const perms = getPermsForUser(user);
                                                         const pageCount = Object.values(perms.pages).filter(Boolean).length;
                                                         const editCount = Object.values(perms.edits).filter(Boolean).length;
                                                         return (

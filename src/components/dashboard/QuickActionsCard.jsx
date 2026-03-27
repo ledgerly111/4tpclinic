@@ -4,9 +4,12 @@ import { useStore } from '../../context/StoreContext';
 import { cn } from '../../lib/utils';
 
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { hasEditAccess, hasPageAccess } from '../../lib/permissions';
 
 export function QuickActionsCard() {
     const { theme } = useStore();
+    const { session } = useAuth();
     const navigate = useNavigate();
     const isDark = theme === 'dark';
     const [timeRange, setTimeRange] = useState('This Week');
@@ -18,33 +21,37 @@ export function QuickActionsCard() {
             label: 'New Patient',
             subLabel: 'Register',
             color: 'text-[#e8919a]',
-            path: '/app/patients?action=new'
+            path: '/app/patients?action=new',
+            enabled: hasPageAccess(session, 'patients') && hasEditAccess(session, 'edit_patients'),
         },
         {
             icon: Calendar,
             label: 'Schedule',
             subLabel: 'Appointment',
             color: 'text-[#e8919a]',
-            path: '/app/appointments'
+            path: '/app/appointments',
+            enabled: hasPageAccess(session, 'appointments') && hasEditAccess(session, 'edit_appointments'),
         },
         {
             icon: FileText,
             label: 'Invoice',
             subLabel: 'Create New',
             color: 'text-[#e8919a]',
-            path: '/app/invoices/new'
+            path: '/app/invoices/new',
+            enabled: hasPageAccess(session, 'billing') && hasEditAccess(session, 'edit_billing'),
         },
         {
             icon: Package,
             label: 'Inventory',
             subLabel: 'Add Stock',
             color: 'text-[#e8919a]',
-            path: '/app/inventory'
+            path: '/app/inventory',
+            enabled: hasPageAccess(session, 'inventory') && hasEditAccess(session, 'edit_inventory'),
         },
-    ];
+    ].filter((action) => action.enabled);
 
     return (
-        <div className="bg-[#e8919a] rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-6 h-full flex flex-col relative overflow-hidden shadow-2xl shadow-[#e8919a]/20 group">
+        <div className="bg-[#e8919a] rounded-2xl sm:rounded-[2rem] p-4 sm:p-8 h-full flex flex-col relative overflow-hidden shadow-2xl shadow-[#e8919a]/20 group">
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/20 rounded-full blur-3xl opacity-50 group-hover:scale-150 transition-transform duration-700" />
             {/* Header */}
             <div className="flex items-center justify-between mb-4 sm:mb-6 relative z-10">
@@ -90,7 +97,12 @@ export function QuickActionsCard() {
             </div>
 
             {/* Action Buttons Grid */}
-            <div className="flex-1 grid grid-cols-2 gap-2 sm:gap-3 relative z-10 overflow-hidden place-content-center mt-2">
+            <div className="flex-1 grid grid-cols-2 gap-2 sm:gap-3 relative z-10 place-content-center mt-2">
+                {actions.length === 0 && (
+                    <div className="col-span-2 rounded-2xl bg-white/20 px-4 py-6 text-center text-xs font-black uppercase tracking-widest text-white">
+                        No quick actions available
+                    </div>
+                )}
                 {actions.map((action) => (
                     <button
                         key={action.label}
@@ -108,7 +120,7 @@ export function QuickActionsCard() {
 
             <div className="mt-3 sm:mt-4 flex items-center justify-between text-[10px] sm:text-xs text-white/80 relative z-10">
                 <span className="font-bold uppercase tracking-widest">Total Actions</span>
-                <span className="bg-white text-[#e8919a] px-2 py-0.5 rounded-md font-black shadow-sm">12</span>
+                <span className="bg-white text-[#e8919a] px-2 py-0.5 rounded-md font-black shadow-sm">{actions.length}</span>
             </div>
         </div>
     );

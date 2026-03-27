@@ -22,6 +22,8 @@ import {
 } from '../lib/accountingApi';
 import { PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
+import { useAuth } from '../context/AuthContext';
+import { hasEditAccess } from '../lib/permissions';
 
 const currency = new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -54,7 +56,9 @@ function getStatusColor(status) {
 export function Billing() {
     const navigate = useNavigate();
     const { theme, refreshDashboard } = useStore();
+    const { session } = useAuth();
     const isDark = theme === 'dark';
+    const canEditBilling = hasEditAccess(session, 'edit_billing');
 
     const [invoices, setInvoices] = useState([]);
     const [summary, setSummary] = useState({
@@ -106,6 +110,10 @@ export function Billing() {
     ), [invoices, searchTerm, filter]);
 
     const handleMarkPaid = async (invoiceId) => {
+        if (!canEditBilling) {
+            setError('You do not have permission to edit billing.');
+            return;
+        }
         setActionInvoiceId(invoiceId);
         setError('');
         try {
@@ -180,13 +188,15 @@ export function Billing() {
                         <h1 className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>Billing</h1>
                         <p className={cn("text-sm sm:text-base font-bold uppercase tracking-widest mt-1", isDark ? 'text-white/40' : 'text-[#512c31]/60')}>Manage invoices and payments</p>
                     </div>
-                    <button
-                        onClick={() => navigate('/app/invoices/new')}
-                        className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
-                    >
-                        <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                        <span className="text-sm sm:text-base">Create Invoice</span>
-                    </button>
+                    {canEditBilling && (
+                        <button
+                            onClick={() => navigate('/app/invoices/new')}
+                            className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
+                        >
+                            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="text-sm sm:text-base">Create Invoice</span>
+                        </button>
+                    )}
                 </div>
 
                 {error && (
@@ -314,7 +324,7 @@ export function Billing() {
                                     <div className="flex items-center justify-between mt-4 pt-4 border-t-2 border-dashed border-gray-200 dark:border-gray-800">
                                         <p className={cn("font-black text-xl", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(invoice.amount)}</p>
                                         <div className="flex items-center gap-2">
-                                            {invoice.status !== 'paid' && (
+                                            {canEditBilling && invoice.status !== 'paid' && (
                                                 <button
                                                     onClick={() => handleMarkPaid(invoice.id)}
                                                     disabled={actionInvoiceId === invoice.id}
@@ -361,7 +371,7 @@ export function Billing() {
                                             </td>
                                             <td className="p-5 sm:p-6 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    {invoice.status !== 'paid' && (
+                                                    {canEditBilling && invoice.status !== 'paid' && (
                                                         <button
                                                             onClick={() => handleMarkPaid(invoice.id)}
                                                             disabled={actionInvoiceId === invoice.id}

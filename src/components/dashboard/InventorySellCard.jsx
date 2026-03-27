@@ -2,13 +2,18 @@ import { ArrowUpRight, ShoppingCart, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../context/AuthContext';
+import { hasPageAccess } from '../../lib/permissions';
 
 export function InventorySellCard() {
     const { theme } = useStore();
+    const { session } = useAuth();
     const navigate = useNavigate();
     const isDark = theme === 'dark';
+    const canAccessInventory = hasPageAccess(session, 'inventory');
 
     const handleSellClick = () => {
+        if (!canAccessInventory) return;
         // Navigate to inventory with a query param or state to trigger a "Sell" mode if implemented later
         // For now, just going to inventory is a good start
         navigate('/app/inventory');
@@ -29,8 +34,10 @@ export function InventorySellCard() {
                 </h2>
                 <button
                     onClick={handleSellClick}
+                    disabled={!canAccessInventory}
                     className={cn(
                         "w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all bg-white shadow-sm border border-gray-100 group-hover:bg-[#512c31] group-hover:text-white group-hover:rotate-12",
+                        !canAccessInventory && "cursor-not-allowed opacity-50 group-hover:rotate-0",
                         isDark ? 'bg-white/10 text-white' : 'text-[#512c31]'
                     )}
                 >
@@ -49,10 +56,16 @@ export function InventorySellCard() {
 
                 <button
                     onClick={handleSellClick}
-                    className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-[#512c31] text-white font-black shadow-xl hover:bg-[#e8919a] hover:scale-105 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm sm:text-base border border-transparent hover:border-white/20"
+                    disabled={!canAccessInventory}
+                    className={cn(
+                        "w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl bg-[#512c31] text-white font-black shadow-xl transition-all flex items-center justify-center gap-2 text-sm sm:text-base border border-transparent",
+                        canAccessInventory
+                            ? "hover:bg-[#e8919a] hover:scale-105 active:scale-[0.98] hover:border-white/20"
+                            : "cursor-not-allowed opacity-50"
+                    )}
                 >
                     <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
-                    New Sale
+                    {canAccessInventory ? 'New Sale' : 'Restricted'}
                 </button>
             </div>
 

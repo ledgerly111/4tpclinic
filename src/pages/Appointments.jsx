@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
 import { cn } from '../lib/utils';
 import { createAppointment, createPatient, fetchAppointments, updateAppointment, updateAppointmentStatus } from '../lib/clinicApi';
+import { hasEditAccess } from '../lib/permissions';
 
 const VISIT_TYPES = ['Consultation', 'Follow-up', 'Check-up', 'Emergency', 'Procedure', 'Lab Test', 'Vaccination'];
 const STATUS_CONFIG = {
@@ -34,6 +35,7 @@ export function Appointments() {
     const { session } = useAuth();
     const { selectedOrganizationId, selectedClinicId } = useTenant();
     const isDark = theme === 'dark';
+    const canEditAppointments = hasEditAccess(session, 'edit_appointments');
 
     // Calendar state
     const [viewMonth, setViewMonth] = useState(() => {
@@ -117,6 +119,7 @@ export function Appointments() {
     };
 
     const openModal = () => {
+        if (!canEditAppointments) return;
         setModalError('');
         setSharedForm({ type: '', doctor: '', time: '', notes: '' });
         setExistingForm({ patientName: '' });
@@ -128,6 +131,10 @@ export function Appointments() {
     const handleCreate = async (e) => {
         e.preventDefault();
         setModalError('');
+        if (!canEditAppointments) {
+            setModalError('You do not have permission to edit appointments.');
+            return;
+        }
 
         if (modalTab === 'new' && !selectedClinicId) {
             setModalError('Please select a clinic first before creating a new patient.');
@@ -173,6 +180,10 @@ export function Appointments() {
     };
 
     const handleStatusChange = async (id, status) => {
+        if (!canEditAppointments) {
+            setError('You do not have permission to edit appointments.');
+            return;
+        }
         try {
             await updateAppointmentStatus(id, status);
             setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -197,6 +208,10 @@ export function Appointments() {
     const handleEditApt = async (e) => {
         e.preventDefault();
         setEditError('');
+        if (!canEditAppointments) {
+            setEditError('You do not have permission to edit appointments.');
+            return;
+        }
         setEditSubmitting(true);
         try {
             await updateAppointment(editApt.id, {
@@ -241,13 +256,15 @@ export function Appointments() {
                         {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                     </p>
                 </div>
-                <button
-                    onClick={openModal}
-                    className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
-                >
-                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="text-sm sm:text-base">New Appointment</span>
-                </button>
+                {canEditAppointments && (
+                    <button
+                        onClick={openModal}
+                        className="w-full sm:w-auto bg-[#512c31] text-white px-4 py-3 sm:px-6 sm:py-3 rounded-2xl sm:rounded-[1.5rem] font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 transition-all"
+                    >
+                        <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span className="text-sm sm:text-base">New Appointment</span>
+                    </button>
+                )}
             </div>
 
             {error && (
@@ -372,7 +389,9 @@ export function Appointments() {
                                     <Calendar className={cn('w-8 h-8', isDark ? 'text-gray-600' : 'text-gray-300')} />
                                 </div>
                                 <p className={cn('font-bold text-sm', isDark ? 'text-gray-400' : 'text-[#512c31]')}>No appointments</p>
-                                <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-600' : 'text-[#512c31]/60')}>Click "New Appointment" to schedule one</p>
+                                <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-600' : 'text-[#512c31]/60')}>
+                                    {canEditAppointments ? 'Click "New Appointment" to schedule one' : 'No appointments scheduled'}
+                                </p>
                             </div>
                         ) : (
                             // Appointment cards
@@ -410,30 +429,34 @@ export function Appointments() {
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         <StatusBadge status={apt.status} />
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={() => openEditApt(apt)}
-                                                title="Edit appointment"
-                                                className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </button>
-                                            {apt.status !== 'completed' && (
-                                                <button
-                                                    onClick={() => handleStatusChange(apt.id, 'completed')}
-                                                    title="Mark complete"
-                                                    className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                                                >
-                                                    <CheckCircle className="w-3.5 h-3.5" />
-                                                </button>
-                                            )}
-                                            {apt.status !== 'cancelled' && (
-                                                <button
-                                                    onClick={() => handleStatusChange(apt.id, 'cancelled')}
-                                                    title="Cancel"
-                                                    className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-                                                >
-                                                    <XCircle className="w-3.5 h-3.5" />
-                                                </button>
+                                            {canEditAppointments && (
+                                                <>
+                                                    <button
+                                                        onClick={() => openEditApt(apt)}
+                                                        title="Edit appointment"
+                                                        className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+                                                    >
+                                                        <Pencil className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    {apt.status !== 'completed' && (
+                                                        <button
+                                                            onClick={() => handleStatusChange(apt.id, 'completed')}
+                                                            title="Mark complete"
+                                                            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                                                        >
+                                                            <CheckCircle className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    {apt.status !== 'cancelled' && (
+                                                        <button
+                                                            onClick={() => handleStatusChange(apt.id, 'cancelled')}
+                                                            title="Cancel"
+                                                            className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                                                        >
+                                                            <XCircle className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     </div>

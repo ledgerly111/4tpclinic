@@ -7,6 +7,30 @@ const JSON_HEADERS = {
 
 const INVOICE_STATUSES = new Set(['pending', 'paid', 'overdue', 'void']);
 const APPOINTMENT_STATUSES = new Set(['scheduled', 'in-progress', 'completed', 'cancelled']);
+const PAGE_PERMISSION_KEYS = ['dashboard', 'patients', 'appointments', 'inventory', 'services', 'billing', 'reports'];
+const EDIT_PERMISSION_KEYS = ['edit_patients', 'edit_appointments', 'edit_inventory', 'edit_services', 'edit_billing'];
+const DEFAULT_STAFF_PERMISSIONS = {
+    pages: {
+        dashboard: true,
+        patients: true,
+        appointments: true,
+        inventory: false,
+        services: false,
+        billing: false,
+        reports: false,
+    },
+    edits: {
+        edit_patients: false,
+        edit_appointments: false,
+        edit_inventory: false,
+        edit_services: false,
+        edit_billing: false,
+    },
+};
+const FULL_ACCESS_PERMISSIONS = {
+    pages: Object.fromEntries(PAGE_PERMISSION_KEYS.map((key) => [key, true])),
+    edits: Object.fromEntries(EDIT_PERMISSION_KEYS.map((key) => [key, true])),
+};
 const SUPER_ADMIN_DEFAULT = {
     username: 'aadhila003@gmail.com',
     email: 'aadhila003@gmail.com',
@@ -58,6 +82,14 @@ const SCHEMA_STATEMENTS = [
         expires_at TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
+    `CREATE TABLE IF NOT EXISTS user_permissions (
+        user_id TEXT PRIMARY KEY,
+        page_permissions TEXT NOT NULL,
+        edit_permissions TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
     `CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
         organization_id TEXT,
@@ -72,7 +104,7 @@ const SCHEMA_STATEMENTS = [
         tax_cents INTEGER NOT NULL DEFAULT 0,
         discount_cents INTEGER NOT NULL DEFAULT 0,
         total_cents INTEGER NOT NULL DEFAULT 0,
-        currency TEXT NOT NULL DEFAULT 'USD',
+        currency TEXT NOT NULL DEFAULT 'INR',
         notes TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -183,6 +215,7 @@ const SCHEMA_STATEMENTS = [
     'CREATE INDEX IF NOT EXISTS idx_user_clinics_user_id ON user_clinics(user_id)',
     'CREATE INDEX IF NOT EXISTS idx_user_clinics_clinic_id ON user_clinics(clinic_id)',
     'CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON user_permissions(user_id)',
     'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)',
     'CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)',
     'CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id)',
@@ -219,6 +252,88 @@ function extractErrorMessage(error) {
     } catch {
         return '';
     }
+}
+
+function clonePermissions(template) {
+    return {
+        pages: { ...(template?.pages || {}) },
+        edits: { ...(template?.edits || {}) },
+    };
+}
+
+function parsePermissionJson(raw) {
+    if (!raw) return {};
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function normalizePermissions(input) {
+    const source = input && typeof input === 'object' ? input : {};
+    return {
+        pages: Object.fromEntries(
+            PAGE_PERMISSION_KEYS.map((key) => [key, Boolean(source.pages?.[key] ?? DEFAULT_STAFF_PERMISSIONS.pages[key])])
+        ),
+        edits: Object.fromEntries(
+            EDIT_PERMISSION_KEYS.map((key) => [key, Boolean(source.edits?.[key] ?? DEFAULT_STAFF_PERMISSIONS.edits[key])])
+        ),
+    };
+}
+
+async function getPermissionsForUser(db, userId, role) {
+    if (role !== 'staff') {
+        return clonePermissions(FULL_ACCESS_PERMISSIONS);
+    }
+
+    const row = await db
+        .prepare('SELECT page_permissions, edit_permissions FROM user_permissions WHERE user_id = ? LIMIT 1')
+        .bind(userId)
+        .first();
+
+    if (!row) {
+        return clonePermissions(DEFAULT_STAFF_PERMISSIONS);
+    }
+
+    return normalizePermissions({
+        pages: parsePermissionJson(row.page_permissions),
+        edits: parsePermissionJson(row.edit_permissions),
+    });
+}
+
+async function getPermissionsByUserIds(db, users) {
+    const permissionsByUserId = new Map();
+    if (!Array.isArray(users) || users.length === 0) return permissionsByUserId;
+
+    const staffUsers = users.filter((row) => row.role === 'staff');
+    if (staffUsers.length === 0) return permissionsByUserId;
+
+    const userIds = staffUsers.map((row) => row.id);
+    const placeholders = userIds.map(() => '?').join(',');
+    const result = await db
+        .prepare(`SELECT user_id, page_permissions, edit_permissions FROM user_permissions WHERE user_id IN (${placeholders})`)
+        .bind(...userIds)
+        .all();
+
+    (result.results || []).forEach((row) => {
+        permissionsByUserId.set(
+            row.user_id,
+            normalizePermissions({
+                pages: parsePermissionJson(row.page_permissions),
+                edits: parsePermissionJson(row.edit_permissions),
+            })
+        );
+    });
+
+    staffUsers.forEach((row) => {
+        if (!permissionsByUserId.has(row.id)) {
+            permissionsByUserId.set(row.id, clonePermissions(DEFAULT_STAFF_PERMISSIONS));
+        }
+    });
+
+    return permissionsByUserId;
 }
 
 function toCents(value) {
@@ -388,7 +503,7 @@ async function ensureSchema(env) {
     schemaReady = true;
 }
 
-function mapSessionUser(baseUser, clinicIds) {
+function mapSessionUser(baseUser, clinicIds, permissions) {
     return {
         userId: baseUser.id,
         role: baseUser.role,
@@ -396,6 +511,7 @@ function mapSessionUser(baseUser, clinicIds) {
         clinicIds,
         fullName: baseUser.full_name,
         email: baseUser.email,
+        permissions,
     };
 }
 
@@ -432,8 +548,9 @@ async function getUserByToken(db, token) {
     if (!row || !row.is_active) return null;
 
     const clinicIds = await getClinicIdsForUser(db, row.id);
+    const permissions = await getPermissionsForUser(db, row.id, row.role);
     return {
-        ...mapSessionUser(row, clinicIds),
+        ...mapSessionUser(row, clinicIds, permissions),
         username: row.username,
         password: row.password,
     };
@@ -459,6 +576,13 @@ async function requireAuth(request, env) {
 function requireRoles(user, roles) {
     if (!roles.includes(user.role)) {
         throw new HttpError(403, 'You do not have permission for this action.');
+    }
+}
+
+function requireStaffEditPermission(user, permissionKey, message) {
+    if (user.role !== 'staff') return;
+    if (!user.permissions?.edits?.[permissionKey]) {
+        throw new HttpError(403, message || 'You do not have permission for this action.');
     }
 }
 
@@ -577,6 +701,7 @@ async function login(env, request) {
     if (!user || !user.is_active) throw new HttpError(401, 'Invalid credentials.');
 
     const clinicIds = await getClinicIdsForUser(db, user.id);
+    const permissions = await getPermissionsForUser(db, user.id, user.role);
     const token = crypto.randomUUID();
 
     await db
@@ -587,7 +712,7 @@ async function login(env, request) {
     return jsonResponse({
         token,
         user: {
-            ...mapSessionUser(user, clinicIds),
+            ...mapSessionUser(user, clinicIds, permissions),
             loginAt: new Date().toISOString(),
         },
     });
@@ -673,7 +798,7 @@ async function getTenantBootstrap(env, request) {
         }
     }
 
-    return jsonResponse({ organizations, clinics });
+    return jsonResponse({ organizations, clinics, permissions: user.permissions });
 }
 
 async function getSuperAdminOverview(env, request) {
@@ -894,6 +1019,7 @@ async function getAdminSupervision(env, request) {
 
     const staffRows = staff.results || [];
     const assignments = new Map();
+    const permissionsByUserId = await getPermissionsByUserIds(db, staffRows);
 
     if (staffRows.length > 0) {
         const userIds = staffRows.map((row) => row.id);
@@ -927,6 +1053,7 @@ async function getAdminSupervision(env, request) {
             email: row.email,
             password: row.password,
             fullName: row.full_name,
+            permissions: permissionsByUserId.get(row.id) || clonePermissions(DEFAULT_STAFF_PERMISSIONS),
             isActive: Boolean(row.is_active),
             createdAt: row.created_at,
         })),
@@ -1001,6 +1128,7 @@ async function createStaff(env, request) {
     await assertUniqueIdentity(db, username, email);
 
     const userId = crypto.randomUUID();
+    const defaultPermissions = clonePermissions(DEFAULT_STAFF_PERMISSIONS);
     const statements = [
         db.prepare(`
             INSERT INTO users (
@@ -1014,6 +1142,10 @@ async function createStaff(env, request) {
                 is_active
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(userId, 'staff', user.organizationId, username, email, password, fullName, 1),
+        db.prepare(`
+            INSERT INTO user_permissions (user_id, page_permissions, edit_permissions)
+            VALUES (?, ?, ?)
+        `).bind(userId, JSON.stringify(defaultPermissions.pages), JSON.stringify(defaultPermissions.edits)),
     ];
 
     validClinicIds.forEach((clinicId) => {
@@ -1034,6 +1166,7 @@ async function createStaff(env, request) {
             email,
             password,
             fullName,
+            permissions: defaultPermissions,
             isActive: true,
             createdAt: new Date().toISOString(),
         },
@@ -1065,6 +1198,40 @@ async function resetUserPassword(env, request, targetUserId) {
         .run();
 
     return jsonResponse({ ok: true });
+}
+
+async function updateUserPermissions(env, request, targetUserId) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const targetUser = await db
+        .prepare('SELECT id, role, organization_id FROM users WHERE id = ? LIMIT 1')
+        .bind(targetUserId)
+        .first();
+    if (!targetUser) throw new HttpError(404, 'User not found.');
+
+    if (targetUser.organization_id !== user.organizationId || targetUser.role !== 'staff') {
+        throw new HttpError(403, 'You can only manage permissions for your staff users.');
+    }
+
+    const permissions = normalizePermissions(body.permissions);
+
+    await db.prepare(`
+        INSERT INTO user_permissions (user_id, page_permissions, edit_permissions, updated_at)
+        VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+            page_permissions = excluded.page_permissions,
+            edit_permissions = excluded.edit_permissions,
+            updated_at = excluded.updated_at
+    `).bind(
+        targetUserId,
+        JSON.stringify(permissions.pages),
+        JSON.stringify(permissions.edits)
+    ).run();
+
+    return jsonResponse({ ok: true, permissions });
 }
 
 async function listPatients(env, request, url) {
@@ -1126,6 +1293,7 @@ async function listPatients(env, request, url) {
 
 async function createPatient(env, request) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_patients', 'You do not have permission to edit patients.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
 
@@ -1200,8 +1368,59 @@ async function createPatient(env, request) {
     }, 201);
 }
 
+async function updatePatient(env, request, patientId) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_patients', 'You do not have permission to edit patients.');
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const patient = await db
+        .prepare('SELECT id, organization_id, clinic_id FROM patients WHERE id = ? LIMIT 1')
+        .bind(patientId)
+        .first();
+    if (!patient) throw new HttpError(404, 'Patient not found.');
+
+    if (user.role === 'admin' && patient.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Patient is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (patient.organization_id !== user.organizationId || !user.clinicIds.includes(patient.clinic_id)) {
+            throw new HttpError(403, 'Patient is outside your scope.');
+        }
+    }
+
+    const name = String(body.name || '').trim();
+    if (!name) throw new HttpError(400, 'Patient name is required.');
+
+    const age = Number.parseInt(body.age, 10);
+    const medicalHistory = Array.isArray(body.medicalHistory)
+        ? body.medicalHistory.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+
+    await db.prepare(`
+        UPDATE patients
+        SET name = ?,
+            age = ?,
+            gender = ?,
+            contact = ?,
+            medical_history = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+    `).bind(
+        name,
+        Number.isFinite(age) ? age : null,
+        body.gender ? String(body.gender) : null,
+        body.contact ? String(body.contact) : null,
+        JSON.stringify(medicalHistory),
+        patientId
+    ).run();
+
+    return jsonResponse({ ok: true });
+}
+
 async function deletePatient(env, request, patientId) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_patients', 'You do not have permission to edit patients.');
     const db = requireDb(env);
 
     const patient = await db
@@ -1277,6 +1496,7 @@ async function listServices(env, request, url) {
 
 async function createService(env, request) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_services', 'You do not have permission to edit services.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
     const name = String(body.name || '').trim();
@@ -1313,6 +1533,7 @@ async function createService(env, request) {
 
 async function deleteService(env, request, serviceId) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_services', 'You do not have permission to edit services.');
     const db = requireDb(env);
     const service = await db
         .prepare('SELECT id, organization_id, clinic_id FROM services WHERE id = ? LIMIT 1')
@@ -1416,6 +1637,7 @@ async function listInventory(env, request, url) {
 
 async function createInventoryItem(env, request) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_inventory', 'You do not have permission to edit inventory.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
 
@@ -1476,8 +1698,68 @@ async function createInventoryItem(env, request) {
     }, 201);
 }
 
+async function updateInventoryItem(env, request, itemId) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_inventory', 'You do not have permission to edit inventory.');
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const item = await db
+        .prepare('SELECT id, organization_id, clinic_id FROM inventory_items WHERE id = ? LIMIT 1')
+        .bind(itemId)
+        .first();
+    if (!item) throw new HttpError(404, 'Inventory item not found.');
+
+    if (user.role === 'admin' && item.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Item is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (item.organization_id !== user.organizationId || !user.clinicIds.includes(item.clinic_id)) {
+            throw new HttpError(403, 'Item is outside your scope.');
+        }
+    }
+
+    const name = String(body.name || '').trim();
+    if (!name) throw new HttpError(400, 'Item name is required.');
+
+    const category = String(body.category || '').trim() || 'General';
+    const unit = String(body.unit || '').trim() || 'pcs';
+    const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
+    const costCents = toCents(body.costPrice);
+    const sellCents = toCents(body.sellPrice);
+    const expiryDate = Object.prototype.hasOwnProperty.call(body, 'expiryDate')
+        ? sanitizeOptionalDate(body.expiryDate)
+        : null;
+
+    await db.prepare(`
+        UPDATE inventory_items
+        SET name = ?,
+            category = ?,
+            unit = ?,
+            reorder_threshold = ?,
+            cost_price_cents = ?,
+            sell_price_cents = ?,
+            expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+    `).bind(
+        name,
+        category,
+        unit,
+        threshold,
+        costCents,
+        sellCents,
+        Object.prototype.hasOwnProperty.call(body, 'expiryDate') ? 1 : 0,
+        expiryDate,
+        itemId
+    ).run();
+
+    return jsonResponse({ ok: true });
+}
+
 async function restockInventoryItem(env, request, itemId) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_inventory', 'You do not have permission to edit inventory.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
     const quantity = Number.parseInt(body.quantity, 10) || 0;
@@ -1577,6 +1859,7 @@ async function listAppointments(env, request, url) {
 
 async function createAppointment(env, request) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_appointments', 'You do not have permission to edit appointments.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
 
@@ -1633,8 +1916,69 @@ async function createAppointment(env, request) {
     }, 201);
 }
 
+async function updateAppointment(env, request, appointmentId) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_appointments', 'You do not have permission to edit appointments.');
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const appointment = await db
+        .prepare('SELECT id, organization_id, clinic_id, scheduled_date FROM appointments WHERE id = ? LIMIT 1')
+        .bind(appointmentId)
+        .first();
+    if (!appointment) throw new HttpError(404, 'Appointment not found.');
+
+    if (user.role === 'admin' && appointment.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Appointment is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (appointment.organization_id !== user.organizationId || !user.clinicIds.includes(appointment.clinic_id)) {
+            throw new HttpError(403, 'Appointment is outside your scope.');
+        }
+    }
+
+    const patientName = String(body.patientName || '').trim();
+    const type = String(body.type || '').trim();
+    const scheduledTime = String(body.time || '').trim();
+    if (!patientName || !type || !scheduledTime) {
+        throw new HttpError(400, 'Patient, type and time are required.');
+    }
+
+    await db.prepare(`
+        UPDATE appointments
+        SET patient_name = ?,
+            type = ?,
+            doctor = ?,
+            scheduled_time = ?,
+            notes = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+    `).bind(
+        patientName,
+        type,
+        body.doctor ? String(body.doctor) : null,
+        scheduledTime,
+        body.notes ? String(body.notes) : null,
+        appointmentId
+    ).run();
+
+    return jsonResponse({
+        ok: true,
+        appointment: {
+            id: appointmentId,
+            date: appointment.scheduled_date,
+            patient: patientName,
+            type,
+            doctor: body.doctor || '',
+            time: scheduledTime,
+            notes: body.notes || '',
+        },
+    });
+}
+
 async function updateAppointmentStatus(env, request, appointmentId) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_appointments', 'You do not have permission to edit appointments.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
     const status = normalizeAppointmentStatus(body.status);
@@ -1864,6 +2208,7 @@ async function listInvoices(env, request, url) {
 }
 async function createInvoice(env, request) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_billing', 'You do not have permission to edit billing.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
 
@@ -1942,7 +2287,7 @@ async function createInvoice(env, request) {
                 taxCents,
                 discountCents,
                 totalCents,
-                'USD',
+                'INR',
                 body.notes ? String(body.notes) : null
             ),
     ];
@@ -2073,6 +2418,7 @@ async function createInvoice(env, request) {
 
 async function updateInvoiceStatus(env, request, invoiceId) {
     const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_billing', 'You do not have permission to edit billing.');
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
     const status = normalizeInvoiceStatus(body.status);
@@ -2283,6 +2629,10 @@ export default {
             if (resetPasswordMatch && request.method === 'PATCH') {
                 return await resetUserPassword(env, request, decodeURIComponent(resetPasswordMatch[1]));
             }
+            const permissionsMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/permissions$/);
+            if (permissionsMatch && request.method === 'PATCH') {
+                return await updateUserPermissions(env, request, decodeURIComponent(permissionsMatch[1]));
+            }
 
             if (pathname === '/api/invoices' && request.method === 'GET') return await listInvoices(env, request, url);
             if (pathname === '/api/invoices' && request.method === 'POST') return await createInvoice(env, request);
@@ -2290,6 +2640,9 @@ export default {
             if (pathname === '/api/patients' && request.method === 'GET') return await listPatients(env, request, url);
             if (pathname === '/api/patients' && request.method === 'POST') return await createPatient(env, request);
             const patientMatch = pathname.match(/^\/api\/patients\/([^/]+)$/);
+            if (patientMatch && request.method === 'PATCH') {
+                return await updatePatient(env, request, decodeURIComponent(patientMatch[1]));
+            }
             if (patientMatch && request.method === 'DELETE') {
                 return await deletePatient(env, request, decodeURIComponent(patientMatch[1]));
             }
@@ -2303,6 +2656,10 @@ export default {
 
             if (pathname === '/api/inventory' && request.method === 'GET') return await listInventory(env, request, url);
             if (pathname === '/api/inventory' && request.method === 'POST') return await createInventoryItem(env, request);
+            const inventoryMatch = pathname.match(/^\/api\/inventory\/([^/]+)$/);
+            if (inventoryMatch && request.method === 'PATCH') {
+                return await updateInventoryItem(env, request, decodeURIComponent(inventoryMatch[1]));
+            }
             const restockMatch = pathname.match(/^\/api\/inventory\/([^/]+)\/restock$/);
             if (restockMatch && request.method === 'PATCH') {
                 return await restockInventoryItem(env, request, decodeURIComponent(restockMatch[1]));
@@ -2310,6 +2667,10 @@ export default {
 
             if (pathname === '/api/appointments' && request.method === 'GET') return await listAppointments(env, request, url);
             if (pathname === '/api/appointments' && request.method === 'POST') return await createAppointment(env, request);
+            const appointmentMatch = pathname.match(/^\/api\/appointments\/([^/]+)$/);
+            if (appointmentMatch && request.method === 'PATCH') {
+                return await updateAppointment(env, request, decodeURIComponent(appointmentMatch[1]));
+            }
             const appointmentStatusMatch = pathname.match(/^\/api\/appointments\/([^/]+)\/status$/);
             if (appointmentStatusMatch && request.method === 'PATCH') {
                 return await updateAppointmentStatus(env, request, decodeURIComponent(appointmentStatusMatch[1]));
