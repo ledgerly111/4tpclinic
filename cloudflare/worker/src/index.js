@@ -7,13 +7,15 @@ const JSON_HEADERS = {
 
 const INVOICE_STATUSES = new Set(['pending', 'paid', 'overdue', 'void']);
 const APPOINTMENT_STATUSES = new Set(['scheduled', 'in-progress', 'completed', 'cancelled']);
-const PAGE_PERMISSION_KEYS = ['dashboard', 'patients', 'appointments', 'inventory', 'services', 'billing', 'reports'];
+const DEFAULT_CLINIC_LIMIT = 3;
+const PAGE_PERMISSION_KEYS = ['dashboard', 'patients', 'appointments', 'inventory', 'services', 'billing', 'reports', 'attendance'];
 const EDIT_PERMISSION_KEYS = ['edit_patients', 'edit_appointments', 'edit_inventory', 'edit_services', 'edit_billing'];
 const DEFAULT_STAFF_PERMISSIONS = {
     pages: {
         dashboard: true,
         patients: true,
         appointments: true,
+        attendance: true,
         inventory: false,
         services: false,
         billing: false,
@@ -44,6 +46,7 @@ const SCHEMA_STATEMENTS = [
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         admin_user_id TEXT,
+        clinic_limit INTEGER NOT NULL DEFAULT 3,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
     `CREATE TABLE IF NOT EXISTS clinics (
@@ -119,6 +122,7 @@ const SCHEMA_STATEMENTS = [
         quantity INTEGER NOT NULL CHECK (quantity > 0),
         line_total_cents INTEGER NOT NULL,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        sale_unit TEXT NOT NULL DEFAULT 'unit',
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS payments (
@@ -169,6 +173,9 @@ const SCHEMA_STATEMENTS = [
         reorder_threshold INTEGER NOT NULL DEFAULT 0,
         cost_price_cents INTEGER NOT NULL DEFAULT 0,
         sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        strips_per_unit INTEGER NOT NULL DEFAULT 1,
+        strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
+        strip_sell_price_cents INTEGER NOT NULL DEFAULT 0,
         expiry_date TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -207,6 +214,21 @@ const SCHEMA_STATEMENTS = [
         FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
         FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
     )`,
+    `CREATE TABLE IF NOT EXISTS staff_attendance (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        attendance_date TEXT NOT NULL,
+        check_in_at TEXT NOT NULL,
+        check_out_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE(user_id, attendance_date),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
     'CREATE INDEX IF NOT EXISTS idx_clinics_org_id ON clinics(organization_id)',
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_clinics_org_code_unique ON clinics(organization_id, code)',
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower_unique ON users(LOWER(username))',
@@ -230,6 +252,9 @@ const SCHEMA_STATEMENTS = [
     'CREATE INDEX IF NOT EXISTS idx_appointments_org_id ON appointments(organization_id)',
     'CREATE INDEX IF NOT EXISTS idx_appointments_clinic_id ON appointments(clinic_id)',
     'CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(scheduled_date)',
+    'CREATE INDEX IF NOT EXISTS idx_attendance_org_date ON staff_attendance(organization_id, attendance_date)',
+    'CREATE INDEX IF NOT EXISTS idx_attendance_user_date ON staff_attendance(user_id, attendance_date)',
+    'CREATE INDEX IF NOT EXISTS idx_attendance_clinic_id ON staff_attendance(clinic_id)',
 ];
 
 let schemaReady = false;
@@ -386,6 +411,14 @@ function normalizeInvoiceStatus(status) {
     return normalized;
 }
 
+function normalizeSaleUnit(value) {
+    return String(value || 'unit').toLowerCase() === 'strip' ? 'strip' : 'unit';
+}
+
+function normalizeStripsPerUnit(value) {
+    return Math.max(1, Number.parseInt(value, 10) || 1);
+}
+
 function normalizeAppointmentStatus(status) {
     const normalized = String(status || 'scheduled').toLowerCase();
     if (!APPOINTMENT_STATUSES.has(normalized)) {
@@ -438,6 +471,21 @@ async function ensureInvoicesTenantColumns(db) {
     await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_clinic_id ON invoices(clinic_id)').run();
 }
 
+async function ensureOrganizationColumns(db) {
+    const tableInfo = await db.prepare('PRAGMA table_info(organizations)').all();
+    const names = new Set((tableInfo.results || []).map((c) => c.name));
+
+    if (!names.has('clinic_limit')) {
+        await db.prepare(`ALTER TABLE organizations ADD COLUMN clinic_limit INTEGER NOT NULL DEFAULT ${DEFAULT_CLINIC_LIMIT}`).run();
+    }
+
+    await db.prepare(`
+        UPDATE organizations
+        SET clinic_limit = ?
+        WHERE clinic_limit IS NULL OR clinic_limit < 1
+    `).bind(DEFAULT_CLINIC_LIMIT).run();
+}
+
 async function ensureInvoiceItemColumns(db) {
     const tableInfo = await db.prepare('PRAGMA table_info(invoice_items)').all();
     const names = new Set((tableInfo.results || []).map((c) => c.name));
@@ -448,6 +496,9 @@ async function ensureInvoiceItemColumns(db) {
     if (!names.has('inventory_item_id')) {
         await db.prepare('ALTER TABLE invoice_items ADD COLUMN inventory_item_id TEXT').run();
     }
+    if (!names.has('sale_unit')) {
+        await db.prepare("ALTER TABLE invoice_items ADD COLUMN sale_unit TEXT NOT NULL DEFAULT 'unit'").run();
+    }
 }
 
 async function ensureInventoryColumns(db) {
@@ -456,6 +507,25 @@ async function ensureInventoryColumns(db) {
     if (!names.has('expiry_date')) {
         await db.prepare('ALTER TABLE inventory_items ADD COLUMN expiry_date TEXT').run();
     }
+    if (!names.has('strips_per_unit')) {
+        await db.prepare('ALTER TABLE inventory_items ADD COLUMN strips_per_unit INTEGER NOT NULL DEFAULT 1').run();
+    }
+    if (!names.has('strip_stock_quantity')) {
+        await db.prepare('ALTER TABLE inventory_items ADD COLUMN strip_stock_quantity INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('strip_sell_price_cents')) {
+        await db.prepare('ALTER TABLE inventory_items ADD COLUMN strip_sell_price_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    await db.prepare(`
+        UPDATE inventory_items
+        SET strip_stock_quantity = stock_quantity * CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END
+        WHERE strip_stock_quantity IS NULL OR strip_stock_quantity <= 0
+    `).run();
+    await db.prepare(`
+        UPDATE inventory_items
+        SET strip_sell_price_cents = sell_price_cents
+        WHERE strip_sell_price_cents IS NULL OR strip_sell_price_cents <= 0
+    `).run();
 }
 
 async function ensureSuperAdminUser(db) {
@@ -496,6 +566,7 @@ async function ensureSchema(env) {
     if (schemaReady) return;
     const db = requireDb(env);
     await db.batch(SCHEMA_STATEMENTS.map((statement) => db.prepare(statement)));
+    await ensureOrganizationColumns(db);
     await ensureInvoicesTenantColumns(db);
     await ensureInvoiceItemColumns(db);
     await ensureInventoryColumns(db);
@@ -738,12 +809,13 @@ async function getTenantBootstrap(env, request) {
     let clinics = [];
 
     if (user.role === 'super_admin') {
-        const orgResult = await db.prepare('SELECT id, name, admin_user_id, created_at FROM organizations ORDER BY created_at DESC').all();
+        const orgResult = await db.prepare('SELECT id, name, admin_user_id, clinic_limit, created_at FROM organizations ORDER BY created_at DESC').all();
         const clinicResult = await db.prepare('SELECT id, organization_id, name, code, created_at FROM clinics ORDER BY created_at DESC').all();
         organizations = (orgResult.results || []).map((row) => ({
             id: row.id,
             name: row.name,
             adminUserId: row.admin_user_id || null,
+            clinicLimit: Number(row.clinic_limit || DEFAULT_CLINIC_LIMIT),
             createdAt: row.created_at,
         }));
         clinics = (clinicResult.results || []).map((row) => ({
@@ -755,13 +827,14 @@ async function getTenantBootstrap(env, request) {
         }));
     } else {
         const orgResult = await db
-            .prepare('SELECT id, name, admin_user_id, created_at FROM organizations WHERE id = ? LIMIT 1')
+            .prepare('SELECT id, name, admin_user_id, clinic_limit, created_at FROM organizations WHERE id = ? LIMIT 1')
             .bind(user.organizationId)
             .all();
         organizations = (orgResult.results || []).map((row) => ({
             id: row.id,
             name: row.name,
             adminUserId: row.admin_user_id || null,
+            clinicLimit: Number(row.clinic_limit || DEFAULT_CLINIC_LIMIT),
             createdAt: row.created_at,
         }));
 
@@ -807,7 +880,7 @@ async function getSuperAdminOverview(env, request) {
     const db = requireDb(env);
 
     const orgs = await db
-        .prepare('SELECT id, name, admin_user_id, created_at FROM organizations ORDER BY created_at DESC')
+        .prepare('SELECT id, name, admin_user_id, clinic_limit, created_at FROM organizations ORDER BY created_at DESC')
         .all();
     const clinics = await db
         .prepare('SELECT id, organization_id, name, code, created_at FROM clinics ORDER BY created_at DESC')
@@ -852,6 +925,7 @@ async function getSuperAdminOverview(env, request) {
             id: row.id,
             name: row.name,
             adminUserId: row.admin_user_id || null,
+            clinicLimit: Number(row.clinic_limit || DEFAULT_CLINIC_LIMIT),
             createdAt: row.created_at,
         })),
         clinics: (clinics.results || []).map((row) => ({
@@ -897,7 +971,7 @@ async function createOrganizationWithAdmin(env, request) {
     const adminUserId = crypto.randomUUID();
 
     await db.batch([
-        db.prepare('INSERT INTO organizations (id, name, admin_user_id) VALUES (?, ?, ?)').bind(organizationId, orgName, adminUserId),
+        db.prepare('INSERT INTO organizations (id, name, admin_user_id, clinic_limit) VALUES (?, ?, ?, ?)').bind(organizationId, orgName, adminUserId, DEFAULT_CLINIC_LIMIT),
         db.prepare(`
             INSERT INTO users (
                 id,
@@ -917,6 +991,7 @@ async function createOrganizationWithAdmin(env, request) {
             id: organizationId,
             name: orgName,
             adminUserId,
+            clinicLimit: DEFAULT_CLINIC_LIMIT,
         },
         admin: {
             id: adminUserId,
@@ -988,10 +1063,40 @@ async function createAdminForOrganization(env, request) {
     }, 201);
 }
 
+async function updateOrganizationClinicLimit(env, request, organizationId) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['super_admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+    const clinicLimit = Number.parseInt(body.clinicLimit, 10);
+
+    if (!Number.isFinite(clinicLimit) || clinicLimit < 1) {
+        throw new HttpError(400, 'Clinic limit must be at least 1.');
+    }
+
+    const organization = await db
+        .prepare('SELECT id FROM organizations WHERE id = ? LIMIT 1')
+        .bind(organizationId)
+        .first();
+    if (!organization) throw new HttpError(404, 'Organization not found.');
+
+    await db
+        .prepare('UPDATE organizations SET clinic_limit = ? WHERE id = ?')
+        .bind(clinicLimit, organizationId)
+        .run();
+
+    return jsonResponse({ organizationId, clinicLimit });
+}
+
 async function getAdminSupervision(env, request) {
     const { user } = await requireAuth(request, env);
     requireRoles(user, ['admin']);
     const db = requireDb(env);
+
+    const organization = await db
+        .prepare('SELECT clinic_limit FROM organizations WHERE id = ? LIMIT 1')
+        .bind(user.organizationId)
+        .first();
 
     const clinics = await db
         .prepare('SELECT id, organization_id, name, code, created_at FROM clinics WHERE organization_id = ? ORDER BY created_at DESC')
@@ -1037,6 +1142,7 @@ async function getAdminSupervision(env, request) {
     }
 
     return jsonResponse({
+        clinicLimit: Number(organization?.clinic_limit || DEFAULT_CLINIC_LIMIT),
         clinics: (clinics.results || []).map((row) => ({
             id: row.id,
             organizationId: row.organization_id,
@@ -1075,6 +1181,20 @@ async function createClinic(env, request) {
         .bind(user.organizationId, code)
         .first();
     if (duplicate) throw new HttpError(409, 'Clinic code already exists in this organization.');
+
+    const limitRow = await db
+        .prepare('SELECT clinic_limit FROM organizations WHERE id = ? LIMIT 1')
+        .bind(user.organizationId)
+        .first();
+    const clinicLimit = Number(limitRow?.clinic_limit || DEFAULT_CLINIC_LIMIT);
+    const clinicCountRow = await db
+        .prepare('SELECT COUNT(*) AS total FROM clinics WHERE organization_id = ?')
+        .bind(user.organizationId)
+        .first();
+    const clinicCount = Number(clinicCountRow?.total || 0);
+    if (clinicCount >= clinicLimit) {
+        throw new HttpError(403, `Clinic limit reached. This admin can create ${clinicLimit} clinic${clinicLimit === 1 ? '' : 's'}. Ask the super admin to increase the limit.`);
+    }
 
     const clinicId = crypto.randomUUID();
     await db
@@ -1232,6 +1352,155 @@ async function updateUserPermissions(env, request, targetUserId) {
     ).run();
 
     return jsonResponse({ ok: true, permissions });
+}
+
+function mapAttendanceRow(row) {
+    return {
+        id: row.id,
+        organizationId: row.organization_id,
+        clinicId: row.clinic_id,
+        clinicName: row.clinic_name || '',
+        userId: row.user_id,
+        staffName: row.staff_name || '',
+        staffEmail: row.staff_email || '',
+        attendanceDate: row.attendance_date,
+        checkInAt: row.check_in_at,
+        checkOutAt: row.check_out_at || null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+
+function getDefaultAttendanceStartDate() {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().split('T')[0];
+}
+
+async function listAttendance(env, request, url) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin', 'staff']);
+    const db = requireDb(env);
+    const dateFrom = sanitizeOptionalDate(url.searchParams.get('from')) || getDefaultAttendanceStartDate();
+    const dateTo = sanitizeOptionalDate(url.searchParams.get('to')) || new Date().toISOString().split('T')[0];
+
+    let sql = `
+        SELECT
+            a.id,
+            a.organization_id,
+            a.clinic_id,
+            c.name AS clinic_name,
+            a.user_id,
+            u.full_name AS staff_name,
+            u.email AS staff_email,
+            a.attendance_date,
+            a.check_in_at,
+            a.check_out_at,
+            a.created_at,
+            a.updated_at
+        FROM staff_attendance a
+        JOIN users u ON u.id = a.user_id
+        LEFT JOIN clinics c ON c.id = a.clinic_id
+        WHERE a.organization_id = ?
+        AND a.attendance_date >= ?
+        AND a.attendance_date <= ?
+    `;
+    const bindings = [user.organizationId, dateFrom, dateTo];
+
+    if (user.role === 'staff') {
+        sql += ' AND a.user_id = ?';
+        bindings.push(user.userId);
+    }
+
+    sql += ' ORDER BY a.attendance_date DESC, a.check_in_at DESC LIMIT 250';
+
+    const result = await db.prepare(sql).bind(...bindings).all();
+    return jsonResponse({ attendance: (result.results || []).map(mapAttendanceRow) });
+}
+
+async function checkInAttendance(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin', 'staff']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+    const attendanceDate = sanitizeDate(body.attendanceDate);
+    const activeClinicId = await resolveActiveClinicId(db, request, user, true);
+
+    const existing = await db
+        .prepare('SELECT id FROM staff_attendance WHERE user_id = ? AND attendance_date = ? LIMIT 1')
+        .bind(user.userId, attendanceDate)
+        .first();
+    if (existing) throw new HttpError(409, 'Attendance is already marked for today.');
+
+    const now = new Date().toISOString();
+    const attendanceId = crypto.randomUUID();
+    await db.prepare(`
+        INSERT INTO staff_attendance (
+            id, organization_id, clinic_id, user_id, attendance_date, check_in_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        attendanceId,
+        user.organizationId,
+        activeClinicId,
+        user.userId,
+        attendanceDate,
+        now,
+        now,
+        now
+    ).run();
+
+    const row = await db.prepare(`
+        SELECT
+            a.id, a.organization_id, a.clinic_id, c.name AS clinic_name, a.user_id,
+            u.full_name AS staff_name, u.email AS staff_email, a.attendance_date,
+            a.check_in_at, a.check_out_at, a.created_at, a.updated_at
+        FROM staff_attendance a
+        JOIN users u ON u.id = a.user_id
+        LEFT JOIN clinics c ON c.id = a.clinic_id
+        WHERE a.id = ?
+    `).bind(attendanceId).first();
+
+    return jsonResponse({ attendance: mapAttendanceRow(row) }, 201);
+}
+
+async function checkOutAttendance(env, request, attendanceId) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin', 'staff']);
+    const db = requireDb(env);
+
+    const existing = await db
+        .prepare('SELECT id, organization_id, user_id, check_out_at FROM staff_attendance WHERE id = ? LIMIT 1')
+        .bind(attendanceId)
+        .first();
+    if (!existing) throw new HttpError(404, 'Attendance record not found.');
+    if (existing.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Attendance record is outside your organization.');
+    }
+    if (existing.user_id !== user.userId) {
+        throw new HttpError(403, 'You can only mark your own leaving time.');
+    }
+    if (existing.check_out_at) {
+        throw new HttpError(409, 'Leaving time is already marked.');
+    }
+
+    const now = new Date().toISOString();
+    await db
+        .prepare("UPDATE staff_attendance SET check_out_at = ?, updated_at = ? WHERE id = ?")
+        .bind(now, now, attendanceId)
+        .run();
+
+    const row = await db.prepare(`
+        SELECT
+            a.id, a.organization_id, a.clinic_id, c.name AS clinic_name, a.user_id,
+            u.full_name AS staff_name, u.email AS staff_email, a.attendance_date,
+            a.check_in_at, a.check_out_at, a.created_at, a.updated_at
+        FROM staff_attendance a
+        JOIN users u ON u.id = a.user_id
+        LEFT JOIN clinics c ON c.id = a.clinic_id
+        WHERE a.id = ?
+    `).bind(attendanceId).first();
+
+    return jsonResponse({ attendance: mapAttendanceRow(row) });
 }
 
 async function listPatients(env, request, url) {
@@ -1563,7 +1832,8 @@ async function listInventory(env, request, url) {
     let sql = `
         SELECT
             id, organization_id, clinic_id, name, category, unit, stock_quantity,
-            reorder_threshold, cost_price_cents, sell_price_cents, expiry_date, created_at, updated_at
+            reorder_threshold, cost_price_cents, sell_price_cents, strips_per_unit,
+            strip_stock_quantity, strip_sell_price_cents, expiry_date, created_at, updated_at
         FROM inventory_items
         WHERE 1 = 1
     `;
@@ -1622,6 +1892,9 @@ async function listInventory(env, request, url) {
                 threshold: row.reorder_threshold,
                 costPrice: fromCents(row.cost_price_cents),
                 sellPrice: fromCents(row.sell_price_cents),
+                stripsPerUnit: normalizeStripsPerUnit(row.strips_per_unit),
+                stripStock: Number(row.strip_stock_quantity || 0),
+                stripSellPrice: fromCents(row.strip_sell_price_cents || row.sell_price_cents),
                 expiryDate: row.expiry_date || '',
                 daysToExpiry: expiryMeta.daysToExpiry,
                 expiryStatus: expiryMeta.expiryStatus,
@@ -1657,24 +1930,28 @@ async function createInventoryItem(env, request) {
     const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
     const costCents = toCents(body.costPrice);
     const sellCents = toCents(body.sellPrice);
+    const stripsPerUnit = normalizeStripsPerUnit(body.stripsPerUnit);
+    const stripStock = Math.max(0, Number.parseInt(body.stripStock, 10) || (stock * stripsPerUnit));
+    const stripSellCents = toCents(body.stripSellPrice || fromCents(sellCents));
     const expiryDate = sanitizeOptionalDate(body.expiryDate);
 
     const statements = [
         db.prepare(`
             INSERT INTO inventory_items (
                 id, organization_id, clinic_id, name, category, unit,
-                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents, expiry_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, organizationId, activeClinicId, name, category, unit, stock, threshold, costCents, sellCents, expiryDate),
+                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents,
+                strips_per_unit, strip_stock_quantity, strip_sell_price_cents, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, organizationId, activeClinicId, name, category, unit, Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, stripsPerUnit, stripStock, stripSellCents, expiryDate),
     ];
 
-    if (stock > 0) {
+    if (stripStock > 0) {
         statements.push(
             db.prepare(`
                 INSERT INTO inventory_transactions (
                     id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
                 ) VALUES (?, ?, ?, ?, 'purchase', ?, ?, 'inventory_create')
-            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, stock, costCents)
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, stripStock, costCents)
         );
     }
 
@@ -1688,10 +1965,13 @@ async function createInventoryItem(env, request) {
             name,
             category,
             unit,
-            stock,
+            stock: Math.floor(stripStock / stripsPerUnit),
             threshold,
             costPrice: fromCents(costCents),
             sellPrice: fromCents(sellCents),
+            stripsPerUnit,
+            stripStock,
+            stripSellPrice: fromCents(stripSellCents),
             expiryDate: expiryDate || '',
             type: 'inventory',
         },
@@ -1727,6 +2007,8 @@ async function updateInventoryItem(env, request, itemId) {
     const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
     const costCents = toCents(body.costPrice);
     const sellCents = toCents(body.sellPrice);
+    const stripsPerUnit = normalizeStripsPerUnit(body.stripsPerUnit);
+    const stripSellCents = toCents(body.stripSellPrice || fromCents(sellCents));
     const expiryDate = Object.prototype.hasOwnProperty.call(body, 'expiryDate')
         ? sanitizeOptionalDate(body.expiryDate)
         : null;
@@ -1736,9 +2018,12 @@ async function updateInventoryItem(env, request, itemId) {
         SET name = ?,
             category = ?,
             unit = ?,
+            strips_per_unit = ?,
+            stock_quantity = CAST(strip_stock_quantity / ? AS INTEGER),
             reorder_threshold = ?,
             cost_price_cents = ?,
             sell_price_cents = ?,
+            strip_sell_price_cents = ?,
             expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
@@ -1746,9 +2031,12 @@ async function updateInventoryItem(env, request, itemId) {
         name,
         category,
         unit,
+        stripsPerUnit,
+        stripsPerUnit,
         threshold,
         costCents,
         sellCents,
+        stripSellCents,
         Object.prototype.hasOwnProperty.call(body, 'expiryDate') ? 1 : 0,
         expiryDate,
         itemId
@@ -1770,6 +2058,7 @@ async function restockInventoryItem(env, request, itemId) {
     const item = await db
         .prepare(`
             SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents
+                , strips_per_unit
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -1788,20 +2077,23 @@ async function restockInventoryItem(env, request, itemId) {
     }
 
     const unitCostCents = toCents(body.costPrice ?? fromCents(item.cost_price_cents || 0));
+    const stripsPerUnit = normalizeStripsPerUnit(item.strips_per_unit);
+    const addedStrips = quantity * stripsPerUnit;
     await db.batch([
         db.prepare(`
             UPDATE inventory_items
-            SET stock_quantity = stock_quantity + ?,
+            SET strip_stock_quantity = strip_stock_quantity + ?,
+                stock_quantity = CAST((strip_stock_quantity + ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER),
                 cost_price_cents = ?,
                 expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
-        `).bind(quantity, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
+        `).bind(addedStrips, addedStrips, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
         db.prepare(`
             INSERT INTO inventory_transactions (
                 id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
             ) VALUES (?, ?, ?, ?, 'purchase', ?, ?, 'manual_restock')
-        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, quantity, unitCostCents),
+        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, addedStrips, unitCostCents),
     ]);
 
     return jsonResponse({ ok: true });
@@ -2081,7 +2373,7 @@ async function getInvoiceDetails(env, request, invoiceId) {
     }
 
     const itemsResult = await db.prepare(`
-        SELECT id, item_name, unit_price_cents, quantity, line_total_cents, item_type, inventory_item_id
+        SELECT id, item_name, unit_price_cents, quantity, line_total_cents, item_type, inventory_item_id, sale_unit
         FROM invoice_items
         WHERE invoice_id = ?
         ORDER BY created_at ASC
@@ -2113,6 +2405,7 @@ async function getInvoiceDetails(env, request, invoiceId) {
                 total: fromCents(item.line_total_cents),
                 itemType: item.item_type || 'service',
                 inventoryItemId: item.inventory_item_id || null,
+                saleUnit: item.sale_unit || 'unit',
             })),
         },
     });
@@ -2220,6 +2513,7 @@ async function createInvoice(env, request) {
         const quantity = Math.max(1, Number.parseInt(item.quantity, 10) || 1);
         const unitPriceCents = toCents(item.price);
         const itemType = String(item.itemType || 'service').toLowerCase() === 'inventory' ? 'inventory' : 'service';
+        const saleUnit = itemType === 'inventory' ? normalizeSaleUnit(item.saleUnit) : 'unit';
         const inventoryItemId = itemType === 'inventory' && item.inventoryItemId
             ? String(item.inventoryItemId).trim()
             : null;
@@ -2232,6 +2526,7 @@ async function createInvoice(env, request) {
             lineTotalCents: quantity * unitPriceCents,
             itemType,
             inventoryItemId,
+            saleUnit,
         };
     });
 
@@ -2304,8 +2599,9 @@ async function createInvoice(env, request) {
                         quantity,
                         line_total_cents,
                         item_type,
-                        inventory_item_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        inventory_item_id,
+                        sale_unit
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `)
                 .bind(
                     item.id,
@@ -2315,7 +2611,8 @@ async function createInvoice(env, request) {
                     item.quantity,
                     item.lineTotalCents,
                     item.itemType,
-                    item.inventoryItemId
+                    item.inventoryItemId,
+                    item.saleUnit
                 )
         );
     });
@@ -2327,7 +2624,7 @@ async function createInvoice(env, request) {
         }
 
         const inventoryRow = await db.prepare(`
-            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, strips_per_unit, strip_stock_quantity
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2339,16 +2636,20 @@ async function createInvoice(env, request) {
         if (inventoryRow.organization_id !== organizationId || inventoryRow.clinic_id !== activeClinicId) {
             throw new HttpError(400, `Inventory item is outside selected clinic: ${item.name}`);
         }
-        if (Number(inventoryRow.stock_quantity || 0) < item.quantity) {
+        const stripsPerUnit = normalizeStripsPerUnit(inventoryRow.strips_per_unit);
+        const stripQuantity = item.saleUnit === 'strip' ? item.quantity : item.quantity * stripsPerUnit;
+        if (Number(inventoryRow.strip_stock_quantity || 0) < stripQuantity) {
             throw new HttpError(400, `Insufficient stock for ${item.name}.`);
         }
 
         statements.push(
             db.prepare(`
                 UPDATE inventory_items
-                SET stock_quantity = stock_quantity - ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                SET strip_stock_quantity = strip_stock_quantity - ?,
+                    stock_quantity = CAST((strip_stock_quantity - ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER),
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ?
-            `).bind(item.quantity, item.inventoryItemId)
+            `).bind(stripQuantity, stripQuantity, item.inventoryItemId)
         );
 
         statements.push(
@@ -2361,7 +2662,7 @@ async function createInvoice(env, request) {
                 item.inventoryItemId,
                 organizationId,
                 activeClinicId,
-                item.quantity,
+                stripQuantity,
                 Number(inventoryRow.cost_price_cents || 0),
                 invoiceId
             )
@@ -2619,6 +2920,10 @@ export default {
 
             if (pathname === '/api/super-admin/overview' && request.method === 'GET') return await getSuperAdminOverview(env, request);
             if (pathname === '/api/super-admin/organizations' && request.method === 'POST') return await createOrganizationWithAdmin(env, request);
+            const orgClinicLimitMatch = pathname.match(/^\/api\/super-admin\/organizations\/([^/]+)\/clinic-limit$/);
+            if (orgClinicLimitMatch && request.method === 'PATCH') {
+                return await updateOrganizationClinicLimit(env, request, decodeURIComponent(orgClinicLimitMatch[1]));
+            }
             if (pathname === '/api/super-admin/admins' && request.method === 'POST') return await createAdminForOrganization(env, request);
 
             if (pathname === '/api/admin/supervision' && request.method === 'GET') return await getAdminSupervision(env, request);
@@ -2632,6 +2937,13 @@ export default {
             const permissionsMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/permissions$/);
             if (permissionsMatch && request.method === 'PATCH') {
                 return await updateUserPermissions(env, request, decodeURIComponent(permissionsMatch[1]));
+            }
+
+            if (pathname === '/api/attendance' && request.method === 'GET') return await listAttendance(env, request, url);
+            if (pathname === '/api/attendance/check-in' && request.method === 'POST') return await checkInAttendance(env, request);
+            const attendanceCheckoutMatch = pathname.match(/^\/api\/attendance\/([^/]+)\/check-out$/);
+            if (attendanceCheckoutMatch && request.method === 'PATCH') {
+                return await checkOutAttendance(env, request, decodeURIComponent(attendanceCheckoutMatch[1]));
             }
 
             if (pathname === '/api/invoices' && request.method === 'GET') return await listInvoices(env, request, url);

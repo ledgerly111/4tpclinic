@@ -151,6 +151,13 @@ export async function createAdminForOrganizationApi(payload) {
   });
 }
 
+export async function updateOrganizationClinicLimitApi(organizationId, clinicLimit) {
+  return request(`/super-admin/organizations/${encodeURIComponent(organizationId)}/clinic-limit`, {
+    method: 'PATCH',
+    body: JSON.stringify({ clinicLimit }),
+  });
+}
+
 export async function fetchAdminSupervisionApi() {
   return request('/admin/supervision');
 }

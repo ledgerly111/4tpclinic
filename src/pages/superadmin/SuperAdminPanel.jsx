@@ -16,6 +16,7 @@ import {
   fetchSuperAdminOverviewApi,
   createOrganizationWithAdminApi,
   createAdminForOrganizationApi,
+  updateOrganizationClinicLimitApi,
 } from '../../lib/authApi';
 import { cn } from '../../lib/utils';
 
@@ -43,15 +44,19 @@ export function SuperAdminPanel() {
   const [adminForm, setAdminForm] = useState(initialAdminForm);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [clinicLimitDrafts, setClinicLimitDrafts] = useState({});
+  const [savingClinicLimitId, setSavingClinicLimitId] = useState('');
   const [isSubmittingOrg, setIsSubmittingOrg] = useState(false);
   const [isSubmittingAdmin, setIsSubmittingAdmin] = useState(false);
   const [showPasswords, setShowPasswords] = useState(false);
 
   const reload = async () => {
     const data = await fetchSuperAdminOverviewApi();
-    setOrganizations(Array.isArray(data.organizations) ? data.organizations : []);
+    const nextOrganizations = Array.isArray(data.organizations) ? data.organizations : [];
+    setOrganizations(nextOrganizations);
     setUsers(Array.isArray(data.users) ? data.users : []);
     setClinics(Array.isArray(data.clinics) ? data.clinics : []);
+    setClinicLimitDrafts(Object.fromEntries(nextOrganizations.map((org) => [org.id, String(org.clinicLimit || 3)])));
   };
 
   useEffect(() => {
@@ -62,6 +67,13 @@ export function SuperAdminPanel() {
 
   const adminUsers = useMemo(() => users.filter((u) => u.role === 'admin'), [users]);
   const staffUsers = useMemo(() => users.filter((u) => u.role === 'staff'), [users]);
+  const clinicCountByOrgId = useMemo(() => {
+    const counts = new Map();
+    clinics.forEach((clinic) => {
+      counts.set(clinic.organizationId, (counts.get(clinic.organizationId) || 0) + 1);
+    });
+    return counts;
+  }, [clinics]);
 
   const clearMessages = () => {
     setError('');
@@ -113,6 +125,26 @@ export function SuperAdminPanel() {
       setError(createError.message || 'Failed to create admin user.');
     } finally {
       setIsSubmittingAdmin(false);
+    }
+  };
+
+  const handleSaveClinicLimit = async (organizationId) => {
+    clearMessages();
+    const nextLimit = Number.parseInt(clinicLimitDrafts[organizationId], 10);
+    if (!Number.isFinite(nextLimit) || nextLimit < 1) {
+      setError('Clinic limit must be at least 1.');
+      return;
+    }
+
+    setSavingClinicLimitId(organizationId);
+    try {
+      await updateOrganizationClinicLimitApi(organizationId, nextLimit);
+      setSuccess('Clinic limit updated.');
+      await reload();
+    } catch (limitError) {
+      setError(limitError.message || 'Failed to update clinic limit.');
+    } finally {
+      setSavingClinicLimitId('');
     }
   };
 
@@ -212,6 +244,52 @@ export function SuperAdminPanel() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Clinic Limits */}
+      <div className="bg-[#1a1a1a]/80 backdrop-blur-xl rounded-3xl border border-white/[0.05] overflow-hidden shadow-xl">
+        <div className="px-6 py-5 border-b border-white/[0.05] bg-white/[0.02]">
+          <h2 className="text-white text-xl font-bold flex items-center gap-3">
+            <div className="p-2 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
+              <Building className="w-5 h-5 text-cyan-400" />
+            </div>
+            Clinic Creation Limits
+          </h2>
+          <p className="text-gray-400 text-sm mt-1 ml-11">Default is 3 clinics per organization admin. Increase it here when a client needs more branches.</p>
+        </div>
+        <div className="divide-y divide-white/[0.04]">
+          {organizations.map((org) => {
+            const used = clinicCountByOrgId.get(org.id) || 0;
+            const limit = Number(org.clinicLimit || 3);
+            return (
+              <div key={org.id} className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-white font-bold">{org.name}</p>
+                  <p className="text-gray-500 text-sm mt-1">{used}/{limit} clinics used</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="1"
+                    value={clinicLimitDrafts[org.id] ?? String(limit)}
+                    onChange={(event) => setClinicLimitDrafts((prev) => ({ ...prev, [org.id]: event.target.value }))}
+                    className="w-28 rounded-2xl bg-[#0f0f0f]/80 border border-white/[0.08] px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                  />
+                  <button
+                    onClick={() => handleSaveClinicLimit(org.id)}
+                    disabled={savingClinicLimitId === org.id}
+                    className="rounded-2xl bg-cyan-600 px-5 py-3 font-bold text-white shadow-lg shadow-cyan-500/10 hover:bg-cyan-500 disabled:opacity-60"
+                  >
+                    {savingClinicLimitId === org.id ? 'Saving...' : 'Save Limit'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {organizations.length === 0 && (
+            <div className="px-6 py-10 text-center text-gray-500">Create an organization first to manage clinic limits.</div>
+          )}
+        </div>
       </div>
 
       {/* Forms Grid */}

@@ -18,6 +18,7 @@ const PAGE_PERMISSIONS = [
     { key: 'dashboard', label: 'Dashboard', icon: '📊' },
     { key: 'patients', label: 'Patients', icon: '🧑‍⚕️' },
     { key: 'appointments', label: 'Appointments', icon: '📅' },
+    { key: 'attendance', label: 'Attendance', icon: '🕒' },
     { key: 'inventory', label: 'Inventory', icon: '📦' },
     { key: 'services', label: 'Services', icon: '🩺' },
     { key: 'billing', label: 'Billing', icon: '🧾' },
@@ -40,6 +41,7 @@ export function Staff() {
     const { theme } = useStore();
     const isDark = theme === 'dark';
     const [clinics, setClinics] = useState([]);
+    const [clinicLimit, setClinicLimit] = useState(3);
     const [users, setUsers] = useState([]);
     const [activeTab, setActiveTab] = useState('clinics');
     const [loading, setLoading] = useState(true);
@@ -71,6 +73,7 @@ export function Staff() {
             const data = await fetchAdminSupervisionApi();
             setClinics(Array.isArray(data.clinics) ? data.clinics : []);
             setUsers(Array.isArray(data.users) ? data.users : []);
+            setClinicLimit(Number(data.clinicLimit || 3));
         } finally {
             setLoading(false);
         }
@@ -211,6 +214,7 @@ export function Staff() {
     const toggleEdit = (key) => setPermForm(f => ({ ...f, edits: { ...f.edits, [key]: !f.edits[key] } }));
     const grantAll = () => setPermForm({ pages: Object.fromEntries(PAGE_PERMISSIONS.map(p => [p.key, true])), edits: Object.fromEntries(EDIT_PERMISSIONS.map(p => [p.key, true])) });
     const revokeAll = () => setPermForm({ pages: Object.fromEntries(PAGE_PERMISSIONS.map(p => [p.key, false])), edits: Object.fromEntries(EDIT_PERMISSIONS.map(p => [p.key, false])) });
+    const clinicLimitReached = clinics.length >= clinicLimit;
 
     if (!session?.organizationId) {
         return (
@@ -239,7 +243,7 @@ export function Staff() {
             {formSuccess && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{formSuccess}</div>}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 dashboard-reveal reveal-delay-1">
-                {[{ label: 'Clinics', value: clinics.length }, { label: 'Staff', value: users.length }, { label: 'Active Staff', value: users.filter((u) => u.isActive).length, accent: true }, { label: 'Selected Clinic', value: selectedClinic?.name || 'None', small: true }]
+                {[{ label: 'Clinics', value: `${clinics.length}/${clinicLimit}` }, { label: 'Staff', value: users.length }, { label: 'Active Staff', value: users.filter((u) => u.isActive).length, accent: true }, { label: 'Selected Clinic', value: selectedClinic?.name || 'None', small: true }]
                     .map(({ label, value, accent, small }) => (
                         <div key={label} className={cn('rounded-[2rem] p-6 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
                             <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{label}</p>
@@ -277,12 +281,18 @@ export function Staff() {
                     <div className="flex justify-between items-center px-2">
                         <h2 className={cn("text-xl sm:text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Clinics & Branches</h2>
                         <button
-                            onClick={() => { clearMessages(); setShowClinicModal(true); }}
-                            className="px-4 py-2.5 bg-[#512c31] text-white rounded-xl hover:bg-[#e8919a] flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-widest transition-all shadow-lg hover:shadow-xl hover:scale-105"
+                            onClick={() => { clearMessages(); if (!clinicLimitReached) setShowClinicModal(true); }}
+                            disabled={clinicLimitReached}
+                            className="px-4 py-2.5 bg-[#512c31] text-white rounded-xl hover:bg-[#e8919a] flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-widest transition-all shadow-lg hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:hover:bg-[#512c31]"
                         >
                             <Plus className="w-4 h-4" /> Add Clinic
                         </button>
                     </div>
+                    {clinicLimitReached && (
+                        <div className={cn("rounded-2xl border px-4 py-3 text-sm font-bold", isDark ? "border-amber-500/20 bg-amber-500/10 text-amber-200" : "border-amber-200 bg-amber-50 text-amber-700")}>
+                            Clinic limit reached: {clinics.length}/{clinicLimit}. Ask the super admin to increase this admin's clinic access.
+                        </div>
+                    )}
 
                     {loading ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -440,6 +450,9 @@ export function Staff() {
                             <button onClick={() => setShowClinicModal(false)} className={cn("transition-colors", isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")}><X className="w-5 h-5" /></button>
                         </div>
                         <form onSubmit={handleCreateClinic} className="space-y-4">
+                            <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-gray-500")}>
+                                Clinic access used: {clinics.length}/{clinicLimit}
+                            </p>
                             <input required value={clinicForm.name} onChange={(e) => setClinicForm({ ...clinicForm, name: e.target.value })} className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900")} placeholder="Clinic Name" />
                             <input required value={clinicForm.code} onChange={(e) => setClinicForm({ ...clinicForm, code: e.target.value })} className={cn("w-full border rounded-xl p-3 outline-none focus:border-[#ff7a6b] transition-colors", isDark ? "bg-[#0f0f0f] border-gray-800 text-white" : "bg-white border-gray-200 text-gray-900")} placeholder="Clinic Code" />
                             <div className="flex gap-3 pt-2">

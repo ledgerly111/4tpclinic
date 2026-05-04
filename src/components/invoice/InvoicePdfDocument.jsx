@@ -125,7 +125,7 @@ export function InvoicePdfDocument({ data }) {
           </View>
           {items.map((item, index) => (
             <View key={`${item.name}-${index}`} style={styles.row}>
-              <Text style={[styles.col1, { paddingLeft: 8 }]}>{item.name}</Text>
+              <Text style={[styles.col1, { paddingLeft: 8 }]}>{item.name}{item.saleUnit === 'strip' ? ' (strip)' : ''}</Text>
               <Text style={styles.col2}>Rs {Number(item.price || 0).toFixed(2)}</Text>
               <Text style={styles.col3}>{Number(item.quantity || 0)}</Text>
               <Text style={[styles.col4, { paddingRight: 8 }]}>Rs {(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</Text>

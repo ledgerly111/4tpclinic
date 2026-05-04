@@ -74,6 +74,24 @@ export async function fetchAppointments(params = {}) {
   return request(`/appointments${query ? `?${query}` : ''}`);
 }
 
+export async function fetchAttendance(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return request(`/attendance${query ? `?${query}` : ''}`);
+}
+
+export async function checkInAttendance(payload = {}) {
+  return request('/attendance/check-in', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function checkOutAttendance(attendanceId) {
+  return request(`/attendance/${encodeURIComponent(attendanceId)}/check-out`, {
+    method: 'PATCH',
+  });
+}
+
 export async function createAppointment(payload) {
   return request('/appointments', {
     method: 'POST',

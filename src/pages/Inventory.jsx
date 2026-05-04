@@ -6,6 +6,8 @@ import { createInventoryItem, fetchInventory, restockInventoryItem, updateInvent
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
 
+const PAGE_SIZE = 25;
+
 export function Inventory() {
     const { theme } = useStore();
     const { session } = useAuth();
@@ -13,12 +15,14 @@ export function Inventory() {
     const canEditInventory = hasEditAccess(session, 'edit_inventory');
     const [items, setItems] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showRestockModal, setShowRestockModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
-    const [addForm, setAddForm] = useState({ name: '', category: 'General', unit: 'pcs', stock: '', threshold: '', costPrice: '', sellPrice: '', expiryDate: '' });
+    const initialAddForm = { name: '', category: 'General', unit: 'box', stock: '', stripsPerUnit: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', expiryDate: '' };
+    const [addForm, setAddForm] = useState(initialAddForm);
     const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', expiryDate: '' });
     const [showEditModal, setShowEditModal] = useState(false);
     const [editForm, setEditForm] = useState(null);
@@ -45,6 +49,14 @@ export function Inventory() {
             item.category.toLowerCase().includes(searchTerm.toLowerCase())
         )
     ), [items, searchTerm]);
+
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+    }, [searchTerm]);
+
+    const visibleItems = useMemo(() => (
+        filteredItems.slice(0, visibleCount)
+    ), [filteredItems, visibleCount]);
 
     const lowStockCount = items.filter((i) => i.stockStatus === 'low' || i.stockStatus === 'critical').length;
     const expiredCount = items.filter((i) => i.expiryStatus === 'expired').length;
@@ -88,10 +100,12 @@ export function Inventory() {
                 threshold: Number(addForm.threshold),
                 costPrice: Number(addForm.costPrice),
                 sellPrice: Number(addForm.sellPrice),
+                stripsPerUnit: Number(addForm.stripsPerUnit || 1),
+                stripSellPrice: Number(addForm.stripSellPrice || addForm.sellPrice),
                 expiryDate: addForm.expiryDate || null,
             });
             setShowAddModal(false);
-            setAddForm({ name: '', category: 'General', unit: 'pcs', stock: '', threshold: '', costPrice: '', sellPrice: '', expiryDate: '' });
+            setAddForm(initialAddForm);
             await loadInventory();
         } catch (err) {
             setError(err.message || 'Failed to add inventory item.');
@@ -127,9 +141,11 @@ export function Inventory() {
             name: item.name,
             category: item.category,
             unit: item.unit,
+            stripsPerUnit: String(item.stripsPerUnit || 1),
             threshold: String(item.threshold || ''),
             costPrice: String(item.costPrice || ''),
             sellPrice: String(item.sellPrice || ''),
+            stripSellPrice: String(item.stripSellPrice || item.sellPrice || ''),
             expiryDate: item.expiryDate || '',
         });
         setShowEditModal(true);
@@ -150,6 +166,8 @@ export function Inventory() {
                 threshold: Number(editForm.threshold),
                 costPrice: Number(editForm.costPrice),
                 sellPrice: Number(editForm.sellPrice),
+                stripsPerUnit: Number(editForm.stripsPerUnit || 1),
+                stripSellPrice: Number(editForm.stripSellPrice || editForm.sellPrice),
                 expiryDate: editForm.expiryDate || null,
             });
             setShowEditModal(false);
@@ -253,16 +271,20 @@ export function Inventory() {
                     </div>
                 ) : (
                     <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="p-5 sm:p-6">Item</th><th className="p-5 sm:p-6">Category</th><th className="p-5 sm:p-6">Current Stock</th><th className="p-5 sm:p-6">Threshold</th><th className="p-5 sm:p-6">Expiry</th><th className="p-5 sm:p-6">Sell Price</th><th className="p-5 sm:p-6">Status</th><th className="p-5 sm:p-6 text-right">Actions</th></tr></thead>
+                        <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="p-5 sm:p-6">Item</th><th className="p-5 sm:p-6">Category</th><th className="p-5 sm:p-6">Current Stock</th><th className="p-5 sm:p-6">Strip Stock</th><th className="p-5 sm:p-6">Threshold</th><th className="p-5 sm:p-6">Expiry</th><th className="p-5 sm:p-6">Box / Strip Price</th><th className="p-5 sm:p-6">Status</th><th className="p-5 sm:p-6 text-right">Actions</th></tr></thead>
                         <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
-                            {filteredItems.map((item) => (
+                            {visibleItems.map((item) => (
                                 <tr key={item.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
                                     <td className="p-5 sm:p-6"><div className="flex items-center gap-4"><div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center dashboard-card shadow-sm', isDark ? 'bg-[#0f0f0f] border border-gray-800' : 'bg-white border border-[#512c31]/5')}><Package className={cn('w-6 h-6', isDark ? 'text-gray-400' : 'text-[#e8919a]')} /></div><span className={cn('font-bold text-base', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</span></div></td>
                                     <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.category}</td>
                                     <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{item.stock} <span className="text-gray-500 font-bold ml-1 text-sm">{item.unit}</span></td>
+                                    <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.stripStock || 0} strips <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.stripsPerUnit || 1} / {item.unit}</span></td>
                                     <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.threshold}</td>
                                     <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{getExpiryLabel(item)}</td>
-                                    <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-gray-400' : 'text-[#512c31]')}>Rs{item.sellPrice}</td>
+                                    <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-gray-400' : 'text-[#512c31]')}>
+                                        <span className="block">Box/Full Rs{item.sellPrice}</span>
+                                        <span className="block text-[10px] uppercase tracking-widest text-gray-500">Strip Rs{item.stripSellPrice || item.sellPrice}</span>
+                                    </td>
                                     <td className="p-5 sm:p-6"><span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
                                     <td className="p-5 sm:p-6 text-right">
                                         {canEditInventory && (
@@ -283,12 +305,22 @@ export function Inventory() {
                         </tbody>
                     </table>
                 )}
+                {!loading && visibleCount < filteredItems.length && (
+                    <div className={cn('p-5 border-t text-center', isDark ? 'border-gray-800' : 'border-gray-50')}>
+                        <button
+                            onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                            className="px-6 py-3 rounded-2xl bg-[#512c31] text-white font-black text-xs uppercase tracking-widest hover:bg-[#e8919a] transition-all shadow-lg"
+                        >
+                            Load more inventory
+                        </button>
+                    </div>
+                )}
             </div>
 
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                     <div className={cn(
-                        "rounded-[2.5rem] p-8 w-full max-w-md border-4 shadow-2xl transition-all",
+                        "rounded-[2.5rem] p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto border-4 shadow-2xl transition-all",
                         isDark ? "bg-[#1e1e1e] border-white/5" : "bg-white border-white/50"
                     )}>
                         <div className="flex items-center justify-between mb-6">
@@ -309,17 +341,27 @@ export function Inventory() {
                                 </div>
                                 <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Unit</label>
-                                    <input required value={addForm.unit} onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="pcs" />
+                                    <input required value={addForm.unit} onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="box" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Initial Stock</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Full Medicine Stock</label>
                                     <input required type="number" value={addForm.stock} onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0" />
                                 </div>
                                 <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strips Per Full</label>
+                                    <input required type="number" min="1" value={addForm.stripsPerUnit} onChange={(e) => setAddForm({ ...addForm, stripsPerUnit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Threshold</label>
                                     <input required type="number" value={addForm.threshold} onChange={(e) => setAddForm({ ...addForm, threshold: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Price (Rs)</label>
+                                    <input required type="number" step="0.01" value={addForm.stripSellPrice} onChange={(e) => setAddForm({ ...addForm, stripSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -328,7 +370,7 @@ export function Inventory() {
                                     <input required type="number" step="0.01" value={addForm.costPrice} onChange={(e) => setAddForm({ ...addForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Sell Price (Rs)</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Box / Full Price (Rs)</label>
                                     <input required type="number" step="0.01" value={addForm.sellPrice} onChange={(e) => setAddForm({ ...addForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
                             </div>
@@ -381,7 +423,7 @@ export function Inventory() {
             {showEditModal && editForm && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                     <div className={cn(
-                        "rounded-[2.5rem] p-8 w-full max-w-md border-4 shadow-2xl transition-all",
+                        "rounded-[2.5rem] p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto border-4 shadow-2xl transition-all",
                         isDark ? "bg-[#1e1e1e] border-white/5" : "bg-white border-white/50"
                     )}>
                         <div className="flex items-center justify-between mb-6">
@@ -407,11 +449,21 @@ export function Inventory() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strips Per Full</label>
+                                    <input type="number" min="1" value={editForm.stripsPerUnit} onChange={(e) => setEditForm({ ...editForm, stripsPerUnit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Price (Rs)</label>
+                                    <input type="number" step="0.01" value={editForm.stripSellPrice} onChange={(e) => setEditForm({ ...editForm, stripSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Cost Price</label>
                                     <input type="number" step="0.01" value={editForm.costPrice} onChange={(e) => setEditForm({ ...editForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Sell Price (Rs)</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Box / Full Price (Rs)</label>
                                     <input type="number" step="0.01" value={editForm.sellPrice} onChange={(e) => setEditForm({ ...editForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
                             </div>

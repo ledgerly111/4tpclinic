@@ -1,4 +1,4 @@
-export const PAGE_PERMISSION_KEYS = ['dashboard', 'patients', 'appointments', 'inventory', 'services', 'billing', 'reports'];
+export const PAGE_PERMISSION_KEYS = ['dashboard', 'patients', 'appointments', 'inventory', 'services', 'billing', 'reports', 'attendance'];
 export const EDIT_PERMISSION_KEYS = ['edit_patients', 'edit_appointments', 'edit_inventory', 'edit_services', 'edit_billing'];
 
 export const DEFAULT_STAFF_PERMISSIONS = {
@@ -6,6 +6,7 @@ export const DEFAULT_STAFF_PERMISSIONS = {
     dashboard: true,
     patients: true,
     appointments: true,
+    attendance: true,
     inventory: false,
     services: false,
     billing: false,

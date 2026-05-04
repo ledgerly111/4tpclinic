@@ -3,6 +3,7 @@ import {
     LayoutDashboard,
     Users,
     Calendar,
+    ClipboardCheck,
     CreditCard,
     Package,
     Settings,
@@ -18,6 +19,7 @@ import { hasPageAccess } from '../lib/permissions';
 const mainNavItems = [
     { icon: LayoutDashboard, label: 'Home', path: '/app', pageKey: 'dashboard' },
     { icon: Calendar, label: 'Appointments', path: '/app/appointments', pageKey: 'appointments' },
+    { icon: ClipboardCheck, label: 'Attendance', path: '/app/attendance', pageKey: 'attendance' },
     { icon: Users, label: 'Patients', path: '/app/patients', pageKey: 'patients' },
     { icon: CreditCard, label: 'Billing', path: '/app/billing', pageKey: 'billing' },
 ];

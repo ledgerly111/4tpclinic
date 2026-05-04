@@ -6,6 +6,8 @@ import { createService, deleteService, fetchServices } from '../lib/clinicApi';
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
 
+const PAGE_SIZE = 25;
+
 export function Services() {
     const { theme } = useStore();
     const { session } = useAuth();
@@ -13,6 +15,7 @@ export function Services() {
     const canEditServices = hasEditAccess(session, 'edit_services');
     const [services, setServices] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
@@ -41,6 +44,14 @@ export function Services() {
     const filteredServices = useMemo(() => (
         services.filter((service) => service.name.toLowerCase().includes(searchTerm.toLowerCase()))
     ), [services, searchTerm]);
+
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+    }, [searchTerm]);
+
+    const visibleServices = useMemo(() => (
+        filteredServices.slice(0, visibleCount)
+    ), [filteredServices, visibleCount]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -152,7 +163,7 @@ export function Services() {
                             <tr><th className="px-5 sm:px-6 py-5">Service Name</th><th className="px-5 sm:px-6 py-5">Duration</th><th className="px-5 sm:px-6 py-5">Price</th><th className="px-5 sm:px-6 py-5 text-right">Actions</th></tr>
                         </thead>
                         <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
-                            {filteredServices.map((service) => (
+                            {visibleServices.map((service) => (
                                 <tr key={service.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
                                     <td className="px-5 sm:px-6 py-5"><div className="flex items-center gap-3"><div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform', isDark ? 'bg-[#0f0f0f]' : 'bg-white')}><Stethoscope className={cn("w-5 h-5", isDark ? "text-[#e8919a]" : "text-[#512c31]")} /></div><span className={cn('font-black text-sm', isDark ? 'text-white' : 'text-[#512c31]')}>{service.name}</span></div></td>
                                     <td className={cn('px-5 sm:px-6 py-5 text-xs font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{service.duration} min</td>
@@ -164,6 +175,16 @@ export function Services() {
                             ))}
                         </tbody>
                     </table>
+                )}
+                {!loading && visibleCount < filteredServices.length && (
+                    <div className={cn('p-5 border-t text-center', isDark ? 'border-gray-800' : 'border-gray-50')}>
+                        <button
+                            onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                            className="px-6 py-3 rounded-2xl bg-[#512c31] text-white font-black text-xs uppercase tracking-widest hover:bg-[#e8919a] transition-all shadow-lg"
+                        >
+                            Load more services
+                        </button>
+                    </div>
                 )}
             </div>
 

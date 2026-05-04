@@ -1,4 +1,4 @@
-import { Search, Building2, Bell, ChevronDown, Menu, X, LogOut, Shield, User } from 'lucide-react';
+import { Building2, ChevronDown, Menu, LogOut, Shield, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ const pageNames = {
   '/app': 'Overview',
   '/app/dashboard': 'Dashboard',
   '/app/appointments': 'Appointments',
+  '/app/attendance': 'Attendance',
   '/app/patients': 'Patients',
   '/app/services': 'Services',
   '/app/billing': 'Billing',
@@ -42,9 +43,7 @@ export function Header({ onMenuClick }) {
 
   const isDark = theme === 'dark';
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [notifications] = useState(3);
   const locationRef = useRef(null);
   const userMenuRef = useRef(null);
 
@@ -102,32 +101,6 @@ export function Header({ onMenuClick }) {
 
   return (
     <>
-      {/* Mobile Search Overlay */}
-      {showMobileSearch && (
-        <div className={cn(
-          "fixed inset-x-0 top-0 z-50 p-4 lg:hidden border-b",
-          isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-white border-gray-200"
-        )}>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowMobileSearch(false)}
-              className={cn("p-2 rounded-lg", isDark ? "text-gray-400" : "text-gray-600")}
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <input
-              type="search"
-              placeholder="Search..."
-              autoFocus
-              className={cn(
-                "flex-1 bg-transparent outline-none text-base",
-                isDark ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"
-              )}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Main Header */}
       <header className={cn(
         "sticky top-0 z-40 border-b px-4 py-3 backdrop-blur-2xl transition-colors duration-300 lg:rounded-t-3xl lg:px-5 lg:py-4",
@@ -273,21 +246,6 @@ export function Header({ onMenuClick }) {
               </div>
             )}
 
-            {/* Notifications */}
-            <button className={cn(
-              "relative flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200",
-              isDark
-                ? "border-slate-700/60 bg-slate-900/45 text-slate-300 hover:border-slate-500 hover:text-white"
-                : "border-gray-100 bg-white text-[#512c31] hover:bg-[#fef9f3] hover:text-[#e8919a] hover:scale-105"
-            )}>
-              <Bell className="h-4 w-4" />
-              {notifications > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-[#ff7d66] to-[#ffab61] px-1.5 text-[10px] font-semibold text-white">
-                  {notifications}
-                </span>
-              )}
-            </button>
-
             {/* User Menu */}
             <div className="relative" ref={userMenuRef}>
               <button
@@ -374,28 +332,6 @@ export function Header({ onMenuClick }) {
                 <span className="max-w-[100px] truncate">{selectedClinic.name}</span>
               </div>
             )}
-
-            <button
-              onClick={() => setShowMobileSearch(true)}
-              className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
-                isDark ? "bg-[#1f1f1f] text-gray-400 hover:text-white" : "bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200"
-              )}
-            >
-              <Search className="w-5 h-5" />
-            </button>
-
-            <button className={cn(
-              "relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
-              isDark ? "bg-[#1f1f1f] text-gray-400 hover:text-white" : "bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200"
-            )}>
-              <Bell className="w-5 h-5" />
-              {notifications > 0 && (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-br from-[#ff7d66] to-[#ffab61] px-1 text-[10px] font-semibold text-white">
-                  {notifications}
-                </span>
-              )}
-            </button>
           </div>
         </div>
       </header>

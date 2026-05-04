@@ -9,6 +9,7 @@ import { CreateInvoice } from './pages/CreateInvoice';
 import { Inventory } from './pages/Inventory';
 import { Services } from './pages/Services';
 import { Staff } from './pages/Staff';
+import { Attendance } from './pages/Attendance';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Help } from './pages/Help';
@@ -102,6 +103,11 @@ function App() {
                 <Route path="staff" element={
                   <RoleGuard allowedRoles={['admin']}>
                     <Staff />
+                  </RoleGuard>
+                } />
+                <Route path="attendance" element={
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="attendance">
+                    <Attendance />
                   </RoleGuard>
                 } />
 

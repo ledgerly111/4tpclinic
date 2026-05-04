@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
 import { hasEditAccess } from '../lib/permissions';
 
+const PAGE_SIZE = 25;
+
 export function Patients() {
   const { theme } = useStore();
   const { session } = useAuth();
@@ -16,6 +18,7 @@ export function Patients() {
   const canEditPatients = hasEditAccess(session, 'edit_patients');
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -61,6 +64,14 @@ export function Patients() {
       String(patient.contact || '').includes(searchTerm)
     )
   ), [patients, searchTerm]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchTerm]);
+
+  const visiblePatients = useMemo(() => (
+    filteredPatients.slice(0, visibleCount)
+  ), [filteredPatients, visibleCount]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -228,7 +239,7 @@ export function Patients() {
               </tr>
             </thead>
             <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
-              {filteredPatients.map((patient) => (
+              {visiblePatients.map((patient) => (
                 <tr key={patient.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
                   <td className={cn('p-4 sm:p-6 font-bold flex items-center gap-3 sm:gap-4', isDark ? 'text-white' : 'text-[#512c31]')}>
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#e8919a] flex items-center justify-center shadow-md group-hover:scale-110 transition-transform group-hover:rotate-6">
@@ -276,6 +287,16 @@ export function Patients() {
               ))}
             </tbody>
           </table>
+          {visibleCount < filteredPatients.length && (
+            <div className={cn('p-5 border-t text-center', isDark ? 'border-gray-800' : 'border-gray-50')}>
+              <button
+                onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                className="px-6 py-3 rounded-2xl bg-[#512c31] text-white font-black text-xs uppercase tracking-widest hover:bg-[#e8919a] transition-all shadow-lg"
+              >
+                Load more patients
+              </button>
+            </div>
+          )}
         </div>
       )}
 

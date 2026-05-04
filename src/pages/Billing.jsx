@@ -25,6 +25,8 @@ import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
 
+const PAGE_SIZE = 25;
+
 const currency = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
@@ -68,6 +70,7 @@ export function Billing() {
     });
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState('all');
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actionInvoiceId, setActionInvoiceId] = useState('');
@@ -108,6 +111,14 @@ export function Billing() {
             return matchesSearch && matchesFilter;
         })
     ), [invoices, searchTerm, filter]);
+
+    useEffect(() => {
+        setVisibleCount(PAGE_SIZE);
+    }, [searchTerm, filter]);
+
+    const visibleInvoices = useMemo(() => (
+        filteredInvoices.slice(0, visibleCount)
+    ), [filteredInvoices, visibleCount]);
 
     const handleMarkPaid = async (invoiceId) => {
         if (!canEditBilling) {
@@ -306,7 +317,7 @@ export function Billing() {
                 {!loading && filteredInvoices.length > 0 && (
                     <>
                         <div className="sm:hidden space-y-4">
-                            {filteredInvoices.map((invoice) => (
+                            {visibleInvoices.map((invoice) => (
                                 <div key={invoice.id} className={cn("p-5 rounded-3xl border-2 shadow-lg", isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-transparent')}>
                                     <div className="flex items-start justify-between mb-4">
                                         <div>
@@ -341,6 +352,16 @@ export function Billing() {
                                     </div>
                                 </div>
                             ))}
+                            {visibleCount < filteredInvoices.length && (
+                                <div className="text-center">
+                                    <button
+                                        onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                                        className="px-6 py-3 rounded-2xl bg-[#512c31] text-white font-black text-xs uppercase tracking-widest hover:bg-[#e8919a] transition-all shadow-lg"
+                                    >
+                                        Load more invoices
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className={cn("hidden sm:block rounded-[2.5rem] overflow-hidden dashboard-reveal reveal-delay-3 border-4 shadow-2xl overflow-x-auto", isDark ? 'bg-[#1e1e1e] border-white/5 shadow-black/50' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
@@ -357,7 +378,7 @@ export function Billing() {
                                     </tr>
                                 </thead>
                                 <tbody className={cn("divide-y", isDark ? 'divide-gray-800' : 'divide-gray-50')}>
-                                    {filteredInvoices.map((invoice) => (
+                                    {visibleInvoices.map((invoice) => (
                                         <tr key={invoice.id} className={cn("transition-all duration-300 group", isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
                                             <td className={cn("p-5 sm:p-6 font-bold", isDark ? 'text-white' : 'text-[#512c31]')}>#{invoice.invoiceNumber}</td>
                                             <td className={cn("p-5 sm:p-6 font-bold", isDark ? 'text-gray-300' : 'text-[#512c31]')}>{invoice.patient}</td>
@@ -390,6 +411,16 @@ export function Billing() {
                                     ))}
                                 </tbody>
                             </table>
+                            {visibleCount < filteredInvoices.length && (
+                                <div className={cn('p-5 border-t text-center', isDark ? 'border-gray-800' : 'border-gray-50')}>
+                                    <button
+                                        onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                                        className="px-6 py-3 rounded-2xl bg-[#512c31] text-white font-black text-xs uppercase tracking-widest hover:bg-[#e8919a] transition-all shadow-lg"
+                                    >
+                                        Load more invoices
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </>
                 )}

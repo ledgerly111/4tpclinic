@@ -24,6 +24,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    if (event.request.mode === 'navigate') {
+        event.respondWith(fetch(event.request).catch(() => caches.match('/') || Response.error()));
+        return;
+    }
+
     // Network-first for API calls
     if (event.request.url.includes('/api/')) {
         event.respondWith(

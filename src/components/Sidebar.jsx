@@ -3,6 +3,7 @@ import {
     LayoutGrid,
     Users,
     CalendarClock,
+    ClipboardCheck,
     Receipt,
     Package,
     Settings,
@@ -21,6 +22,7 @@ import { hasPageAccess } from '../lib/permissions';
 const navItems = [
     { icon: LayoutGrid, label: 'Dashboard', path: '/app', pageKey: 'dashboard' },
     { icon: CalendarClock, label: 'Appointments', path: '/app/appointments', pageKey: 'appointments' },
+    { icon: ClipboardCheck, label: 'Attendance', path: '/app/attendance', pageKey: 'attendance' },
     { icon: Users, label: 'Patients', path: '/app/patients', pageKey: 'patients' },
     { icon: Stethoscope, label: 'Services', path: '/app/services', pageKey: 'services' },
     { icon: Receipt, label: 'Billing', path: '/app/billing', pageKey: 'billing' },
