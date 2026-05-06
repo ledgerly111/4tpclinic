@@ -1,5 +1,5 @@
 // 4TP Clinic ERP - Service Worker
-const CACHE_NAME = '4tp-clinic-v1';
+const CACHE_NAME = '4tp-clinic-v2';
 const STATIC_ASSETS = [
     '/',
     '/app',
@@ -24,15 +24,31 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
     if (event.request.mode === 'navigate') {
-        event.respondWith(fetch(event.request).catch(() => caches.match('/') || Response.error()));
+        event.respondWith(
+            fetch(event.request).catch(async () => {
+                const cachedApp = await caches.match('/app');
+                const cachedRoot = await caches.match('/');
+                return cachedApp || cachedRoot || Response.error();
+            })
+        );
         return;
     }
 
     // Network-first for API calls
     if (event.request.url.includes('/api/')) {
         event.respondWith(
-            fetch(event.request).catch(() => caches.match(event.request))
+            fetch(event.request).catch(async () => {
+                const cached = await caches.match(event.request);
+                return cached || new Response(JSON.stringify({ error: 'Network request failed.' }), {
+                    status: 503,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            })
         );
         return;
     }
@@ -45,7 +61,7 @@ self.addEventListener('fetch', (event) => {
                     caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
                 }
                 return response;
-            })
+            }).catch(() => Response.error())
         )
     );
 });
