@@ -12,6 +12,17 @@ export async function fetchAccountingSummary() {
     return request('/accounting/summary');
 }
 
+export async function fetchBillingSettings() {
+    return request('/billing-settings');
+}
+
+export async function updateBillingSettings(payload) {
+    return request('/billing-settings', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+    });
+}
+
 export async function createInvoice(payload) {
     return request('/invoices', {
         method: 'POST',

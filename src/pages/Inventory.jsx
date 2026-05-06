@@ -21,7 +21,7 @@ export function Inventory() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showRestockModal, setShowRestockModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
-    const initialAddForm = { name: '', category: 'General', packageType: 'box', unit: 'box', stock: '', stripsPerUnit: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', batchNumber: '', expiryDate: '' };
+    const initialAddForm = { name: '', category: 'General', packageType: 'box', unit: 'box', stock: '', stripsPerUnit: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' };
     const [addForm, setAddForm] = useState(initialAddForm);
     const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', batchNumber: '', expiryDate: '' });
     const [showEditModal, setShowEditModal] = useState(false);
@@ -116,6 +116,7 @@ export function Inventory() {
                 sellPrice: Number(addForm.sellPrice),
                 stripsPerUnit: addForm.packageType === 'single' ? 1 : Number(addForm.stripsPerUnit || 1),
                 stripSellPrice: addForm.packageType === 'single' ? Number(addForm.sellPrice) : Number(addForm.stripSellPrice || addForm.sellPrice),
+                gstPercent: Number(addForm.gstPercent || 0),
                 batchNumber: addForm.batchNumber || 'OPENING',
                 expiryDate: addForm.expiryDate || null,
             });
@@ -163,6 +164,7 @@ export function Inventory() {
             costPrice: String(item.costPrice || ''),
             sellPrice: String(item.sellPrice || ''),
             stripSellPrice: String(item.stripSellPrice || item.sellPrice || ''),
+            gstPercent: String(item.gstPercent || ''),
             expiryDate: item.expiryDate || '',
         });
         setShowEditModal(true);
@@ -186,6 +188,7 @@ export function Inventory() {
                 sellPrice: Number(editForm.sellPrice),
                 stripsPerUnit: editForm.packageType === 'single' ? 1 : Number(editForm.stripsPerUnit || 1),
                 stripSellPrice: editForm.packageType === 'single' ? Number(editForm.sellPrice) : Number(editForm.stripSellPrice || editForm.sellPrice),
+                gstPercent: Number(editForm.gstPercent || 0),
                 expiryDate: editForm.expiryDate || null,
             });
             setShowEditModal(false);
@@ -251,13 +254,13 @@ export function Inventory() {
                 </div>
             )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 dashboard-reveal reveal-delay-1">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 dashboard-reveal reveal-delay-1">
                 {[{ renderIcon: (className) => <Box className={className} />, color: 'blue', label: 'Total Items', value: totalItems },
                 { renderIcon: (className) => <CheckCircle className={className} />, color: 'green', label: 'In Stock', value: items.filter((i) => i.stockStatus === 'good').length },
                 { renderIcon: (className) => <TrendingDown className={className} />, color: 'yellow', label: 'Low Stock', value: lowStockCount },
                 { renderIcon: (className) => <AlertTriangle className={className} />, color: 'red', label: 'Expired', value: expiredCount },
                 ].map(({ renderIcon, color, label, value }) => (
-                    <div key={label} className={cn('rounded-[2rem] p-6 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
+                    <div key={label} className={cn('rounded-3xl p-4 sm:p-5 transition-all border-2 shadow-xl hover:-translate-y-1 hover:shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
                         <div className="flex items-center gap-3 sm:gap-4 mb-4">
                             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-${color}-500/10 flex items-center justify-center shadow-inner pt-0.5`}>
                                 {renderIcon(`w-5 h-5 sm:w-6 sm:h-6 text-${color}-500`)}
@@ -277,7 +280,7 @@ export function Inventory() {
                 <input type="text" placeholder="Search inventory items..." className={cn('flex-1 py-4 outline-none placeholder-gray-400 bg-transparent text-sm sm:text-base font-medium', isDark ? 'text-white' : 'text-[#512c31]')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
 
-            <div className={cn('rounded-[2.5rem] overflow-hidden overflow-x-auto dashboard-reveal reveal-delay-3 border-4 shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5 shadow-black/50' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
+            <div className={cn('rounded-[2rem] overflow-hidden dashboard-reveal reveal-delay-3 border-2 shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5 shadow-black/50' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
                 {loading ? (
                     <div>
                         <div className={cn('px-4 py-3 border-b', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-gray-50 border-gray-200')}>
@@ -304,18 +307,18 @@ export function Inventory() {
                         </div>
                     </div>
                 ) : (
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="p-5 sm:p-6">Item</th><th className="p-5 sm:p-6">Category</th><th className="p-5 sm:p-6">Current Stock</th><th className="p-5 sm:p-6">Batch Details</th><th className="p-5 sm:p-6">Threshold</th><th className="p-5 sm:p-6">Expiry</th><th className="p-5 sm:p-6">Pricing</th><th className="p-5 sm:p-6">Status</th><th className="p-5 sm:p-6 text-right">Actions</th></tr></thead>
+                    <table className="w-full table-fixed text-left text-xs">
+                        <thead className={cn("font-black uppercase tracking-widest text-[9px] sm:text-[10px]", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="w-[15%] p-3">Item</th><th className="w-[8%] p-3">Category</th><th className="w-[10%] p-3">Stock</th><th className="w-[17%] p-3">Batches</th><th className="w-[7%] p-3">Limit</th><th className="w-[9%] p-3">Expiry</th><th className="w-[12%] p-3">Price/GST</th><th className="w-[7%] p-3">Status</th><th className="w-[15%] p-3 text-right">Actions</th></tr></thead>
                         <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
                             {visibleItems.map((item) => (
                                 <tr key={item.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
-                                    <td className="p-5 sm:p-6"><div className="flex items-center gap-4"><div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center dashboard-card shadow-sm', isDark ? 'bg-[#0f0f0f] border border-gray-800' : 'bg-white border border-[#512c31]/5')}><Package className={cn('w-6 h-6', isDark ? 'text-gray-400' : 'text-[#e8919a]')} /></div><span className={cn('font-bold text-base', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</span></div></td>
-                                    <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.category}</td>
-                                    <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-white' : 'text-[#512c31]')}>
+                                    <td className="p-3"><div className="flex items-center gap-2 min-w-0"><div className={cn('w-9 h-9 rounded-xl flex items-center justify-center dashboard-card shadow-sm flex-shrink-0', isDark ? 'bg-[#0f0f0f] border border-gray-800' : 'bg-white border border-[#512c31]/5')}><Package className={cn('w-4 h-4', isDark ? 'text-gray-400' : 'text-[#e8919a]')} /></div><span className={cn('font-bold text-sm truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</span></div></td>
+                                    <td className={cn('p-3 font-bold truncate', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.category}</td>
+                                    <td className={cn('p-3 font-black', isDark ? 'text-white' : 'text-[#512c31]')}>
                                         {item.packageType === 'single' ? item.stripStock : item.stock} <span className="text-gray-500 font-bold ml-1 text-sm">{item.packageType === 'single' ? 'single' : 'box'}</span>
                                         {item.packageType !== 'single' && <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.stripStock || 0} strips total</span>}
                                     </td>
-                                    <td className={cn('p-5 sm:p-6 font-bold min-w-[260px]', isDark ? 'text-gray-300' : 'text-[#512c31]/80')}>
+                                    <td className={cn('p-3 font-bold', isDark ? 'text-gray-300' : 'text-[#512c31]/80')}>
                                         <div className="flex items-center gap-2 mb-2">
                                             <Layers3 className="w-4 h-4 text-[#e8919a]" />
                                             <span className="text-xs uppercase tracking-widest">{item.batchCount || 0} active batches</span>
@@ -335,30 +338,31 @@ export function Inventory() {
                                             {(item.batches || []).length > 3 && <div className="text-[10px] uppercase tracking-widest text-gray-500">+{item.batches.length - 3} more batches</div>}
                                         </div>
                                     </td>
-                                    <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.threshold}</td>
-                                    <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{getExpiryLabel(item)}</td>
-                                    <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-gray-400' : 'text-[#512c31]')}>
-                                        <span className="block">{getPricingLabel(item)}</span>
+                                    <td className={cn('p-3 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.threshold}</td>
+                                    <td className={cn('p-3 font-bold whitespace-normal', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{getExpiryLabel(item)}</td>
+                                    <td className={cn('p-3 font-black whitespace-normal', isDark ? 'text-gray-400' : 'text-[#512c31]')}>
+                                        <span className="block leading-tight">{getPricingLabel(item)}</span>
+                                        <span className="block text-[10px] uppercase tracking-widest text-emerald-500">{Number(item.gstPercent || 0)}% GST</span>
                                         <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.packageType === 'single' ? 'Single pricing' : `${item.stripsPerUnit || 1} strips per box`}</span>
                                     </td>
-                                    <td className="p-5 sm:p-6"><span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
-                                    <td className="p-5 sm:p-6 text-right">
+                                    <td className="p-3"><span className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
+                                    <td className="p-3 text-right">
                                         {canEditInventory && (
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div className="flex items-center justify-end gap-1.5">
                                                 <button
                                                     onClick={() => openEditModal(item)}
-                                                    className="p-3 text-blue-500 hover:text-white bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                                                    className="p-2 text-blue-500 hover:text-white bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
                                                     title="Edit item"
                                                 >
-                                                    <Pencil className="w-5 h-5" />
+                                                    <Pencil className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), batchNumber: '', expiryDate: '' }); setShowRestockModal(true); }} className="px-4 py-2.5 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-xs font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
+                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), batchNumber: '', expiryDate: '' }); setShowRestockModal(true); }} className="px-2.5 py-2 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-[10px] font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
                                                 <button
                                                     onClick={() => handleDeleteItem(item)}
-                                                    className="p-3 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 dark:bg-red-500/10 dark:hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                                                    className="p-2 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 dark:bg-red-500/10 dark:hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
                                                     title="Delete item"
                                                 >
-                                                    <Trash2 className="w-5 h-5" />
+                                                    <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
                                         )}
@@ -447,6 +451,10 @@ export function Inventory() {
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{addForm.packageType === 'single' ? 'Single Price (Rs)' : 'Box Price (Rs)'}</label>
                                     <input required type="number" step="0.01" value={addForm.sellPrice} onChange={(e) => setAddForm({ ...addForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
+                            </div>
+                            <div>
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>GST Percentage</label>
+                                <input type="number" min="0" max="100" step="0.01" value={addForm.gstPercent} onChange={(e) => setAddForm({ ...addForm, gstPercent: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -561,6 +569,10 @@ export function Inventory() {
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{editForm.packageType === 'single' ? 'Single Price (Rs)' : 'Box Price (Rs)'}</label>
                                     <input type="number" step="0.01" value={editForm.sellPrice} onChange={(e) => setEditForm({ ...editForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
+                            </div>
+                            <div>
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>GST Percentage</label>
+                                <input type="number" min="0" max="100" step="0.01" value={editForm.gstPercent} onChange={(e) => setEditForm({ ...editForm, gstPercent: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PDFViewer } from '@react-pdf/renderer';
-import { AlertTriangle, ArrowLeft, Clock3, Eye, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Calculator, Clock3, Eye, Percent, Plus, ReceiptText, Save, Search, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { cn, getLocalDateString } from '../lib/utils';
-import { createInvoice } from '../lib/accountingApi';
+import { createInvoice, fetchBillingSettings } from '../lib/accountingApi';
 import { fetchInventory, fetchPatients, fetchServices } from '../lib/clinicApi';
 import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
 import { useTenant } from '../context/TenantContext';
@@ -20,6 +20,7 @@ export function CreateInvoice() {
     const [patients, setPatients] = useState([]);
     const [services, setServices] = useState([]);
     const [inventoryItems, setInventoryItems] = useState([]);
+    const [billingSettings, setBillingSettings] = useState({ gstEnabled: false, gstNumber: '' });
     const [showPreview, setShowPreview] = useState(false);
     const [patientQuery, setPatientQuery] = useState('');
     const [showPatientPicker, setShowPatientPicker] = useState(false);
@@ -33,8 +34,6 @@ export function CreateInvoice() {
         invoiceNumber: `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
         date: getLocalDateString(),
         items: [],
-        discount: 0,
-        taxPercent: 0,
     });
     const [invoiceStatus, setInvoiceStatus] = useState('pending');
     const [submitting, setSubmitting] = useState(false);
@@ -42,14 +41,19 @@ export function CreateInvoice() {
 
     const loadFormData = async () => {
         try {
-            const [patientsResult, servicesResult, inventoryResult] = await Promise.all([
+            const [patientsResult, servicesResult, inventoryResult, billingSettingsResult] = await Promise.all([
                 fetchPatients(),
                 fetchServices(),
                 fetchInventory(),
+                fetchBillingSettings(),
             ]);
             setPatients(patientsResult.patients || []);
             setServices(servicesResult.services || []);
             setInventoryItems(inventoryResult.items || []);
+            setBillingSettings({
+                gstEnabled: Boolean(billingSettingsResult.settings?.gstEnabled),
+                gstNumber: billingSettingsResult.settings?.gstNumber || '',
+            });
         } catch (error) {
             setSubmitError(error.message || 'Failed to load invoice form data.');
         }
@@ -69,12 +73,25 @@ export function CreateInvoice() {
         setVisibleItemCount(PAGE_SIZE);
     }, [itemQuery]);
 
+    const getLineTotals = (item) => {
+        const gross = Number(item.price || 0) * Number(item.quantity || 0);
+        const discountPercent = Math.min(100, Math.max(0, Number(item.discountPercent || 0)));
+        const discountAmount = Number((gross * (discountPercent / 100)).toFixed(2));
+        const taxableAmount = Math.max(0, gross - discountAmount);
+        const gstPercent = Math.min(100, Math.max(0, Number(item.gstPercent || 0)));
+        const gstAmount = Number((taxableAmount * (gstPercent / 100)).toFixed(2));
+        const lineTotal = Math.max(0, taxableAmount + gstAmount);
+        return { gross, discountPercent, discountAmount, taxableAmount, gstPercent, gstAmount, lineTotal };
+    };
+
     const calculatedTotals = useMemo(() => {
-        const subtotal = formState.items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
-        const taxAmount = subtotal * (Number(formState.taxPercent) / 100);
-        const total = Math.max(0, subtotal + taxAmount - Number(formState.discount || 0));
-        return { subtotal, taxAmount, total };
-    }, [formState.items, formState.discount, formState.taxPercent]);
+        const lineItems = formState.items.map((item) => ({ ...item, ...getLineTotals(item) }));
+        const subtotal = lineItems.reduce((sum, item) => sum + item.gross, 0);
+        const discount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
+        const taxAmount = lineItems.reduce((sum, item) => sum + item.gstAmount, 0);
+        const total = Math.max(0, subtotal - discount + taxAmount);
+        return { subtotal, discount, taxAmount, total, lineItems };
+    }, [formState.items]);
 
     const getInventoryWarning = (item) => {
         if (!item || item.itemType === 'service') return null;
@@ -103,7 +120,7 @@ export function CreateInvoice() {
             if (service) {
                 setFormState((prev) => ({
                     ...prev,
-                    items: [...prev.items, { id: crypto.randomUUID(), name: service.name, price: Number(service.price), quantity: 1, itemType: 'service', inventoryItemId: null }],
+                    items: [...prev.items, { id: crypto.randomUUID(), name: service.name, price: Number(service.price), quantity: 1, discountPercent: 0, gstPercent: 0, itemType: 'service', inventoryItemId: null }],
                 }));
             }
         }
@@ -118,6 +135,8 @@ export function CreateInvoice() {
                         name: item.name,
                         price: Number(item.sellPrice),
                         quantity: 1,
+                        discountPercent: 0,
+                        gstPercent: Number(item.gstPercent || 0),
                         itemType: 'inventory',
                         inventoryItemId: item.id,
                         packageType: item.packageType || 'box',
@@ -159,6 +178,7 @@ export function CreateInvoice() {
                     : `Inventory - ${i.stock} box / ${i.stripStock || 0} strips`,
                 price: Number(i.sellPrice || 0),
                 stripPrice: Number(i.stripSellPrice || i.sellPrice || 0),
+                gstPercent: Number(i.gstPercent || 0),
                 packageType: i.packageType || 'box',
                 warning: getInventoryWarning({ ...i, itemType: 'inventory' }),
             })),
@@ -220,6 +240,16 @@ export function CreateInvoice() {
         setFormState((prev) => ({ ...prev, items: newItems }));
     };
 
+    const updateItemPercent = (index, key, value) => {
+        const newItems = [...formState.items];
+        const percent = Math.min(100, Math.max(0, Number(value) || 0));
+        newItems[index] = {
+            ...newItems[index],
+            [key]: percent,
+        };
+        setFormState((prev) => ({ ...prev, items: newItems }));
+    };
+
     const updateInventorySaleUnit = (index, saleUnit) => {
         const newItems = [...formState.items];
         const item = newItems[index];
@@ -267,13 +297,15 @@ export function CreateInvoice() {
                     name: item.name,
                     price: Number(item.price),
                     quantity: Number(item.quantity),
+                    discountPercent: Number(item.discountPercent || 0),
+                    gstPercent: Number(item.gstPercent || 0),
                     itemType: item.itemType,
                     inventoryItemId: item.inventoryItemId,
                     saleUnit: item.saleUnit || 'unit',
                 })),
                 subtotal: calculatedTotals.subtotal,
                 tax: calculatedTotals.taxAmount,
-                discount: Number(formState.discount || 0),
+                discount: calculatedTotals.discount,
                 total: calculatedTotals.total,
             });
             await refreshDashboard();
@@ -291,12 +323,14 @@ export function CreateInvoice() {
         date: formState.date,
         status: invoiceStatus,
         clinicName: selectedClinic?.name || '',
+        gstEnabled: billingSettings.gstEnabled,
+        gstNumber: billingSettings.gstNumber,
         patientName: selectedPatient.name || '',
         patientContact: selectedPatient.contact || '',
-        items: formState.items,
+        items: calculatedTotals.lineItems,
         subtotal: calculatedTotals.subtotal,
         tax: calculatedTotals.taxAmount,
-        discount: Number(formState.discount || 0),
+        discount: calculatedTotals.discount,
         total: calculatedTotals.total,
     };
 
@@ -308,9 +342,12 @@ export function CreateInvoice() {
                         <button onClick={() => navigate(-1)} className={cn('w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm hover:shadow-md hover:scale-105', isDark ? 'bg-[#0f0f0f] text-gray-400 hover:text-white' : 'bg-[#fef9f3] text-[#512c31] hover:bg-[#e8919a] hover:text-white')}>
                             <ArrowLeft className="w-5 h-5" />
                         </button>
+                        <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-[#512c31] text-white items-center justify-center shadow-xl">
+                            <ReceiptText className="w-5 h-5" />
+                        </div>
                         <div>
-                            <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Create Invoice</h1>
-                            <p className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>New Billing Record</p>
+                            <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Invoice Workbench</h1>
+                            <p className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Line discounts, GST, stock, and billing controls</p>
                         </div>
                     </div>
                     <button
@@ -408,7 +445,7 @@ export function CreateInvoice() {
                                                     >
                                                         <div className={cn('text-sm font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</div>
                                                         <div className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
-                                                            {item.subtitle} - {item.kind === 'inventory' && item.packageType === 'single' ? `Single Rs ${item.price}` : `Box Rs ${item.price}${item.kind === 'inventory' ? ` - Strip Rs ${item.stripPrice}` : ''}`}
+                                                            {item.subtitle} - {item.kind === 'inventory' && item.packageType === 'single' ? `Single Rs ${item.price}` : `Box Rs ${item.price}${item.kind === 'inventory' ? ` - Strip Rs ${item.stripPrice}` : ''}`} {item.kind === 'inventory' ? `- GST ${item.gstPercent || 0}%` : ''}
                                                         </div>
                                                         {item.warning && (
                                                             <div className={cn('mt-2 flex items-center gap-2 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest', item.warning.level === 'danger' ? 'bg-red-500/10 text-red-400' : 'bg-orange-500/10 text-orange-300')}>
@@ -437,9 +474,33 @@ export function CreateInvoice() {
 
                     <div className="space-y-6">
                         <div className={cn('p-6 sm:p-8 rounded-[2rem] space-y-4 border-4 shadow-xl', isDark ? 'bg-[#0f0f0f] border-white/5' : 'bg-[#fef9f3] border-gray-50')}>
-                            <div className="flex justify-between items-center"><span className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Subtotal</span><span className={cn('font-black text-lg', isDark ? 'text-white' : 'text-[#512c31]')}>Rs{calculatedTotals.subtotal.toFixed(2)}</span></div>
-                            <div className="flex justify-between items-center gap-4"><span className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Tax (%)</span><input type="number" value={formState.taxPercent} onChange={(e) => setFormState({ ...formState, taxPercent: parseFloat(e.target.value) || 0 })} className={cn('w-24 p-2 rounded-xl text-right outline-none font-black text-sm transition-all border-2 focus:border-[#512c31]', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-white border-transparent text-[#512c31]')} /></div>
-                            <div className="flex justify-between items-center gap-4"><span className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Discount (Rs)</span><input type="number" value={formState.discount} onChange={(e) => setFormState({ ...formState, discount: parseFloat(e.target.value) || 0 })} className={cn('w-24 p-2 rounded-xl text-right outline-none font-black text-sm transition-all border-2 focus:border-[#512c31]', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-white border-transparent text-[#512c31]')} /></div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                                    <Calculator className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <div>
+                                    <p className={cn("font-black text-lg", isDark ? "text-white" : "text-[#512c31]")}>Invoice Meter</p>
+                                    <p className={cn("text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>{billingSettings.gstEnabled ? `GST ${billingSettings.gstNumber || 'enabled'}` : 'GST header disabled'}</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className={cn('rounded-2xl p-4', isDark ? 'bg-[#1e1e1e]' : 'bg-white')}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Subtotal</p>
+                                    <p className={cn('mt-2 font-black text-lg', isDark ? 'text-white' : 'text-[#512c31]')}>Rs{calculatedTotals.subtotal.toFixed(2)}</p>
+                                </div>
+                                <div className={cn('rounded-2xl p-4', isDark ? 'bg-[#1e1e1e]' : 'bg-white')}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Discount</p>
+                                    <p className="mt-2 font-black text-lg text-red-400">- Rs{calculatedTotals.discount.toFixed(2)}</p>
+                                </div>
+                                <div className={cn('rounded-2xl p-4', isDark ? 'bg-[#1e1e1e]' : 'bg-white')}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">GST</p>
+                                    <p className="mt-2 font-black text-lg text-emerald-400">+ Rs{calculatedTotals.taxAmount.toFixed(2)}</p>
+                                </div>
+                                <div className={cn('rounded-2xl p-4', isDark ? 'bg-[#1e1e1e]' : 'bg-white')}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Lines</p>
+                                    <p className={cn('mt-2 font-black text-lg', isDark ? 'text-white' : 'text-[#512c31]')}>{formState.items.length}</p>
+                                </div>
+                            </div>
                             <div className={cn("pt-4 border-t-2 flex justify-between items-center", isDark ? "border-gray-800" : "border-gray-200")}><span className={cn("font-black text-xl tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Total</span><span className={cn('font-black text-3xl tracking-tight text-[#e8919a]')}>Rs{calculatedTotals.total.toFixed(2)}</span></div>
                         </div>
 
@@ -455,9 +516,24 @@ export function CreateInvoice() {
                 </div>
 
                 <div className="space-y-3 mt-8">
-                    {formState.items.map((item, index) => (
-                        <div key={item.id} className={cn('flex items-center gap-4 p-4 rounded-[1.5rem] border-2 shadow-sm transition-all hover:shadow-md group', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-white border-gray-100 hover:border-gray-200')}>
-                            <div className="flex-1 min-w-0">
+                    {formState.items.length > 0 && (
+                        <div className={cn('hidden xl:grid grid-cols-[minmax(180px,1.2fr)_720px] gap-4 px-4 text-[10px] font-black uppercase tracking-widest', isDark ? 'text-gray-500' : 'text-[#512c31]/50')}>
+                            <span>Line item</span>
+                            <div className="grid grid-cols-6 gap-2 text-center">
+                                <span>Unit</span>
+                                <span>Rate</span>
+                                <span>Qty</span>
+                                <span>Disc %</span>
+                                <span>GST %</span>
+                                <span>Action</span>
+                            </div>
+                        </div>
+                    )}
+                    {formState.items.map((item, index) => {
+                        const line = getLineTotals(item);
+                        return (
+                        <div key={item.id} className={cn('grid grid-cols-1 xl:grid-cols-[minmax(180px,1.2fr)_auto] gap-4 p-4 rounded-[1.5rem] border-2 shadow-sm transition-all hover:shadow-md group', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-white border-gray-100 hover:border-gray-200')}>
+                            <div className="min-w-0">
                                 <p className={cn('text-base font-black truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</p>
                                 <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-0.5', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
                                     Rs{item.price} - {item.itemType === 'inventory' ? `${item.packageType === 'single' ? 'Single' : item.saleUnit === 'strip' ? 'Strip' : 'Box'} sale` : 'Service'}
@@ -468,17 +544,26 @@ export function CreateInvoice() {
                                         <span className="truncate">{getInventoryWarning(item).message}</span>
                                     </div>
                                 )}
+                                <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-black uppercase tracking-widest">
+                                    <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>Discount Rs{line.discountAmount.toFixed(2)}</span>
+                                    <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>GST Rs{line.gstAmount.toFixed(2)}</span>
+                                    <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>Line Rs{line.lineTotal.toFixed(2)}</span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-                                {item.itemType === 'inventory' && item.packageType !== 'single' && (
+                            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 xl:w-[720px]">
+                                {item.itemType === 'inventory' && item.packageType !== 'single' ? (
                                     <select
                                         value={item.saleUnit || 'unit'}
                                         onChange={(e) => updateInventorySaleUnit(index, e.target.value)}
-                                        className={cn('w-24 sm:w-32 p-2 rounded-xl text-xs font-black outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
+                                        className={cn('w-full p-2 rounded-xl text-xs font-black outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
                                     >
                                         <option value="unit">{item.unit || 'Unit'}</option>
                                         <option value="strip">Strip</option>
                                     </select>
+                                ) : (
+                                    <span className={cn('w-full p-2 rounded-xl text-xs font-black text-center border-2', isDark ? 'bg-[#1e1e1e] border-gray-800 text-gray-400' : 'bg-[#fef9f3] border-transparent text-[#512c31]/60')}>
+                                        {item.itemType === 'inventory' ? 'Single' : 'Service'}
+                                    </span>
                                 )}
                                 <input
                                     type="number"
@@ -486,14 +571,23 @@ export function CreateInvoice() {
                                     step="0.01"
                                     value={item.price}
                                     onChange={(e) => updateItemPrice(index, e.target.value)}
-                                    className={cn('w-20 sm:w-28 p-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
+                                    className={cn('w-full p-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
                                     aria-label="Line price"
                                 />
-                                <input type="number" min="1" value={item.quantity} onChange={(e) => updateItemQuantity(index, e.target.value)} className={cn('w-16 sm:w-20 p-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')} />
+                                <input type="number" min="1" value={item.quantity} onChange={(e) => updateItemQuantity(index, e.target.value)} className={cn('w-full p-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')} aria-label="Quantity" />
+                                <div className="relative">
+                                    <Percent className="absolute left-2 top-2.5 w-3.5 h-3.5 text-red-400" />
+                                    <input type="number" min="0" max="100" step="0.01" value={item.discountPercent || 0} onChange={(e) => updateItemPercent(index, 'discountPercent', e.target.value)} className={cn('w-full pl-7 pr-2 py-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')} aria-label="Discount percent" />
+                                </div>
+                                <div className="relative">
+                                    <Percent className="absolute left-2 top-2.5 w-3.5 h-3.5 text-emerald-400" />
+                                    <input type="number" min="0" max="100" step="0.01" value={item.gstPercent || 0} onChange={(e) => updateItemPercent(index, 'gstPercent', e.target.value)} className={cn('w-full pl-7 pr-2 py-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')} aria-label="GST percent" />
+                                </div>
                                 <button onClick={() => removeItem(index)} className={cn("p-2 sm:p-3 rounded-xl transition-all shadow-sm hover:scale-110", isDark ? "bg-red-500/10 text-red-400 hover:bg-red-500/20" : "bg-red-50 text-red-500 hover:bg-red-100")}><Trash2 className="w-4 h-4 sm:w-5 sm:h-5" /></button>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                     {formState.items.length === 0 && (
                         <div className={cn('text-center py-12 rounded-[2rem] border-4 border-dashed', isDark ? 'border-gray-800 text-gray-500' : 'border-gray-100 text-[#512c31]/40 font-bold uppercase tracking-widest text-xs')}>No items added yet</div>
                     )}

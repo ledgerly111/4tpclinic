@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { cn } from '../lib/utils';
 import { useStore } from '../context/StoreContext';
 
 export function Layout() {
@@ -10,9 +9,8 @@ export function Layout() {
     const isDashboard = location.pathname === '/app' || location.pathname === '/app/dashboard';
     const scrollRef = useRef(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const { theme } = useStore();
-
-    const isDark = theme === 'dark';
+    const store = useStore();
+    const theme = store?.theme || 'dark';
 
     useEffect(() => {
         // Scroll to top on route change.

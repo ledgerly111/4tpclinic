@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, LogOut, Download, Smartphone, Monitor, Apple, X, Check, ChevronRight } from 'lucide-react';
+import { Moon, Sun, LogOut, Download, Smartphone, Monitor, Apple, X, Check, Percent } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
+import { fetchBillingSettings, updateBillingSettings } from '../lib/accountingApi';
 
 // ── Install instructions per platform ─────────────────────────────────────
 const PLATFORMS = [
@@ -64,6 +65,10 @@ export function Settings() {
     const [activePlatform, setActivePlatform] = useState('android');
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [canInstall, setCanInstall] = useState(false);
+    const [gstEnabled, setGstEnabled] = useState(false);
+    const [gstNumber, setGstNumber] = useState('');
+    const [gstSaving, setGstSaving] = useState(false);
+    const [gstMessage, setGstMessage] = useState('');
 
     // Capture the browser's native install prompt if available
     useEffect(() => {
@@ -74,6 +79,22 @@ export function Settings() {
         };
         window.addEventListener('beforeinstallprompt', handler);
         return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+        fetchBillingSettings()
+            .then((result) => {
+                if (!isMounted) return;
+                setGstEnabled(Boolean(result.settings?.gstEnabled));
+                setGstNumber(result.settings?.gstNumber || '');
+            })
+            .catch(() => {
+                if (isMounted) setGstMessage('Could not load GST settings.');
+            });
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     const handleNativeInstall = async () => {
@@ -87,6 +108,28 @@ export function Settings() {
     const handleLogout = () => {
         logout();
         navigate('/login');
+    };
+
+    const handleSaveGst = async () => {
+        setGstMessage('');
+        if (gstEnabled && !gstNumber.trim()) {
+            setGstMessage('Enter the GST number before enabling GST.');
+            return;
+        }
+        setGstSaving(true);
+        try {
+            const result = await updateBillingSettings({
+                gstEnabled,
+                gstNumber: gstNumber.trim(),
+            });
+            setGstEnabled(Boolean(result.settings?.gstEnabled));
+            setGstNumber(result.settings?.gstNumber || '');
+            setGstMessage('GST settings saved.');
+        } catch (error) {
+            setGstMessage(error.message || 'Could not save GST settings.');
+        } finally {
+            setGstSaving(false);
+        }
     };
 
     const platform = PLATFORMS.find((p) => p.id === activePlatform);
@@ -130,17 +173,68 @@ export function Settings() {
                     <button
                         onClick={toggleTheme}
                         className={cn(
-                            'w-14 h-7 rounded-full transition-all relative flex-shrink-0 shadow-inner',
+                            'w-14 h-7 rounded-full transition-all relative flex-shrink-0 shadow-inner p-1',
                             isDark ? 'bg-[#e8919a]' : 'bg-gray-200'
                         )}
                         aria-label="Toggle theme"
                     >
                         <span className={cn(
-                            'absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform',
-                            isDark ? 'translate-x-8' : 'translate-x-1'
+                            'absolute left-1 top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200',
+                            isDark ? 'translate-x-7' : 'translate-x-0'
                         )} />
                     </button>
                 </div>
+            </div>
+
+            <div className={card}>
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', isDark ? 'bg-emerald-500/10' : 'bg-emerald-50')}>
+                            <Percent className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <div>
+                            <p className={cn('font-black text-sm sm:text-base', isDark ? 'text-white' : 'text-[#512c31]')}>Enable GST</p>
+                            <p className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
+                                Show your GST number in invoice headers
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setGstEnabled((value) => !value)}
+                        className={cn(
+                            'w-14 h-7 rounded-full transition-all relative flex-shrink-0 shadow-inner p-1',
+                            gstEnabled ? 'bg-emerald-500' : isDark ? 'bg-white/10' : 'bg-gray-200'
+                        )}
+                        aria-label="Enable GST"
+                    >
+                        <span className={cn(
+                            'absolute left-1 top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200',
+                            gstEnabled ? 'translate-x-7' : 'translate-x-0'
+                        )} />
+                    </button>
+                </div>
+                {gstEnabled && (
+                    <div className="mt-5">
+                        <label className={cn('block text-[10px] font-black uppercase tracking-widest mb-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>GST Number</label>
+                        <input
+                            value={gstNumber}
+                            onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
+                            className={cn('w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}
+                            placeholder="Enter GST number"
+                        />
+                    </div>
+                )}
+                {gstMessage && (
+                    <p className={cn('mt-3 text-xs font-bold', gstMessage.includes('saved') ? 'text-emerald-400' : 'text-red-400')}>{gstMessage}</p>
+                )}
+                <button
+                    onClick={handleSaveGst}
+                    disabled={gstSaving}
+                    className="mt-5 w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#512c31] text-white rounded-2xl hover:bg-[#e8919a] hover:scale-[1.02] transition-all text-xs font-bold uppercase tracking-widest shadow-xl hover:shadow-2xl disabled:opacity-60"
+                >
+                    <Check className="w-4 h-4" />
+                    {gstSaving ? 'Applying...' : 'Apply GST Settings'}
+                </button>
             </div>
 
             {/* ── Install App ── */}

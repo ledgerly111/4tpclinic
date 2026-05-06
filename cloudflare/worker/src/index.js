@@ -47,6 +47,8 @@ const SCHEMA_STATEMENTS = [
         name TEXT NOT NULL,
         admin_user_id TEXT,
         clinic_limit INTEGER NOT NULL DEFAULT 3,
+        gst_enabled INTEGER NOT NULL DEFAULT 0,
+        gst_number TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     )`,
     `CREATE TABLE IF NOT EXISTS clinics (
@@ -121,6 +123,11 @@ const SCHEMA_STATEMENTS = [
         unit_price_cents INTEGER NOT NULL,
         quantity INTEGER NOT NULL CHECK (quantity > 0),
         line_total_cents INTEGER NOT NULL,
+        discount_percent REAL NOT NULL DEFAULT 0,
+        discount_cents INTEGER NOT NULL DEFAULT 0,
+        gst_percent REAL NOT NULL DEFAULT 0,
+        gst_cents INTEGER NOT NULL DEFAULT 0,
+        taxable_cents INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         sale_unit TEXT NOT NULL DEFAULT 'unit',
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
@@ -176,6 +183,7 @@ const SCHEMA_STATEMENTS = [
         strips_per_unit INTEGER NOT NULL DEFAULT 1,
         strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
         strip_sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        gst_percent REAL NOT NULL DEFAULT 0,
         expiry_date TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -388,6 +396,12 @@ function fromCents(value) {
     return Number(((Number(value) || 0) / 100).toFixed(2));
 }
 
+function toPercent(value) {
+    const parsed = Number(value || 0);
+    if (!Number.isFinite(parsed)) return 0;
+    return Number(Math.min(100, Math.max(0, parsed)).toFixed(2));
+}
+
 function sanitizeDate(value) {
     if (!value) return new Date().toISOString().split('T')[0];
     return String(value).split('T')[0];
@@ -505,6 +519,12 @@ async function ensureOrganizationColumns(db) {
     if (!names.has('clinic_limit')) {
         await db.prepare(`ALTER TABLE organizations ADD COLUMN clinic_limit INTEGER NOT NULL DEFAULT ${DEFAULT_CLINIC_LIMIT}`).run();
     }
+    if (!names.has('gst_enabled')) {
+        await db.prepare('ALTER TABLE organizations ADD COLUMN gst_enabled INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('gst_number')) {
+        await db.prepare('ALTER TABLE organizations ADD COLUMN gst_number TEXT').run();
+    }
 
     await db.prepare(`
         UPDATE organizations
@@ -526,6 +546,28 @@ async function ensureInvoiceItemColumns(db) {
     if (!names.has('sale_unit')) {
         await db.prepare("ALTER TABLE invoice_items ADD COLUMN sale_unit TEXT NOT NULL DEFAULT 'unit'").run();
     }
+    if (!names.has('discount_percent')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN discount_percent REAL NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('discount_cents')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN discount_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('gst_percent')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN gst_percent REAL NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('gst_cents')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN gst_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('taxable_cents')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN taxable_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    await db.prepare(`
+        UPDATE invoice_items
+        SET taxable_cents = CASE
+                WHEN taxable_cents IS NULL OR taxable_cents = 0 THEN MAX(0, line_total_cents - COALESCE(discount_cents, 0))
+                ELSE taxable_cents
+            END
+    `).run();
 }
 
 async function ensureInventoryColumns(db) {
@@ -542,6 +584,9 @@ async function ensureInventoryColumns(db) {
     }
     if (!names.has('strip_sell_price_cents')) {
         await db.prepare('ALTER TABLE inventory_items ADD COLUMN strip_sell_price_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('gst_percent')) {
+        await db.prepare('ALTER TABLE inventory_items ADD COLUMN gst_percent REAL NOT NULL DEFAULT 0').run();
     }
     await db.prepare(`
         UPDATE inventory_items
@@ -795,6 +840,78 @@ async function resolveUniqueInvoiceNumber(db, requestedNumber) {
     }
 
     throw new HttpError(409, explicit ? 'Invoice number already exists.' : 'Could not generate a unique invoice number.');
+}
+
+async function resolveBillingSettingsOrganizationId(db, request, user, body = null) {
+    if (user.role === 'admin' || user.role === 'staff') return user.organizationId;
+
+    const bodyOrgId = body?.organizationId ? String(body.organizationId).trim() : '';
+    if (bodyOrgId) return bodyOrgId;
+
+    const activeClinicId = await resolveActiveClinicId(db, request, user, false);
+    if (activeClinicId) {
+        const clinic = await db.prepare('SELECT organization_id FROM clinics WHERE id = ? LIMIT 1').bind(activeClinicId).first();
+        return clinic?.organization_id || null;
+    }
+
+    return null;
+}
+
+async function getBillingSettings(env, request) {
+    const { user } = await requireAuth(request, env);
+    const db = requireDb(env);
+    const organizationId = await resolveBillingSettingsOrganizationId(db, request, user);
+    if (!organizationId) throw new HttpError(400, 'Organization is required.');
+
+    const organization = await db
+        .prepare('SELECT id, name, gst_enabled, gst_number FROM organizations WHERE id = ? LIMIT 1')
+        .bind(organizationId)
+        .first();
+    if (!organization) throw new HttpError(404, 'Organization not found.');
+
+    if ((user.role === 'admin' || user.role === 'staff') && organization.id !== user.organizationId) {
+        throw new HttpError(403, 'Organization is outside your access scope.');
+    }
+
+    return jsonResponse({
+        settings: {
+            organizationId: organization.id,
+            organizationName: organization.name,
+            gstEnabled: Boolean(organization.gst_enabled),
+            gstNumber: organization.gst_number || '',
+        },
+    });
+}
+
+async function updateBillingSettings(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireRoles(user, ['admin', 'super_admin']);
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+    const organizationId = await resolveBillingSettingsOrganizationId(db, request, user, body);
+    if (!organizationId) throw new HttpError(400, 'Organization is required.');
+    if (user.role === 'admin' && organizationId !== user.organizationId) {
+        throw new HttpError(403, 'Organization is outside your access scope.');
+    }
+
+    const gstEnabled = Boolean(body.gstEnabled);
+    const gstNumber = String(body.gstNumber || '').trim().toUpperCase();
+    if (gstEnabled && !gstNumber) throw new HttpError(400, 'GST number is required when GST is enabled.');
+    if (gstNumber.length > 32) throw new HttpError(400, 'GST number is too long.');
+
+    const result = await db
+        .prepare('UPDATE organizations SET gst_enabled = ?, gst_number = ? WHERE id = ?')
+        .bind(gstEnabled ? 1 : 0, gstEnabled ? gstNumber : '', organizationId)
+        .run();
+    if (!result.success) throw new HttpError(500, 'Failed to update GST settings.');
+
+    return jsonResponse({
+        settings: {
+            organizationId,
+            gstEnabled,
+            gstNumber: gstEnabled ? gstNumber : '',
+        },
+    });
 }
 
 function mapInvoiceRow(row) {
@@ -1906,7 +2023,7 @@ async function listInventory(env, request, url) {
         SELECT
             id, organization_id, clinic_id, name, category, unit, stock_quantity,
             reorder_threshold, cost_price_cents, sell_price_cents, strips_per_unit,
-            strip_stock_quantity, strip_sell_price_cents, expiry_date, created_at, updated_at
+            strip_stock_quantity, strip_sell_price_cents, gst_percent, expiry_date, created_at, updated_at
         FROM inventory_items
         WHERE 1 = 1
     `;
@@ -2015,6 +2132,7 @@ async function listInventory(env, request, url) {
                 stripsPerUnit,
                 stripStock,
                 stripSellPrice: fromCents(row.strip_sell_price_cents || row.sell_price_cents),
+                gstPercent: toPercent(row.gst_percent),
                 expiryDate,
                 daysToExpiry: expiryMeta.daysToExpiry,
                 expiryStatus: expiryMeta.expiryStatus,
@@ -2061,6 +2179,7 @@ async function createInventoryItem(env, request) {
         ? stock
         : Math.max(0, Number.parseInt(body.stripStock, 10) || (stock * stripsPerUnit));
     const stripSellCents = toCents(body.stripSellPrice || fromCents(sellCents));
+    const gstPercent = toPercent(body.gstPercent);
     const expiryDate = sanitizeOptionalDate(body.expiryDate);
     const batchNumber = normalizeBatchNumber(body.batchNumber);
 
@@ -2069,9 +2188,9 @@ async function createInventoryItem(env, request) {
             INSERT INTO inventory_items (
                 id, organization_id, clinic_id, name, category, unit,
                 stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents,
-                strips_per_unit, strip_stock_quantity, strip_sell_price_cents, expiry_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, organizationId, activeClinicId, name, category, unit, packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, stripsPerUnit, stripStock, stripSellCents, expiryDate),
+                strips_per_unit, strip_stock_quantity, strip_sell_price_cents, gst_percent, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, organizationId, activeClinicId, name, category, unit, packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, stripsPerUnit, stripStock, stripSellCents, gstPercent, expiryDate),
     ];
 
     if (stripStock > 0) {
@@ -2117,6 +2236,7 @@ async function createInventoryItem(env, request) {
             stripsPerUnit,
             stripStock,
             stripSellPrice: fromCents(stripSellCents),
+            gstPercent,
             expiryDate: expiryDate || '',
             batchNumber,
             type: 'inventory',
@@ -2156,6 +2276,7 @@ async function updateInventoryItem(env, request, itemId) {
     const sellCents = toCents(body.sellPrice);
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(body.stripsPerUnit);
     const stripSellCents = packageType === 'single' ? sellCents : toCents(body.stripSellPrice || fromCents(sellCents));
+    const gstPercent = toPercent(body.gstPercent);
     const expiryDate = Object.prototype.hasOwnProperty.call(body, 'expiryDate')
         ? sanitizeOptionalDate(body.expiryDate)
         : null;
@@ -2174,6 +2295,7 @@ async function updateInventoryItem(env, request, itemId) {
             cost_price_cents = ?,
             sell_price_cents = ?,
             strip_sell_price_cents = ?,
+            gst_percent = ?,
             expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?
@@ -2187,6 +2309,7 @@ async function updateInventoryItem(env, request, itemId) {
         costCents,
         sellCents,
         stripSellCents,
+        gstPercent,
         Object.prototype.hasOwnProperty.call(body, 'expiryDate') ? 1 : 0,
         expiryDate,
         itemId
@@ -2537,6 +2660,8 @@ async function getInvoiceDetails(env, request, invoiceId) {
             patient_contact, invoice_date, status, subtotal_cents, tax_cents,
             discount_cents, total_cents, notes, created_at
             , (SELECT c.name FROM clinics c WHERE c.id = invoices.clinic_id) AS clinic_name
+            , (SELECT o.gst_enabled FROM organizations o WHERE o.id = invoices.organization_id) AS gst_enabled
+            , (SELECT o.gst_number FROM organizations o WHERE o.id = invoices.organization_id) AS gst_number
         FROM invoices
         WHERE id = ?
         LIMIT 1
@@ -2553,7 +2678,8 @@ async function getInvoiceDetails(env, request, invoiceId) {
     }
 
     const itemsResult = await db.prepare(`
-        SELECT id, item_name, unit_price_cents, quantity, line_total_cents, item_type, inventory_item_id, sale_unit
+        SELECT id, item_name, unit_price_cents, quantity, line_total_cents, item_type, inventory_item_id, sale_unit,
+            discount_percent, discount_cents, gst_percent, gst_cents, taxable_cents
         FROM invoice_items
         WHERE invoice_id = ?
         ORDER BY created_at ASC
@@ -2576,6 +2702,8 @@ async function getInvoiceDetails(env, request, invoiceId) {
             discount: fromCents(invoice.discount_cents),
             total: fromCents(invoice.total_cents),
             notes: invoice.notes || '',
+            gstEnabled: Boolean(invoice.gst_enabled),
+            gstNumber: invoice.gst_number || '',
             createdAt: invoice.created_at,
             items: (itemsResult.results || []).map((item) => ({
                 id: item.id,
@@ -2583,6 +2711,12 @@ async function getInvoiceDetails(env, request, invoiceId) {
                 price: fromCents(item.unit_price_cents),
                 quantity: item.quantity,
                 total: fromCents(item.line_total_cents),
+                gross: fromCents(Number(item.unit_price_cents || 0) * Number(item.quantity || 0)),
+                discountPercent: toPercent(item.discount_percent),
+                discountAmount: fromCents(item.discount_cents),
+                gstPercent: toPercent(item.gst_percent),
+                gstAmount: fromCents(item.gst_cents),
+                taxableAmount: fromCents(item.taxable_cents),
                 itemType: item.item_type || 'service',
                 inventoryItemId: item.inventory_item_id || null,
                 saleUnit: item.sale_unit || 'unit',
@@ -2692,6 +2826,18 @@ async function createInvoice(env, request) {
         const name = String(item.name || '').trim();
         const quantity = Math.max(1, Number.parseInt(item.quantity, 10) || 1);
         const unitPriceCents = toCents(item.price);
+        const grossCents = quantity * unitPriceCents;
+        const discountPercent = toPercent(item.discountPercent);
+        const explicitDiscountCents = Object.prototype.hasOwnProperty.call(item, 'discountAmount')
+            ? toCents(item.discountAmount)
+            : null;
+        const discountCents = Math.min(
+            grossCents,
+            explicitDiscountCents === null ? Math.round(grossCents * (discountPercent / 100)) : explicitDiscountCents
+        );
+        const taxableCents = Math.max(0, grossCents - discountCents);
+        const gstPercent = toPercent(item.gstPercent);
+        const gstCents = Math.round(taxableCents * (gstPercent / 100));
         const itemType = String(item.itemType || 'service').toLowerCase() === 'inventory' ? 'inventory' : 'service';
         const saleUnit = itemType === 'inventory' ? normalizeSaleUnit(item.saleUnit) : 'unit';
         const inventoryItemId = itemType === 'inventory' && item.inventoryItemId
@@ -2703,7 +2849,13 @@ async function createInvoice(env, request) {
             name,
             quantity,
             unitPriceCents,
-            lineTotalCents: quantity * unitPriceCents,
+            grossCents,
+            discountPercent,
+            discountCents,
+            gstPercent,
+            gstCents,
+            taxableCents,
+            lineTotalCents: taxableCents + gstCents,
             itemType,
             inventoryItemId,
             saleUnit,
@@ -2717,9 +2869,9 @@ async function createInvoice(env, request) {
     const invoiceId = crypto.randomUUID();
     const invoiceNumber = await resolveUniqueInvoiceNumber(db, body.invoiceNumber);
     const invoiceDate = sanitizeDate(body.date);
-    const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.lineTotalCents, 0);
-    const taxCents = toCents(body.tax);
-    const discountCents = toCents(body.discount);
+    const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.grossCents, 0);
+    const taxCents = normalizedItems.reduce((sum, item) => sum + item.gstCents, 0);
+    const discountCents = normalizedItems.reduce((sum, item) => sum + item.discountCents, 0);
     const totalCents = Math.max(0, subtotalCents + taxCents - discountCents);
 
     const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
@@ -2780,8 +2932,13 @@ async function createInvoice(env, request) {
                         line_total_cents,
                         item_type,
                         inventory_item_id,
-                        sale_unit
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        sale_unit,
+                        discount_percent,
+                        discount_cents,
+                        gst_percent,
+                        gst_cents,
+                        taxable_cents
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `)
                 .bind(
                     item.id,
@@ -2792,7 +2949,12 @@ async function createInvoice(env, request) {
                     item.lineTotalCents,
                     item.itemType,
                     item.inventoryItemId,
-                    item.saleUnit
+                    item.saleUnit,
+                    item.discountPercent,
+                    item.discountCents,
+                    item.gstPercent,
+                    item.gstCents,
+                    item.taxableCents
                 )
         );
     });
@@ -2804,7 +2966,7 @@ async function createInvoice(env, request) {
         }
 
         const inventoryRow = await db.prepare(`
-            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, unit, strips_per_unit, strip_stock_quantity
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, unit, strips_per_unit, strip_stock_quantity, gst_percent
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -3142,6 +3304,8 @@ export default {
             if (pathname === '/api/admin/supervision' && request.method === 'GET') return await getAdminSupervision(env, request);
             if (pathname === '/api/admin/clinics' && request.method === 'POST') return await createClinic(env, request);
             if (pathname === '/api/admin/staff' && request.method === 'POST') return await createStaff(env, request);
+            if (pathname === '/api/billing-settings' && request.method === 'GET') return await getBillingSettings(env, request);
+            if (pathname === '/api/billing-settings' && request.method === 'PATCH') return await updateBillingSettings(env, request);
 
             const resetPasswordMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/password$/);
             if (resetPasswordMatch && request.method === 'PATCH') {
