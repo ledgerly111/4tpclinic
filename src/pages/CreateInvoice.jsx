@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PDFViewer } from '@react-pdf/renderer';
-import { ArrowLeft, Eye, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Clock3, Eye, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { cn, getLocalDateString } from '../lib/utils';
@@ -76,6 +76,27 @@ export function CreateInvoice() {
         return { subtotal, taxAmount, total };
     }, [formState.items, formState.discount, formState.taxPercent]);
 
+    const getInventoryWarning = (item) => {
+        if (!item || item.itemType === 'service') return null;
+        const batches = Array.isArray(item.batches) ? item.batches : [];
+        const expired = batches.filter((batch) => batch.expiryStatus === 'expired');
+        const expiringSoon = batches.filter((batch) => batch.expiryStatus === 'expiring_soon');
+        if (expired.length > 0) {
+            return {
+                level: 'danger',
+                message: `${expired.length} batch${expired.length > 1 ? 'es are' : ' is'} expired. Expired stock will not be sold.`,
+            };
+        }
+        if (expiringSoon.length > 0 || item.expiryStatus === 'expiring_soon') {
+            const soonest = expiringSoon[0] || item;
+            return {
+                level: 'warning',
+                message: `Expiry alert: batch ${soonest.batchNumber || 'stock'} expires in ${soonest.daysToExpiry ?? '?'} days. Use FEFO stock carefully.`,
+            };
+        }
+        return null;
+    };
+
     const handleAddItem = (kind, id) => {
         if (kind === 'service') {
             const service = services.find((s) => s.id === id);
@@ -99,13 +120,18 @@ export function CreateInvoice() {
                         quantity: 1,
                         itemType: 'inventory',
                         inventoryItemId: item.id,
-                        maxStock: item.stock,
+                        packageType: item.packageType || 'box',
+                        maxStock: item.packageType === 'single' ? Number(item.stripStock || 0) : item.stock,
                         stripStock: Number(item.stripStock || item.stock || 0),
                         unit: item.unit,
                         saleUnit: 'unit',
                         unitPrice: Number(item.sellPrice || 0),
                         stripPrice: Number(item.stripSellPrice || item.sellPrice || 0),
                         stripsPerUnit: Number(item.stripsPerUnit || 1),
+                        batches: item.batches || [],
+                        expiryStatus: item.expiryStatus,
+                        daysToExpiry: item.daysToExpiry,
+                        expiryDate: item.expiryDate,
                     }],
                 }));
             }
@@ -128,9 +154,13 @@ export function CreateInvoice() {
                 kind: 'inventory',
                 id: i.id,
                 name: i.name,
-                subtitle: `Inventory - ${i.stock} ${i.unit} / ${i.stripStock || 0} strips`,
+                subtitle: i.packageType === 'single'
+                    ? `Inventory - ${i.stripStock || 0} single stock`
+                    : `Inventory - ${i.stock} box / ${i.stripStock || 0} strips`,
                 price: Number(i.sellPrice || 0),
                 stripPrice: Number(i.stripSellPrice || i.sellPrice || 0),
+                packageType: i.packageType || 'box',
+                warning: getInventoryWarning({ ...i, itemType: 'inventory' }),
             })),
         ];
 
@@ -194,7 +224,7 @@ export function CreateInvoice() {
         const newItems = [...formState.items];
         const item = newItems[index];
         if (!item || item.itemType !== 'inventory') return;
-        const nextSaleUnit = saleUnit === 'strip' ? 'strip' : 'unit';
+        const nextSaleUnit = item.packageType !== 'single' && saleUnit === 'strip' ? 'strip' : 'unit';
         const nextMaxStock = nextSaleUnit === 'strip' ? Number(item.stripStock || 0) : Number(item.maxStock || 0);
         newItems[index] = {
             ...item,
@@ -378,8 +408,14 @@ export function CreateInvoice() {
                                                     >
                                                         <div className={cn('text-sm font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</div>
                                                         <div className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
-                                                            {item.subtitle} - Box/Full Rs {item.price}{item.kind === 'inventory' ? ` - Strip Rs ${item.stripPrice}` : ''}
+                                                            {item.subtitle} - {item.kind === 'inventory' && item.packageType === 'single' ? `Single Rs ${item.price}` : `Box Rs ${item.price}${item.kind === 'inventory' ? ` - Strip Rs ${item.stripPrice}` : ''}`}
                                                         </div>
+                                                        {item.warning && (
+                                                            <div className={cn('mt-2 flex items-center gap-2 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest', item.warning.level === 'danger' ? 'bg-red-500/10 text-red-400' : 'bg-orange-500/10 text-orange-300')}>
+                                                                {item.warning.level === 'danger' ? <AlertTriangle className="w-3 h-3" /> : <Clock3 className="w-3 h-3" />}
+                                                                {item.warning.message}
+                                                            </div>
+                                                        )}
                                                     </button>
                                                 ))}
                                                 {visibleItemCount < availableItems.length && (
@@ -424,11 +460,17 @@ export function CreateInvoice() {
                             <div className="flex-1 min-w-0">
                                 <p className={cn('text-base font-black truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</p>
                                 <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-0.5', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
-                                    Rs{item.price} - {item.itemType === 'inventory' ? `${item.saleUnit === 'strip' ? 'Strip' : item.unit || 'Unit'} sale` : 'Service'}
+                                    Rs{item.price} - {item.itemType === 'inventory' ? `${item.packageType === 'single' ? 'Single' : item.saleUnit === 'strip' ? 'Strip' : 'Box'} sale` : 'Service'}
                                 </p>
+                                {getInventoryWarning(item) && (
+                                    <div className={cn('mt-2 inline-flex max-w-full items-center gap-2 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest', getInventoryWarning(item).level === 'danger' ? 'bg-red-500/10 text-red-400' : 'bg-orange-500/10 text-orange-300')}>
+                                        {getInventoryWarning(item).level === 'danger' ? <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> : <Clock3 className="w-3.5 h-3.5 flex-shrink-0" />}
+                                        <span className="truncate">{getInventoryWarning(item).message}</span>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-                                {item.itemType === 'inventory' && (
+                                {item.itemType === 'inventory' && item.packageType !== 'single' && (
                                     <select
                                         value={item.saleUnit || 'unit'}
                                         onChange={(e) => updateInventorySaleUnit(index, e.target.value)}

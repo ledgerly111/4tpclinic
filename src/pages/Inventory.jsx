@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Package, AlertTriangle, CheckCircle, TrendingDown, Box, X, Clock3, Pencil } from 'lucide-react';
+import { Plus, Search, Package, AlertTriangle, CheckCircle, TrendingDown, Box, X, Clock3, Pencil, Trash2, Layers3 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
-import { createInventoryItem, fetchInventory, restockInventoryItem, updateInventoryItem } from '../lib/clinicApi';
+import { createInventoryItem, deleteInventoryItem, fetchInventory, restockInventoryItem, updateInventoryItem } from '../lib/clinicApi';
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
 
@@ -21,9 +21,9 @@ export function Inventory() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showRestockModal, setShowRestockModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
-    const initialAddForm = { name: '', category: 'General', unit: 'box', stock: '', stripsPerUnit: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', expiryDate: '' };
+    const initialAddForm = { name: '', category: 'General', packageType: 'box', unit: 'box', stock: '', stripsPerUnit: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', batchNumber: '', expiryDate: '' };
     const [addForm, setAddForm] = useState(initialAddForm);
-    const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', expiryDate: '' });
+    const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', batchNumber: '', expiryDate: '' });
     const [showEditModal, setShowEditModal] = useState(false);
     const [editForm, setEditForm] = useState(null);
 
@@ -59,8 +59,8 @@ export function Inventory() {
     ), [filteredItems, visibleCount]);
 
     const lowStockCount = items.filter((i) => i.stockStatus === 'low' || i.stockStatus === 'critical').length;
-    const expiredCount = items.filter((i) => i.expiryStatus === 'expired').length;
-    const expiringSoonCount = items.filter((i) => i.expiryStatus === 'expiring_soon').length;
+    const expiredCount = items.filter((i) => i.expiryStatus === 'expired' || i.batches?.some((batch) => batch.expiryStatus === 'expired')).length;
+    const expiringSoonCount = items.filter((i) => i.expiryStatus === 'expiring_soon' || i.batches?.some((batch) => batch.expiryStatus === 'expiring_soon')).length;
     const totalItems = items.length;
 
     const getStatusColor = (status) => {
@@ -86,6 +86,18 @@ export function Inventory() {
         return item.expiryDate;
     };
 
+    const getBatchExpiryLabel = (batch) => {
+        if (!batch?.expiryDate) return 'No expiry';
+        if (batch.expiryStatus === 'expired') return `Expired ${Math.abs(Number(batch.daysToExpiry || 0))}d ago`;
+        if (batch.expiryStatus === 'expiring_soon') return `${batch.daysToExpiry}d left`;
+        return batch.expiryDate;
+    };
+
+    const getPricingLabel = (item) => {
+        if (item.packageType === 'single') return `Single Rs${item.sellPrice}`;
+        return `Box Rs${item.sellPrice} / Strip Rs${item.stripSellPrice || item.sellPrice}`;
+    };
+
     const handleAddItem = async (e) => {
         e.preventDefault();
         setError('');
@@ -96,12 +108,15 @@ export function Inventory() {
         try {
             await createInventoryItem({
                 ...addForm,
+                packageType: addForm.packageType,
+                unit: addForm.packageType === 'single' ? 'single' : 'box',
                 stock: Number(addForm.stock),
                 threshold: Number(addForm.threshold),
                 costPrice: Number(addForm.costPrice),
                 sellPrice: Number(addForm.sellPrice),
-                stripsPerUnit: Number(addForm.stripsPerUnit || 1),
-                stripSellPrice: Number(addForm.stripSellPrice || addForm.sellPrice),
+                stripsPerUnit: addForm.packageType === 'single' ? 1 : Number(addForm.stripsPerUnit || 1),
+                stripSellPrice: addForm.packageType === 'single' ? Number(addForm.sellPrice) : Number(addForm.stripSellPrice || addForm.sellPrice),
+                batchNumber: addForm.batchNumber || 'OPENING',
                 expiryDate: addForm.expiryDate || null,
             });
             setShowAddModal(false);
@@ -124,11 +139,12 @@ export function Inventory() {
             await restockInventoryItem(selectedItem.id, {
                 quantity: Number(restockForm.quantity),
                 costPrice: Number(restockForm.costPrice || selectedItem.costPrice),
+                batchNumber: restockForm.batchNumber || 'RESTOCK',
                 expiryDate: restockForm.expiryDate || null,
             });
             setShowRestockModal(false);
             setSelectedItem(null);
-            setRestockForm({ quantity: '', costPrice: '', expiryDate: '' });
+            setRestockForm({ quantity: '', costPrice: '', batchNumber: '', expiryDate: '' });
             await loadInventory();
         } catch (err) {
             setError(err.message || 'Failed to restock item.');
@@ -140,6 +156,7 @@ export function Inventory() {
             id: item.id,
             name: item.name,
             category: item.category,
+            packageType: item.packageType || 'box',
             unit: item.unit,
             stripsPerUnit: String(item.stripsPerUnit || 1),
             threshold: String(item.threshold || ''),
@@ -162,12 +179,13 @@ export function Inventory() {
             await updateInventoryItem(editForm.id, {
                 name: editForm.name,
                 category: editForm.category,
-                unit: editForm.unit,
+                packageType: editForm.packageType,
+                unit: editForm.packageType === 'single' ? 'single' : 'box',
                 threshold: Number(editForm.threshold),
                 costPrice: Number(editForm.costPrice),
                 sellPrice: Number(editForm.sellPrice),
-                stripsPerUnit: Number(editForm.stripsPerUnit || 1),
-                stripSellPrice: Number(editForm.stripSellPrice || editForm.sellPrice),
+                stripsPerUnit: editForm.packageType === 'single' ? 1 : Number(editForm.stripsPerUnit || 1),
+                stripSellPrice: editForm.packageType === 'single' ? Number(editForm.sellPrice) : Number(editForm.stripSellPrice || editForm.sellPrice),
                 expiryDate: editForm.expiryDate || null,
             });
             setShowEditModal(false);
@@ -175,6 +193,22 @@ export function Inventory() {
             await loadInventory();
         } catch (err) {
             setError(err.message || 'Failed to update inventory item.');
+        }
+    };
+
+    const handleDeleteItem = async (item) => {
+        if (!canEditInventory) {
+            setError('You do not have permission to edit inventory.');
+            return;
+        }
+        const ok = window.confirm(`Delete ${item.name} and all its batches? This cannot be undone.`);
+        if (!ok) return;
+        setError('');
+        try {
+            await deleteInventoryItem(item.id);
+            await loadInventory();
+        } catch (err) {
+            setError(err.message || 'Failed to delete inventory item.');
         }
     };
 
@@ -218,15 +252,15 @@ export function Inventory() {
             )}
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 dashboard-reveal reveal-delay-1">
-                {[{ icon: Box, color: 'blue', label: 'Total Items', value: totalItems },
-                { icon: CheckCircle, color: 'green', label: 'In Stock', value: items.filter((i) => i.stockStatus === 'good').length },
-                { icon: TrendingDown, color: 'yellow', label: 'Low Stock', value: lowStockCount },
-                { icon: AlertTriangle, color: 'red', label: 'Expired', value: expiredCount },
-                ].map(({ icon: Icon, color, label, value }) => (
+                {[{ renderIcon: (className) => <Box className={className} />, color: 'blue', label: 'Total Items', value: totalItems },
+                { renderIcon: (className) => <CheckCircle className={className} />, color: 'green', label: 'In Stock', value: items.filter((i) => i.stockStatus === 'good').length },
+                { renderIcon: (className) => <TrendingDown className={className} />, color: 'yellow', label: 'Low Stock', value: lowStockCount },
+                { renderIcon: (className) => <AlertTriangle className={className} />, color: 'red', label: 'Expired', value: expiredCount },
+                ].map(({ renderIcon, color, label, value }) => (
                     <div key={label} className={cn('rounded-[2rem] p-6 transition-all border-4 shadow-xl hover:-translate-y-1 hover:shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50')}>
                         <div className="flex items-center gap-3 sm:gap-4 mb-4">
                             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-${color}-500/10 flex items-center justify-center shadow-inner pt-0.5`}>
-                                <Icon className={`w-5 h-5 sm:w-6 sm:h-6 text-${color}-500`} />
+                                {renderIcon(`w-5 h-5 sm:w-6 sm:h-6 text-${color}-500`)}
                             </div>
                             <span className={cn('text-[10px] sm:text-[11px] font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{label}</span>
                         </div>
@@ -271,19 +305,41 @@ export function Inventory() {
                     </div>
                 ) : (
                     <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="p-5 sm:p-6">Item</th><th className="p-5 sm:p-6">Category</th><th className="p-5 sm:p-6">Current Stock</th><th className="p-5 sm:p-6">Strip Stock</th><th className="p-5 sm:p-6">Threshold</th><th className="p-5 sm:p-6">Expiry</th><th className="p-5 sm:p-6">Box / Strip Price</th><th className="p-5 sm:p-6">Status</th><th className="p-5 sm:p-6 text-right">Actions</th></tr></thead>
+                        <thead className={cn("font-black uppercase tracking-widest text-[10px] sm:text-xs", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="p-5 sm:p-6">Item</th><th className="p-5 sm:p-6">Category</th><th className="p-5 sm:p-6">Current Stock</th><th className="p-5 sm:p-6">Batch Details</th><th className="p-5 sm:p-6">Threshold</th><th className="p-5 sm:p-6">Expiry</th><th className="p-5 sm:p-6">Pricing</th><th className="p-5 sm:p-6">Status</th><th className="p-5 sm:p-6 text-right">Actions</th></tr></thead>
                         <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
                             {visibleItems.map((item) => (
                                 <tr key={item.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
                                     <td className="p-5 sm:p-6"><div className="flex items-center gap-4"><div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center dashboard-card shadow-sm', isDark ? 'bg-[#0f0f0f] border border-gray-800' : 'bg-white border border-[#512c31]/5')}><Package className={cn('w-6 h-6', isDark ? 'text-gray-400' : 'text-[#e8919a]')} /></div><span className={cn('font-bold text-base', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</span></div></td>
                                     <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.category}</td>
-                                    <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{item.stock} <span className="text-gray-500 font-bold ml-1 text-sm">{item.unit}</span></td>
-                                    <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.stripStock || 0} strips <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.stripsPerUnit || 1} / {item.unit}</span></td>
+                                    <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-white' : 'text-[#512c31]')}>
+                                        {item.packageType === 'single' ? item.stripStock : item.stock} <span className="text-gray-500 font-bold ml-1 text-sm">{item.packageType === 'single' ? 'single' : 'box'}</span>
+                                        {item.packageType !== 'single' && <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.stripStock || 0} strips total</span>}
+                                    </td>
+                                    <td className={cn('p-5 sm:p-6 font-bold min-w-[260px]', isDark ? 'text-gray-300' : 'text-[#512c31]/80')}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Layers3 className="w-4 h-4 text-[#e8919a]" />
+                                            <span className="text-xs uppercase tracking-widest">{item.batchCount || 0} active batches</span>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            {(item.batches || []).slice(0, 3).map((batch) => (
+                                                <div key={batch.id} className={cn('rounded-xl px-3 py-2 border text-[11px]', isDark ? 'border-white/5 bg-black/20' : 'border-[#512c31]/10 bg-[#fef9f3]')}>
+                                                    <div className="flex justify-between gap-3">
+                                                        <span className="font-black">{batch.batchNumber}</span>
+                                                        <span>{item.packageType === 'single' ? batch.stripStock : batch.stock} {item.packageType === 'single' ? 'single' : 'box'}</span>
+                                                    </div>
+                                                    <div className={cn('mt-1 font-bold uppercase tracking-widest', batch.expiryStatus === 'expired' ? 'text-red-400' : batch.expiryStatus === 'expiring_soon' ? 'text-orange-300' : 'text-gray-500')}>
+                                                        {getBatchExpiryLabel(batch)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(item.batches || []).length > 3 && <div className="text-[10px] uppercase tracking-widest text-gray-500">+{item.batches.length - 3} more batches</div>}
+                                        </div>
+                                    </td>
                                     <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.threshold}</td>
                                     <td className={cn('p-5 sm:p-6 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{getExpiryLabel(item)}</td>
                                     <td className={cn('p-5 sm:p-6 font-black', isDark ? 'text-gray-400' : 'text-[#512c31]')}>
-                                        <span className="block">Box/Full Rs{item.sellPrice}</span>
-                                        <span className="block text-[10px] uppercase tracking-widest text-gray-500">Strip Rs{item.stripSellPrice || item.sellPrice}</span>
+                                        <span className="block">{getPricingLabel(item)}</span>
+                                        <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.packageType === 'single' ? 'Single pricing' : `${item.stripsPerUnit || 1} strips per box`}</span>
                                     </td>
                                     <td className="p-5 sm:p-6"><span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
                                     <td className="p-5 sm:p-6 text-right">
@@ -296,7 +352,14 @@ export function Inventory() {
                                                 >
                                                     <Pencil className="w-5 h-5" />
                                                 </button>
-                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), expiryDate: item.expiryDate || '' }); setShowRestockModal(true); }} className="px-4 py-2.5 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-xs font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
+                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), batchNumber: '', expiryDate: '' }); setShowRestockModal(true); }} className="px-4 py-2.5 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-xs font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
+                                                <button
+                                                    onClick={() => handleDeleteItem(item)}
+                                                    className="p-3 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 dark:bg-red-500/10 dark:hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                                                    title="Delete item"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
                                             </div>
                                         )}
                                     </td>
@@ -340,29 +403,40 @@ export function Inventory() {
                                     <input required value={addForm.category} onChange={(e) => setAddForm({ ...addForm, category: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="General" />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Unit</label>
-                                    <input required value={addForm.unit} onChange={(e) => setAddForm({ ...addForm, unit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="box" />
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Pricing Type</label>
+                                    <div className={cn("grid grid-cols-2 rounded-2xl border-2 p-1", isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-[#fef9f3] border-transparent")}>
+                                        {['box', 'single'].map((type) => (
+                                            <button
+                                                key={type}
+                                                type="button"
+                                                onClick={() => setAddForm({ ...addForm, packageType: type, unit: type === 'single' ? 'single' : 'box', stripsPerUnit: type === 'single' ? '1' : addForm.stripsPerUnit })}
+                                                className={cn("rounded-xl px-3 py-3 text-xs font-black uppercase tracking-widest transition-all", addForm.packageType === type ? "bg-[#512c31] text-white shadow-lg" : isDark ? "text-gray-400 hover:text-white" : "text-[#512c31]/60 hover:text-[#512c31]")}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Full Medicine Stock</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{addForm.packageType === 'single' ? 'Single Stock' : 'Box Stock'}</label>
                                     <input required type="number" value={addForm.stock} onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0" />
                                 </div>
-                                <div>
+                                {addForm.packageType === 'box' && <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strips Per Full</label>
                                     <input required type="number" min="1" value={addForm.stripsPerUnit} onChange={(e) => setAddForm({ ...addForm, stripsPerUnit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
-                                </div>
+                                </div>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Threshold</label>
                                     <input required type="number" value={addForm.threshold} onChange={(e) => setAddForm({ ...addForm, threshold: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
                                 </div>
-                                <div>
+                                {addForm.packageType === 'box' && <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Price (Rs)</label>
                                     <input required type="number" step="0.01" value={addForm.stripSellPrice} onChange={(e) => setAddForm({ ...addForm, stripSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
-                                </div>
+                                </div>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -370,13 +444,19 @@ export function Inventory() {
                                     <input required type="number" step="0.01" value={addForm.costPrice} onChange={(e) => setAddForm({ ...addForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Box / Full Price (Rs)</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{addForm.packageType === 'single' ? 'Single Price (Rs)' : 'Box Price (Rs)'}</label>
                                     <input required type="number" step="0.01" value={addForm.sellPrice} onChange={(e) => setAddForm({ ...addForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
                             </div>
-                            <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Expiry Date (optional)</label>
-                                <input type="date" value={addForm.expiryDate} onChange={(e) => setAddForm({ ...addForm, expiryDate: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Batch Number</label>
+                                    <input value={addForm.batchNumber} onChange={(e) => setAddForm({ ...addForm, batchNumber: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="BATCH-001" />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Expiry Date</label>
+                                    <input type="date" value={addForm.expiryDate} onChange={(e) => setAddForm({ ...addForm, expiryDate: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>
                             </div>
                             <button className="w-full rounded-2xl bg-[#512c31] py-4 text-white font-bold tracking-widest uppercase text-sm hover:bg-[#e8919a] hover:scale-[1.02] transition-all shadow-xl hover:shadow-2xl mt-4">
                                 Add Item
@@ -400,8 +480,12 @@ export function Inventory() {
                         </div>
                         <form onSubmit={handleRestock} className="space-y-4">
                             <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Quantity</label>
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{selectedItem.packageType === 'single' ? 'Single Quantity' : 'Box Quantity'}</label>
                                 <input required type="number" value={restockForm.quantity} onChange={(e) => setRestockForm({ ...restockForm, quantity: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="Quantity" />
+                            </div>
+                            <div>
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Batch Number</label>
+                                <input value={restockForm.batchNumber} onChange={(e) => setRestockForm({ ...restockForm, batchNumber: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="BATCH-002" />
                             </div>
                             <div>
                                 <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Unit Cost</label>
@@ -443,19 +527,30 @@ export function Inventory() {
                                     <input required value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Unit</label>
-                                    <input required value={editForm.unit} onChange={(e) => setEditForm({ ...editForm, unit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Pricing Type</label>
+                                    <div className={cn("grid grid-cols-2 rounded-2xl border-2 p-1", isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-[#fef9f3] border-transparent")}>
+                                        {['box', 'single'].map((type) => (
+                                            <button
+                                                key={type}
+                                                type="button"
+                                                onClick={() => setEditForm({ ...editForm, packageType: type, unit: type === 'single' ? 'single' : 'box', stripsPerUnit: type === 'single' ? '1' : editForm.stripsPerUnit })}
+                                                className={cn("rounded-xl px-3 py-3 text-xs font-black uppercase tracking-widest transition-all", editForm.packageType === type ? "bg-[#512c31] text-white shadow-lg" : isDark ? "text-gray-400 hover:text-white" : "text-[#512c31]/60 hover:text-[#512c31]")}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
+                                {editForm.packageType === 'box' && <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strips Per Full</label>
                                     <input type="number" min="1" value={editForm.stripsPerUnit} onChange={(e) => setEditForm({ ...editForm, stripsPerUnit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
-                                </div>
-                                <div>
+                                </div>}
+                                {editForm.packageType === 'box' && <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Price (Rs)</label>
                                     <input type="number" step="0.01" value={editForm.stripSellPrice} onChange={(e) => setEditForm({ ...editForm, stripSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
-                                </div>
+                                </div>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -463,7 +558,7 @@ export function Inventory() {
                                     <input type="number" step="0.01" value={editForm.costPrice} onChange={(e) => setEditForm({ ...editForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Box / Full Price (Rs)</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{editForm.packageType === 'single' ? 'Single Price (Rs)' : 'Box Price (Rs)'}</label>
                                     <input type="number" step="0.01" value={editForm.sellPrice} onChange={(e) => setEditForm({ ...editForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
                             </div>

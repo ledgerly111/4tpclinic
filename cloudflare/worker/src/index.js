@@ -173,12 +173,28 @@ const SCHEMA_STATEMENTS = [
         reorder_threshold INTEGER NOT NULL DEFAULT 0,
         cost_price_cents INTEGER NOT NULL DEFAULT 0,
         sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        package_type TEXT NOT NULL DEFAULT 'box',
         strips_per_unit INTEGER NOT NULL DEFAULT 1,
         strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
         strip_sell_price_cents INTEGER NOT NULL DEFAULT 0,
         expiry_date TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS inventory_batches (
+        id TEXT PRIMARY KEY,
+        inventory_item_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL,
+        clinic_id TEXT NOT NULL,
+        batch_number TEXT NOT NULL,
+        strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
+        cost_price_cents INTEGER NOT NULL DEFAULT 0,
+        expiry_date TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE,
         FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
         FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
     )`,
@@ -249,6 +265,8 @@ const SCHEMA_STATEMENTS = [
     'CREATE INDEX IF NOT EXISTS idx_inventory_org_id ON inventory_items(organization_id)',
     'CREATE INDEX IF NOT EXISTS idx_inventory_clinic_id ON inventory_items(clinic_id)',
     'CREATE INDEX IF NOT EXISTS idx_inventory_tx_item_id ON inventory_transactions(inventory_item_id)',
+    'CREATE INDEX IF NOT EXISTS idx_inventory_batches_item_id ON inventory_batches(inventory_item_id)',
+    'CREATE INDEX IF NOT EXISTS idx_inventory_batches_expiry ON inventory_batches(expiry_date)',
     'CREATE INDEX IF NOT EXISTS idx_appointments_org_id ON appointments(organization_id)',
     'CREATE INDEX IF NOT EXISTS idx_appointments_clinic_id ON appointments(clinic_id)',
     'CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(scheduled_date)',
@@ -415,8 +433,17 @@ function normalizeSaleUnit(value) {
     return String(value || 'unit').toLowerCase() === 'strip' ? 'strip' : 'unit';
 }
 
+function normalizePackageType(value) {
+    return String(value || 'box').toLowerCase() === 'single' ? 'single' : 'box';
+}
+
 function normalizeStripsPerUnit(value) {
     return Math.max(1, Number.parseInt(value, 10) || 1);
+}
+
+function normalizeBatchNumber(value) {
+    const normalized = String(value || '').trim();
+    return normalized || 'OPENING';
 }
 
 function normalizeAppointmentStatus(status) {
@@ -504,6 +531,9 @@ async function ensureInvoiceItemColumns(db) {
 async function ensureInventoryColumns(db) {
     const tableInfo = await db.prepare('PRAGMA table_info(inventory_items)').all();
     const names = new Set((tableInfo.results || []).map((c) => c.name));
+    if (!names.has('package_type')) {
+        await db.prepare("ALTER TABLE inventory_items ADD COLUMN package_type TEXT NOT NULL DEFAULT 'box'").run();
+    }
     if (!names.has('expiry_date')) {
         await db.prepare('ALTER TABLE inventory_items ADD COLUMN expiry_date TEXT').run();
     }
@@ -525,6 +555,52 @@ async function ensureInventoryColumns(db) {
         UPDATE inventory_items
         SET strip_sell_price_cents = sell_price_cents
         WHERE strip_sell_price_cents IS NULL OR strip_sell_price_cents <= 0
+    `).run();
+
+    await db.prepare(`
+        CREATE TABLE IF NOT EXISTS inventory_batches (
+            id TEXT PRIMARY KEY,
+            inventory_item_id TEXT NOT NULL,
+            organization_id TEXT NOT NULL,
+            clinic_id TEXT NOT NULL,
+            batch_number TEXT NOT NULL,
+            strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
+            cost_price_cents INTEGER NOT NULL DEFAULT 0,
+            expiry_date TEXT,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE,
+            FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+            FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE
+        )
+    `).run();
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_inventory_batches_item_id ON inventory_batches(inventory_item_id)').run();
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_inventory_batches_expiry ON inventory_batches(expiry_date)').run();
+    await db.prepare(`
+        INSERT INTO inventory_batches (
+            id,
+            inventory_item_id,
+            organization_id,
+            clinic_id,
+            batch_number,
+            strip_stock_quantity,
+            cost_price_cents,
+            expiry_date
+        )
+        SELECT
+            id || '-opening',
+            id,
+            organization_id,
+            clinic_id,
+            'OPENING',
+            strip_stock_quantity,
+            cost_price_cents,
+            expiry_date
+        FROM inventory_items
+        WHERE strip_stock_quantity > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM inventory_batches WHERE inventory_batches.inventory_item_id = inventory_items.id
+          )
     `).run();
 }
 
@@ -1832,7 +1908,7 @@ async function listInventory(env, request, url) {
     let sql = `
         SELECT
             id, organization_id, clinic_id, name, category, unit, stock_quantity,
-            reorder_threshold, cost_price_cents, sell_price_cents, strips_per_unit,
+            reorder_threshold, cost_price_cents, sell_price_cents, package_type, strips_per_unit,
             strip_stock_quantity, strip_sell_price_cents, expiry_date, created_at, updated_at
         FROM inventory_items
         WHERE 1 = 1
@@ -1862,15 +1938,61 @@ async function listInventory(env, request, url) {
     const result = bindings.length > 0
         ? await db.prepare(sql).bind(...bindings).all()
         : await db.prepare(sql).all();
+    const rows = result.results || [];
+    const itemIds = rows.map((row) => row.id);
+    const batchesByItemId = new Map();
+
+    if (itemIds.length > 0) {
+        const placeholders = itemIds.map(() => '?').join(',');
+        const batchResult = await db.prepare(`
+            SELECT id, inventory_item_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date, created_at, updated_at
+            FROM inventory_batches
+            WHERE inventory_item_id IN (${placeholders})
+            ORDER BY
+                CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END,
+                expiry_date ASC,
+                created_at ASC
+        `).bind(...itemIds).all();
+
+        (batchResult.results || []).forEach((batch) => {
+            const list = batchesByItemId.get(batch.inventory_item_id) || [];
+            const expiryMeta = getExpiryMeta(batch.expiry_date);
+            list.push({
+                id: batch.id,
+                batchNumber: batch.batch_number,
+                stripStock: Number(batch.strip_stock_quantity || 0),
+                costPrice: fromCents(batch.cost_price_cents),
+                expiryDate: batch.expiry_date || '',
+                daysToExpiry: expiryMeta.daysToExpiry,
+                expiryStatus: expiryMeta.expiryStatus,
+                createdAt: batch.created_at,
+                updatedAt: batch.updated_at,
+            });
+            batchesByItemId.set(batch.inventory_item_id, list);
+        });
+    }
 
     return jsonResponse({
-        items: (result.results || []).map((row) => {
-            const stockStatus = row.stock_quantity <= 0
+        items: rows.map((row) => {
+            const packageType = normalizePackageType(row.package_type);
+            const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(row.strips_per_unit);
+            const batches = batchesByItemId.get(row.id) || [];
+            const batchStripStock = batches.reduce((sum, batch) => sum + Number(batch.stripStock || 0), 0);
+            const stripStock = batches.length > 0 ? batchStripStock : Number(row.strip_stock_quantity || 0);
+            const stock = packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit);
+            const activeBatches = batches.filter((batch) => Number(batch.stripStock || 0) > 0);
+            const riskBatch = activeBatches.find((batch) => batch.expiryStatus === 'expired')
+                || activeBatches.find((batch) => batch.expiryStatus === 'expiring_soon')
+                || activeBatches[0];
+            const expiryMeta = riskBatch
+                ? { expiryStatus: riskBatch.expiryStatus, daysToExpiry: riskBatch.daysToExpiry }
+                : getExpiryMeta(row.expiry_date);
+            const expiryDate = riskBatch?.expiryDate || row.expiry_date || '';
+            const stockStatus = stripStock <= 0
                 ? 'critical'
-                : row.stock_quantity <= row.reorder_threshold
+                : stock <= row.reorder_threshold
                     ? 'low'
                     : 'good';
-            const expiryMeta = getExpiryMeta(row.expiry_date);
             const status = expiryMeta.expiryStatus === 'expired'
                 ? 'expired'
                 : stockStatus === 'critical'
@@ -1888,16 +2010,22 @@ async function listInventory(env, request, url) {
                 name: row.name,
                 category: row.category,
                 unit: row.unit,
-                stock: row.stock_quantity,
+                packageType,
+                stock,
                 threshold: row.reorder_threshold,
                 costPrice: fromCents(row.cost_price_cents),
                 sellPrice: fromCents(row.sell_price_cents),
-                stripsPerUnit: normalizeStripsPerUnit(row.strips_per_unit),
-                stripStock: Number(row.strip_stock_quantity || 0),
+                stripsPerUnit,
+                stripStock,
                 stripSellPrice: fromCents(row.strip_sell_price_cents || row.sell_price_cents),
-                expiryDate: row.expiry_date || '',
+                expiryDate,
                 daysToExpiry: expiryMeta.daysToExpiry,
                 expiryStatus: expiryMeta.expiryStatus,
+                batchCount: activeBatches.length,
+                batches: activeBatches.map((batch) => ({
+                    ...batch,
+                    stock: packageType === 'single' ? batch.stripStock : Math.floor(Number(batch.stripStock || 0) / stripsPerUnit),
+                })),
                 stockStatus,
                 status,
                 type: 'inventory',
@@ -1916,7 +2044,8 @@ async function createInventoryItem(env, request) {
 
     const name = String(body.name || '').trim();
     const category = String(body.category || '').trim() || 'General';
-    const unit = String(body.unit || '').trim() || 'pcs';
+    const packageType = normalizePackageType(body.packageType);
+    const unit = packageType === 'single' ? 'single' : 'box';
     if (!name) throw new HttpError(400, 'Item name is required.');
 
     const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
@@ -1930,28 +2059,46 @@ async function createInventoryItem(env, request) {
     const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
     const costCents = toCents(body.costPrice);
     const sellCents = toCents(body.sellPrice);
-    const stripsPerUnit = normalizeStripsPerUnit(body.stripsPerUnit);
-    const stripStock = Math.max(0, Number.parseInt(body.stripStock, 10) || (stock * stripsPerUnit));
+    const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(body.stripsPerUnit);
+    const stripStock = packageType === 'single'
+        ? stock
+        : Math.max(0, Number.parseInt(body.stripStock, 10) || (stock * stripsPerUnit));
     const stripSellCents = toCents(body.stripSellPrice || fromCents(sellCents));
     const expiryDate = sanitizeOptionalDate(body.expiryDate);
+    const batchNumber = normalizeBatchNumber(body.batchNumber);
 
     const statements = [
         db.prepare(`
             INSERT INTO inventory_items (
                 id, organization_id, clinic_id, name, category, unit,
-                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents,
+                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents, package_type,
                 strips_per_unit, strip_stock_quantity, strip_sell_price_cents, expiry_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, organizationId, activeClinicId, name, category, unit, Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, stripsPerUnit, stripStock, stripSellCents, expiryDate),
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, organizationId, activeClinicId, name, category, unit, packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, packageType, stripsPerUnit, stripStock, stripSellCents, expiryDate),
     ];
 
     if (stripStock > 0) {
         statements.push(
             db.prepare(`
+                INSERT INTO inventory_batches (
+                    id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, stripStock, costCents, expiryDate),
+            db.prepare(`
                 INSERT INTO inventory_transactions (
                     id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
                 ) VALUES (?, ?, ?, ?, 'purchase', ?, ?, 'inventory_create')
             `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, stripStock, costCents)
+        );
+    }
+
+    if (stripStock === 0) {
+        statements.push(
+            db.prepare(`
+                INSERT INTO inventory_batches (
+                    id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
+                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, costCents, expiryDate)
         );
     }
 
@@ -1965,7 +2112,8 @@ async function createInventoryItem(env, request) {
             name,
             category,
             unit,
-            stock: Math.floor(stripStock / stripsPerUnit),
+            packageType,
+            stock: packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit),
             threshold,
             costPrice: fromCents(costCents),
             sellPrice: fromCents(sellCents),
@@ -1973,6 +2121,7 @@ async function createInventoryItem(env, request) {
             stripStock,
             stripSellPrice: fromCents(stripSellCents),
             expiryDate: expiryDate || '',
+            batchNumber,
             type: 'inventory',
         },
     }, 201);
@@ -1985,7 +2134,7 @@ async function updateInventoryItem(env, request, itemId) {
     const body = await parseJsonRequest(request);
 
     const item = await db
-        .prepare('SELECT id, organization_id, clinic_id FROM inventory_items WHERE id = ? LIMIT 1')
+        .prepare('SELECT id, organization_id, clinic_id, strip_stock_quantity FROM inventory_items WHERE id = ? LIMIT 1')
         .bind(itemId)
         .first();
     if (!item) throw new HttpError(404, 'Inventory item not found.');
@@ -2003,23 +2152,28 @@ async function updateInventoryItem(env, request, itemId) {
     if (!name) throw new HttpError(400, 'Item name is required.');
 
     const category = String(body.category || '').trim() || 'General';
-    const unit = String(body.unit || '').trim() || 'pcs';
+    const packageType = normalizePackageType(body.packageType);
+    const unit = packageType === 'single' ? 'single' : 'box';
     const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
     const costCents = toCents(body.costPrice);
     const sellCents = toCents(body.sellPrice);
-    const stripsPerUnit = normalizeStripsPerUnit(body.stripsPerUnit);
-    const stripSellCents = toCents(body.stripSellPrice || fromCents(sellCents));
+    const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(body.stripsPerUnit);
+    const stripSellCents = packageType === 'single' ? sellCents : toCents(body.stripSellPrice || fromCents(sellCents));
     const expiryDate = Object.prototype.hasOwnProperty.call(body, 'expiryDate')
         ? sanitizeOptionalDate(body.expiryDate)
         : null;
+    const stock = packageType === 'single'
+        ? Number(item.strip_stock_quantity || 0)
+        : Math.floor(Number(item.strip_stock_quantity || 0) / stripsPerUnit);
 
     await db.prepare(`
         UPDATE inventory_items
         SET name = ?,
             category = ?,
             unit = ?,
+            package_type = ?,
             strips_per_unit = ?,
-            stock_quantity = CAST(strip_stock_quantity / ? AS INTEGER),
+            stock_quantity = ?,
             reorder_threshold = ?,
             cost_price_cents = ?,
             sell_price_cents = ?,
@@ -2031,8 +2185,9 @@ async function updateInventoryItem(env, request, itemId) {
         name,
         category,
         unit,
+        packageType,
         stripsPerUnit,
-        stripsPerUnit,
+        stock,
         threshold,
         costCents,
         sellCents,
@@ -2042,6 +2197,29 @@ async function updateInventoryItem(env, request, itemId) {
         itemId
     ).run();
 
+    return jsonResponse({ ok: true });
+}
+
+async function deleteInventoryItem(env, request, itemId) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_inventory', 'You do not have permission to edit inventory.');
+    const db = requireDb(env);
+    const item = await db
+        .prepare('SELECT id, organization_id, clinic_id FROM inventory_items WHERE id = ? LIMIT 1')
+        .bind(itemId)
+        .first();
+    if (!item) throw new HttpError(404, 'Inventory item not found.');
+
+    if (user.role === 'admin' && item.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Item is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (item.organization_id !== user.organizationId || !user.clinicIds.includes(item.clinic_id)) {
+            throw new HttpError(403, 'Item is outside your scope.');
+        }
+    }
+
+    await db.prepare('DELETE FROM inventory_items WHERE id = ?').bind(itemId).run();
     return jsonResponse({ ok: true });
 }
 
@@ -2057,8 +2235,8 @@ async function restockInventoryItem(env, request, itemId) {
 
     const item = await db
         .prepare(`
-            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents
-                , strips_per_unit
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents,
+                package_type, strips_per_unit
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2077,18 +2255,25 @@ async function restockInventoryItem(env, request, itemId) {
     }
 
     const unitCostCents = toCents(body.costPrice ?? fromCents(item.cost_price_cents || 0));
-    const stripsPerUnit = normalizeStripsPerUnit(item.strips_per_unit);
-    const addedStrips = quantity * stripsPerUnit;
+    const packageType = normalizePackageType(item.package_type);
+    const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(item.strips_per_unit);
+    const addedStrips = packageType === 'single' ? quantity : quantity * stripsPerUnit;
+    const batchNumber = normalizeBatchNumber(body.batchNumber);
     await db.batch([
+        db.prepare(`
+            INSERT INTO inventory_batches (
+                id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, batchNumber, addedStrips, unitCostCents, expiryDateValue),
         db.prepare(`
             UPDATE inventory_items
             SET strip_stock_quantity = strip_stock_quantity + ?,
-                stock_quantity = CAST((strip_stock_quantity + ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER),
+                stock_quantity = CASE WHEN package_type = 'single' THEN strip_stock_quantity + ? ELSE CAST((strip_stock_quantity + ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
                 cost_price_cents = ?,
                 expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
-        `).bind(addedStrips, addedStrips, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
+        `).bind(addedStrips, addedStrips, addedStrips, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
         db.prepare(`
             INSERT INTO inventory_transactions (
                 id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
@@ -2624,7 +2809,7 @@ async function createInvoice(env, request) {
         }
 
         const inventoryRow = await db.prepare(`
-            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, strips_per_unit, strip_stock_quantity
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, package_type, strips_per_unit, strip_stock_quantity
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2636,20 +2821,53 @@ async function createInvoice(env, request) {
         if (inventoryRow.organization_id !== organizationId || inventoryRow.clinic_id !== activeClinicId) {
             throw new HttpError(400, `Inventory item is outside selected clinic: ${item.name}`);
         }
-        const stripsPerUnit = normalizeStripsPerUnit(inventoryRow.strips_per_unit);
-        const stripQuantity = item.saleUnit === 'strip' ? item.quantity : item.quantity * stripsPerUnit;
+        const packageType = normalizePackageType(inventoryRow.package_type);
+        const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(inventoryRow.strips_per_unit);
+        const stripQuantity = packageType === 'single'
+            ? item.quantity
+            : item.saleUnit === 'strip' ? item.quantity : item.quantity * stripsPerUnit;
         if (Number(inventoryRow.strip_stock_quantity || 0) < stripQuantity) {
             throw new HttpError(400, `Insufficient stock for ${item.name}.`);
+        }
+
+        const batchRows = await db.prepare(`
+            SELECT id, batch_number, strip_stock_quantity, expiry_date, cost_price_cents
+            FROM inventory_batches
+            WHERE inventory_item_id = ?
+              AND strip_stock_quantity > 0
+              AND (expiry_date IS NULL OR expiry_date = '' OR expiry_date >= date('now'))
+            ORDER BY
+              CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END,
+              expiry_date ASC,
+              created_at ASC
+        `).bind(item.inventoryItemId).all();
+        let remainingToDeduct = stripQuantity;
+        for (const batch of (batchRows.results || [])) {
+            if (remainingToDeduct <= 0) break;
+            const deduction = Math.min(remainingToDeduct, Number(batch.strip_stock_quantity || 0));
+            if (deduction <= 0) continue;
+            remainingToDeduct -= deduction;
+            statements.push(
+                db.prepare(`
+                    UPDATE inventory_batches
+                    SET strip_stock_quantity = strip_stock_quantity - ?,
+                        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                `).bind(deduction, batch.id)
+            );
+        }
+        if (remainingToDeduct > 0) {
+            throw new HttpError(400, `${item.name} only has expired or near-missing batches available. Choose a valid batch or restock first.`);
         }
 
         statements.push(
             db.prepare(`
                 UPDATE inventory_items
                 SET strip_stock_quantity = strip_stock_quantity - ?,
-                    stock_quantity = CAST((strip_stock_quantity - ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER),
+                    stock_quantity = CASE WHEN package_type = 'single' THEN strip_stock_quantity - ? ELSE CAST((strip_stock_quantity - ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ?
-            `).bind(stripQuantity, stripQuantity, item.inventoryItemId)
+            `).bind(stripQuantity, stripQuantity, stripQuantity, item.inventoryItemId)
         );
 
         statements.push(
@@ -2971,6 +3189,9 @@ export default {
             const inventoryMatch = pathname.match(/^\/api\/inventory\/([^/]+)$/);
             if (inventoryMatch && request.method === 'PATCH') {
                 return await updateInventoryItem(env, request, decodeURIComponent(inventoryMatch[1]));
+            }
+            if (inventoryMatch && request.method === 'DELETE') {
+                return await deleteInventoryItem(env, request, decodeURIComponent(inventoryMatch[1]));
             }
             const restockMatch = pathname.match(/^\/api\/inventory\/([^/]+)\/restock$/);
             if (restockMatch && request.method === 'PATCH') {

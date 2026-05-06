@@ -62,6 +62,12 @@ export async function updateInventoryItem(itemId, payload) {
   });
 }
 
+export async function deleteInventoryItem(itemId) {
+  return request(`/inventory/${encodeURIComponent(itemId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function restockInventoryItem(itemId, payload) {
   return request(`/inventory/${encodeURIComponent(itemId)}/restock`, {
     method: 'PATCH',
