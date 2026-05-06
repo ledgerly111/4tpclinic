@@ -173,7 +173,6 @@ const SCHEMA_STATEMENTS = [
         reorder_threshold INTEGER NOT NULL DEFAULT 0,
         cost_price_cents INTEGER NOT NULL DEFAULT 0,
         sell_price_cents INTEGER NOT NULL DEFAULT 0,
-        package_type TEXT NOT NULL DEFAULT 'box',
         strips_per_unit INTEGER NOT NULL DEFAULT 1,
         strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
         strip_sell_price_cents INTEGER NOT NULL DEFAULT 0,
@@ -434,7 +433,8 @@ function normalizeSaleUnit(value) {
 }
 
 function normalizePackageType(value) {
-    return String(value || 'box').toLowerCase() === 'single' ? 'single' : 'box';
+    const normalized = String(value || 'box').toLowerCase();
+    return normalized === 'single' ? 'single' : 'box';
 }
 
 function normalizeStripsPerUnit(value) {
@@ -531,9 +531,6 @@ async function ensureInvoiceItemColumns(db) {
 async function ensureInventoryColumns(db) {
     const tableInfo = await db.prepare('PRAGMA table_info(inventory_items)').all();
     const names = new Set((tableInfo.results || []).map((c) => c.name));
-    if (!names.has('package_type')) {
-        await db.prepare("ALTER TABLE inventory_items ADD COLUMN package_type TEXT NOT NULL DEFAULT 'box'").run();
-    }
     if (!names.has('expiry_date')) {
         await db.prepare('ALTER TABLE inventory_items ADD COLUMN expiry_date TEXT').run();
     }
@@ -1908,7 +1905,7 @@ async function listInventory(env, request, url) {
     let sql = `
         SELECT
             id, organization_id, clinic_id, name, category, unit, stock_quantity,
-            reorder_threshold, cost_price_cents, sell_price_cents, package_type, strips_per_unit,
+            reorder_threshold, cost_price_cents, sell_price_cents, strips_per_unit,
             strip_stock_quantity, strip_sell_price_cents, expiry_date, created_at, updated_at
         FROM inventory_items
         WHERE 1 = 1
@@ -1974,7 +1971,7 @@ async function listInventory(env, request, url) {
 
     return jsonResponse({
         items: rows.map((row) => {
-            const packageType = normalizePackageType(row.package_type);
+            const packageType = normalizePackageType(row.unit);
             const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(row.strips_per_unit);
             const batches = batchesByItemId.get(row.id) || [];
             const batchStripStock = batches.reduce((sum, batch) => sum + Number(batch.stripStock || 0), 0);
@@ -2071,10 +2068,10 @@ async function createInventoryItem(env, request) {
         db.prepare(`
             INSERT INTO inventory_items (
                 id, organization_id, clinic_id, name, category, unit,
-                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents, package_type,
+                stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents,
                 strips_per_unit, strip_stock_quantity, strip_sell_price_cents, expiry_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, organizationId, activeClinicId, name, category, unit, packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, packageType, stripsPerUnit, stripStock, stripSellCents, expiryDate),
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, organizationId, activeClinicId, name, category, unit, packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, stripsPerUnit, stripStock, stripSellCents, expiryDate),
     ];
 
     if (stripStock > 0) {
@@ -2171,7 +2168,6 @@ async function updateInventoryItem(env, request, itemId) {
         SET name = ?,
             category = ?,
             unit = ?,
-            package_type = ?,
             strips_per_unit = ?,
             stock_quantity = ?,
             reorder_threshold = ?,
@@ -2185,7 +2181,6 @@ async function updateInventoryItem(env, request, itemId) {
         name,
         category,
         unit,
-        packageType,
         stripsPerUnit,
         stock,
         threshold,
@@ -2236,7 +2231,7 @@ async function restockInventoryItem(env, request, itemId) {
     const item = await db
         .prepare(`
             SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents,
-                package_type, strips_per_unit
+                unit, strips_per_unit
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2255,7 +2250,7 @@ async function restockInventoryItem(env, request, itemId) {
     }
 
     const unitCostCents = toCents(body.costPrice ?? fromCents(item.cost_price_cents || 0));
-    const packageType = normalizePackageType(item.package_type);
+    const packageType = normalizePackageType(item.unit);
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(item.strips_per_unit);
     const addedStrips = packageType === 'single' ? quantity : quantity * stripsPerUnit;
     const batchNumber = normalizeBatchNumber(body.batchNumber);
@@ -2268,7 +2263,7 @@ async function restockInventoryItem(env, request, itemId) {
         db.prepare(`
             UPDATE inventory_items
             SET strip_stock_quantity = strip_stock_quantity + ?,
-                stock_quantity = CASE WHEN package_type = 'single' THEN strip_stock_quantity + ? ELSE CAST((strip_stock_quantity + ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
+                stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity + ? ELSE CAST((strip_stock_quantity + ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
                 cost_price_cents = ?,
                 expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -2809,7 +2804,7 @@ async function createInvoice(env, request) {
         }
 
         const inventoryRow = await db.prepare(`
-            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, package_type, strips_per_unit, strip_stock_quantity
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, unit, strips_per_unit, strip_stock_quantity
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2821,7 +2816,7 @@ async function createInvoice(env, request) {
         if (inventoryRow.organization_id !== organizationId || inventoryRow.clinic_id !== activeClinicId) {
             throw new HttpError(400, `Inventory item is outside selected clinic: ${item.name}`);
         }
-        const packageType = normalizePackageType(inventoryRow.package_type);
+        const packageType = normalizePackageType(inventoryRow.unit);
         const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(inventoryRow.strips_per_unit);
         const stripQuantity = packageType === 'single'
             ? item.quantity
@@ -2864,7 +2859,7 @@ async function createInvoice(env, request) {
             db.prepare(`
                 UPDATE inventory_items
                 SET strip_stock_quantity = strip_stock_quantity - ?,
-                    stock_quantity = CASE WHEN package_type = 'single' THEN strip_stock_quantity - ? ELSE CAST((strip_stock_quantity - ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
+                    stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity - ? ELSE CAST((strip_stock_quantity - ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ?
             `).bind(stripQuantity, stripQuantity, stripQuantity, item.inventoryItemId)

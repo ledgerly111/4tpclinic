@@ -1,7 +1,5 @@
 PRAGMA foreign_keys = ON;
 
-ALTER TABLE inventory_items ADD COLUMN package_type TEXT NOT NULL DEFAULT 'box';
-
 CREATE TABLE IF NOT EXISTS inventory_batches (
     id TEXT PRIMARY KEY,
     inventory_item_id TEXT NOT NULL,
