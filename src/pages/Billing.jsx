@@ -46,6 +46,8 @@ function getStatusColor(status) {
     switch (status) {
         case 'paid':
             return 'bg-green-500/20 text-green-400';
+        case 'partially_paid':
+            return 'bg-sky-500/20 text-sky-300';
         case 'pending':
             return 'bg-yellow-500/20 text-yellow-400';
         case 'overdue':
@@ -53,6 +55,11 @@ function getStatusColor(status) {
         default:
             return 'bg-gray-500/20 text-gray-400';
     }
+}
+
+function getStatusLabel(status) {
+    if (status === 'partially_paid') return 'Partially Paid';
+    return status;
 }
 
 export function Billing() {
@@ -74,6 +81,10 @@ export function Billing() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actionInvoiceId, setActionInvoiceId] = useState('');
+    const [paymentInvoice, setPaymentInvoice] = useState(null);
+    const [paymentAmount, setPaymentAmount] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [paymentError, setPaymentError] = useState('');
     const [previewInvoice, setPreviewInvoice] = useState(null);
     const [previewLoading, setPreviewLoading] = useState(false);
 
@@ -120,19 +131,60 @@ export function Billing() {
         filteredInvoices.slice(0, visibleCount)
     ), [filteredInvoices, visibleCount]);
 
-    const handleMarkPaid = async (invoiceId) => {
+    const isAdjustingReceipt = Boolean(paymentInvoice && paymentInvoice.status === 'paid' && Number(paymentInvoice.outstandingAmount || 0) <= 0);
+
+    const openPaymentModal = (invoice) => {
         if (!canEditBilling) {
             setError('You do not have permission to edit billing.');
             return;
         }
-        setActionInvoiceId(invoiceId);
+        const outstanding = Number(invoice.outstandingAmount || 0);
+        const canCorrectFullReceipt = invoice.status === 'paid' && outstanding <= 0;
+        const nextAmount = canCorrectFullReceipt ? Number(invoice.paidAmount || invoice.amount || 0) : outstanding;
+        setPaymentInvoice(invoice);
+        setPaymentAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
+        setPaymentMethod('cash');
+        setPaymentError('');
+        setError('');
+    };
+
+    const closePaymentModal = () => {
+        if (actionInvoiceId) return;
+        setPaymentInvoice(null);
+        setPaymentAmount('');
+        setPaymentError('');
+    };
+
+    const handleRecordPayment = async () => {
+        if (!paymentInvoice) return;
+        const amount = Number(paymentAmount);
+        const replacingReceived = paymentInvoice.status === 'paid' && Number(paymentInvoice.outstandingAmount || 0) <= 0;
+        const outstanding = replacingReceived ? Number(paymentInvoice.amount || 0) : Number(paymentInvoice.outstandingAmount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            setPaymentError('Enter a payment amount greater than zero.');
+            return;
+        }
+        if (amount > outstanding) {
+            setPaymentError('Payment amount cannot be more than the balance.');
+            return;
+        }
+        setActionInvoiceId(paymentInvoice.id);
+        setPaymentError('');
         setError('');
         try {
-            await markInvoicePaid(invoiceId);
+            await markInvoicePaid(paymentInvoice.id, {
+                paymentAmount: amount,
+                method: paymentMethod,
+                replaceReceivedAmount: replacingReceived,
+            });
             await refreshDashboard();
             await loadBillingData();
+            setPaymentInvoice(null);
+            setPaymentAmount('');
+            setPaymentError('');
         } catch (err) {
             setError(err.message || 'Failed to update invoice status.');
+            setPaymentError(err.message || 'Failed to record payment.');
         } finally {
             setActionInvoiceId('');
         }
@@ -227,7 +279,7 @@ export function Billing() {
                             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-green-50 flex items-center justify-center shadow-inner pt-0.5">
                                 <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
                             </div>
-                            <span className={cn("text-[10px] font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Cash Received</span>
+                            <span className={cn("text-[10px] font-bold uppercase tracking-widest", isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Received</span>
                         </div>
                         {loading
                             ? <div className="skeleton-shimmer h-8 w-32 mt-1" />
@@ -279,6 +331,7 @@ export function Billing() {
                         <option value="all">All Status</option>
                         <option value="paid">Paid</option>
                         <option value="pending">Pending</option>
+                        <option value="partially_paid">Partially Paid</option>
                         <option value="overdue">Overdue</option>
                     </select>
                 </div>
@@ -327,7 +380,7 @@ export function Billing() {
                                             <p className={cn("text-sm font-bold mt-1", isDark ? 'text-gray-300' : 'text-[#512c31]')}>{invoice.patient}</p>
                                         </div>
                                         <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(invoice.status)}`}>
-                                            {invoice.status}
+                                            {getStatusLabel(invoice.status)}
                                         </span>
                                     </div>
                                     <div className="space-y-1 mt-2">
@@ -335,14 +388,19 @@ export function Billing() {
                                         <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>{formatDate(invoice.date)}</p>
                                     </div>
                                     <div className="flex items-center justify-between mt-4 pt-4 border-t-2 border-dashed border-gray-200 dark:border-gray-800">
-                                        <p className={cn("font-black text-xl", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(invoice.amount)}</p>
+                                        <div>
+                                            <p className={cn("font-black text-xl", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(invoice.amount)}</p>
+                                            <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
+                                                Received {formatCurrency(invoice.paidAmount)} - Balance {formatCurrency(invoice.outstandingAmount)}
+                                            </p>
+                                        </div>
                                         <div className="flex items-center gap-2">
-                                            {canEditBilling && invoice.status !== 'paid' && (
+                                            {canEditBilling && (invoice.status !== 'paid' || Number(invoice.paidAmount || 0) > 0) && (
                                                 <button
-                                                    onClick={() => handleMarkPaid(invoice.id)}
+                                                    onClick={() => openPaymentModal(invoice)}
                                                     disabled={actionInvoiceId === invoice.id}
                                                     className="text-emerald-500 hover:text-white p-3 bg-emerald-50 hover:bg-emerald-500 rounded-xl transition-all shadow-sm"
-                                                    title="Mark as paid"
+                                                    title={invoice.status === 'paid' ? 'Adjust payment' : 'Record payment'}
                                                 >
                                                     <CheckCircle2 className="w-5 h-5" />
                                                 </button>
@@ -386,20 +444,25 @@ export function Billing() {
                                             <td className={cn("p-5 sm:p-6 font-bold", isDark ? 'text-gray-300' : 'text-[#512c31]')}>{invoice.patient}</td>
                                             <td className={cn("p-5 sm:p-6 font-medium", isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{invoice.service || '-'}</td>
                                             <td className={cn("p-5 sm:p-6 font-medium", isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{formatDate(invoice.date)}</td>
-                                            <td className={cn("p-5 sm:p-6 font-black", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(invoice.amount)}</td>
+                                            <td className="p-5 sm:p-6">
+                                                <p className={cn("font-black", isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(invoice.amount)}</p>
+                                                <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
+                                                    Rec {formatCurrency(invoice.paidAmount)} - Bal {formatCurrency(invoice.outstandingAmount)}
+                                                </p>
+                                            </td>
                                             <td className="p-5 sm:p-6">
                                                 <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${getStatusColor(invoice.status)}`}>
-                                                    {invoice.status}
+                                                    {getStatusLabel(invoice.status)}
                                                 </span>
                                             </td>
                                             <td className="p-5 sm:p-6 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    {canEditBilling && invoice.status !== 'paid' && (
+                                                    {canEditBilling && (invoice.status !== 'paid' || Number(invoice.paidAmount || 0) > 0) && (
                                                         <button
-                                                            onClick={() => handleMarkPaid(invoice.id)}
+                                                            onClick={() => openPaymentModal(invoice)}
                                                             disabled={actionInvoiceId === invoice.id}
                                                             className="text-emerald-500 hover:text-white p-2 sm:p-3 bg-emerald-50 hover:bg-emerald-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
-                                                            title="Mark as paid"
+                                                            title={invoice.status === 'paid' ? 'Adjust payment' : 'Record payment'}
                                                         >
                                                             <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
                                                         </button>
@@ -429,6 +492,102 @@ export function Billing() {
             </div>
             {previewLoading && (
                 <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center text-white">Loading preview...</div>
+            )}
+            {paymentInvoice && (
+                <div className="fixed inset-0 bg-black/70 z-50 p-4 backdrop-blur-sm flex items-center justify-center">
+                    <div className={cn(
+                        "w-full max-w-xl rounded-[2rem] border-4 shadow-2xl overflow-hidden",
+                        isDark ? "bg-[#1e1e1e] border-white/5" : "bg-white border-white/60"
+                    )}>
+                        <div className={cn("px-6 py-5 border-b flex items-start justify-between gap-4", isDark ? "border-white/5" : "border-[#512c31]/10 bg-[#fef9f3]")}>
+                            <div>
+                                <p className={cn("text-[10px] font-black uppercase tracking-widest", isDark ? "text-emerald-300" : "text-emerald-600")}>Confirm payment</p>
+                                <h2 className={cn("mt-1 text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>{paymentInvoice.status === 'paid' && Number(paymentInvoice.outstandingAmount || 0) <= 0 ? 'Adjust invoice receipt' : 'Record invoice receipt'}</h2>
+                                <p className={cn("mt-1 text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/60")}>#{paymentInvoice.invoiceNumber}</p>
+                            </div>
+                            <button onClick={closePaymentModal} className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-all", isDark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-white hover:bg-[#e8919a] hover:text-white text-[#512c31] shadow-md")}>
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-5">
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className={cn("rounded-2xl p-4", isDark ? "bg-[#0f0f0f]" : "bg-[#fef9f3]")}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total</p>
+                                    <p className={cn("mt-2 text-lg font-black", isDark ? "text-white" : "text-[#512c31]")}>{formatCurrency(paymentInvoice.amount)}</p>
+                                </div>
+                                <div className={cn("rounded-2xl p-4", isDark ? "bg-[#0f0f0f]" : "bg-[#fef9f3]")}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Received</p>
+                                    <p className="mt-2 text-lg font-black text-emerald-400">{formatCurrency(paymentInvoice.paidAmount)}</p>
+                                </div>
+                                <div className={cn("rounded-2xl p-4", isDark ? "bg-[#0f0f0f]" : "bg-[#fef9f3]")}>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Balance</p>
+                                    <p className="mt-2 text-lg font-black text-amber-400">{formatCurrency(paymentInvoice.outstandingAmount)}</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Amount received</label>
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    max={paymentInvoice.status === 'paid' && Number(paymentInvoice.outstandingAmount || 0) <= 0 ? paymentInvoice.amount : paymentInvoice.outstandingAmount}
+                                    step="0.01"
+                                    value={paymentAmount}
+                                    onChange={(e) => setPaymentAmount(e.target.value)}
+                                    className={cn("w-full px-4 py-4 rounded-2xl text-xl font-black outline-none border-2 transition-all", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-emerald-400/40" : "bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]")}
+                                />
+                            </div>
+
+                            <div>
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Payment Method</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {['cash', 'gpay'].map((method) => (
+                                        <button
+                                            key={method}
+                                            type="button"
+                                            onClick={() => setPaymentMethod(method)}
+                                            className={cn(
+                                                "px-4 py-4 rounded-2xl border-2 font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                                                paymentMethod === method
+                                                    ? "bg-emerald-500 text-white border-emerald-400 shadow-lg"
+                                                    : isDark
+                                                        ? "bg-[#0f0f0f] border-gray-800 text-gray-300 hover:border-white/20"
+                                                        : "bg-[#fef9f3] border-transparent text-[#512c31] hover:border-[#512c31]/20"
+                                            )}
+                                        >
+                                            <CreditCard className="w-4 h-4" />
+                                            {method === 'gpay' ? 'GPay' : 'Cash'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {paymentError && (
+                                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300">
+                                    {paymentError}
+                                </div>
+                            )}
+
+                            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                <button
+                                    onClick={closePaymentModal}
+                                    className={cn("flex-1 px-5 py-4 rounded-2xl font-black uppercase tracking-widest transition-all", isDark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-[#fef9f3] hover:bg-[#ffe3e0] text-[#512c31]")}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleRecordPayment}
+                                    disabled={actionInvoiceId === paymentInvoice.id}
+                                    className="flex-1 px-5 py-4 rounded-2xl bg-[#512c31] hover:bg-emerald-500 disabled:opacity-60 text-white font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle2 className="w-5 h-5" />
+                                    {actionInvoiceId === paymentInvoice.id ? 'Saving...' : 'Record Payment'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
             {previewInvoice && (
                 <div className="fixed inset-0 bg-black/70 z-50 p-0 sm:p-4 backdrop-blur-sm flex flex-col items-center justify-end sm:justify-center">

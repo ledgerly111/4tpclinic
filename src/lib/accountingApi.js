@@ -30,9 +30,9 @@ export async function createInvoice(payload) {
     });
 }
 
-export async function markInvoicePaid(invoiceId) {
+export async function markInvoicePaid(invoiceId, payload = {}) {
     return request(`/invoices/${invoiceId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: 'paid', method: 'manual' }),
+        body: JSON.stringify({ status: 'paid', ...payload }),
     });
 }

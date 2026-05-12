@@ -41,6 +41,7 @@ import { fetchInvoices, fetchAccountingSummary } from '../lib/accountingApi';
 /* ── colour palette ─────────────────────────────────────────── */
 const STATUS_COLORS = {
   paid: '#10b981',
+  partially_paid: '#38bdf8',
   pending: '#f59e0b',
   overdue: '#ef4444',
   void: '#6b7280',
@@ -178,10 +179,11 @@ export function Reports() {
     const c = { paid: 0, pending: 0, overdue: 0, void: 0 };
     invoices.forEach((i) => {
       const s = String(i.status || '').toLowerCase();
+      if (s === 'partially_paid' && !('partially_paid' in c)) c.partially_paid = 0;
       if (s in c) c[s]++;
     });
     return Object.entries(c).filter(([, v]) => v > 0).map(([k, v]) => ({
-      name: k[0].toUpperCase() + k.slice(1), value: v, color: STATUS_COLORS[k],
+      name: k === 'partially_paid' ? 'Partially Paid' : k[0].toUpperCase() + k.slice(1), value: v, color: STATUS_COLORS[k],
     }));
   }, [invoices]);
 
@@ -223,7 +225,7 @@ export function Reports() {
       sub: 'vs previous month',
     },
     {
-      title: 'Cash Received',
+      title: 'Received',
       value: formatCurrency(summary.cashReceived),
       icon: Banknote,
       gradient: 'from-sky-500/20 to-sky-500/5',
@@ -238,7 +240,7 @@ export function Reports() {
       gradient: 'from-amber-500/20 to-amber-500/5',
       accent: 'text-amber-500',
       iconBg: isDark ? 'bg-amber-500/15' : 'bg-amber-100',
-      sub: `${invoices.filter((i) => i.status === 'pending').length} pending invoices`,
+      sub: `${invoices.filter((i) => i.status === 'pending' || i.status === 'partially_paid').length} pending invoices`,
     },
     {
       title: 'Overdue',
@@ -645,11 +647,12 @@ export function Reports() {
                       <span className={cn(
                         'inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase shadow-sm border',
                         inv.status === 'paid' && 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20',
+                        inv.status === 'partially_paid' && 'bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20',
                         inv.status === 'pending' && 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20',
                         inv.status === 'overdue' && 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20',
                         (!inv.status || inv.status === 'void') && 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-500/10 dark:text-gray-400 dark:border-gray-500/20'
                       )}>
-                        {inv.status || 'void'}
+                        {inv.status === 'partially_paid' ? 'partially paid' : inv.status || 'void'}
                       </span>
                     </td>
                   </tr>

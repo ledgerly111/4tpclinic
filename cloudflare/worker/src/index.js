@@ -181,8 +181,10 @@ const SCHEMA_STATEMENTS = [
         cost_price_cents INTEGER NOT NULL DEFAULT 0,
         sell_price_cents INTEGER NOT NULL DEFAULT 0,
         strips_per_unit INTEGER NOT NULL DEFAULT 1,
+        tablets_per_strip INTEGER NOT NULL DEFAULT 1,
         strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
         strip_sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        individual_sell_price_cents INTEGER NOT NULL DEFAULT 0,
         gst_percent REAL NOT NULL DEFAULT 0,
         expiry_date TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -402,6 +404,13 @@ function toPercent(value) {
     return Number(Math.min(100, Math.max(0, parsed)).toFixed(2));
 }
 
+function calculateGstPercentFromMrpAndRate(mrpCents, rateCents) {
+    const mrp = Number(mrpCents || 0);
+    const rate = Number(rateCents || 0);
+    if (mrp <= rate || rate <= 0) return 0;
+    return Number((((mrp - rate) / rate) * 100).toFixed(2));
+}
+
 function sanitizeDate(value) {
     if (!value) return new Date().toISOString().split('T')[0];
     return String(value).split('T')[0];
@@ -442,8 +451,16 @@ function normalizeInvoiceStatus(status) {
     return normalized;
 }
 
+function normalizePaymentMethod(method) {
+    const normalized = String(method || 'cash').trim().toLowerCase();
+    if (normalized === 'gpay' || normalized === 'cash') return normalized;
+    throw new HttpError(400, 'Payment method must be cash or gpay.');
+}
+
 function normalizeSaleUnit(value) {
-    return String(value || 'unit').toLowerCase() === 'strip' ? 'strip' : 'unit';
+    const normalized = String(value || 'unit').toLowerCase();
+    if (normalized === 'strip' || normalized === 'individual') return normalized;
+    return 'unit';
 }
 
 function normalizePackageType(value) {
@@ -452,6 +469,10 @@ function normalizePackageType(value) {
 }
 
 function normalizeStripsPerUnit(value) {
+    return Math.max(1, Number.parseInt(value, 10) || 1);
+}
+
+function normalizeTabletsPerStrip(value) {
     return Math.max(1, Number.parseInt(value, 10) || 1);
 }
 
@@ -582,8 +603,14 @@ async function ensureInventoryColumns(db) {
     if (!names.has('strip_stock_quantity')) {
         await db.prepare('ALTER TABLE inventory_items ADD COLUMN strip_stock_quantity INTEGER NOT NULL DEFAULT 0').run();
     }
+    if (!names.has('tablets_per_strip')) {
+        await db.prepare('ALTER TABLE inventory_items ADD COLUMN tablets_per_strip INTEGER NOT NULL DEFAULT 1').run();
+    }
     if (!names.has('strip_sell_price_cents')) {
         await db.prepare('ALTER TABLE inventory_items ADD COLUMN strip_sell_price_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!names.has('individual_sell_price_cents')) {
+        await db.prepare('ALTER TABLE inventory_items ADD COLUMN individual_sell_price_cents INTEGER NOT NULL DEFAULT 0').run();
     }
     if (!names.has('gst_percent')) {
         await db.prepare('ALTER TABLE inventory_items ADD COLUMN gst_percent REAL NOT NULL DEFAULT 0').run();
@@ -597,6 +624,16 @@ async function ensureInventoryColumns(db) {
         UPDATE inventory_items
         SET strip_sell_price_cents = sell_price_cents
         WHERE strip_sell_price_cents IS NULL OR strip_sell_price_cents <= 0
+    `).run();
+    await db.prepare(`
+        UPDATE inventory_items
+        SET tablets_per_strip = 1
+        WHERE tablets_per_strip IS NULL OR tablets_per_strip <= 0
+    `).run();
+    await db.prepare(`
+        UPDATE inventory_items
+        SET individual_sell_price_cents = strip_sell_price_cents
+        WHERE individual_sell_price_cents IS NULL OR individual_sell_price_cents <= 0
     `).run();
 
     await db.prepare(`
@@ -915,6 +952,11 @@ async function updateBillingSettings(env, request) {
 }
 
 function mapInvoiceRow(row) {
+    const outstandingCents = Number(row.outstanding_cents || 0);
+    const paidCents = Number(row.paid_cents || 0);
+    const effectiveStatus = paidCents > 0 && outstandingCents > 0
+        ? 'partially_paid'
+        : row.status === 'paid' && outstandingCents > 0 ? 'pending' : row.status;
     return {
         id: row.id,
         invoiceNumber: row.invoice_number,
@@ -922,10 +964,10 @@ function mapInvoiceRow(row) {
         patientContact: row.patient_contact || '',
         date: row.invoice_date,
         amount: fromCents(row.total_cents),
-        status: row.status,
+        status: effectiveStatus,
         service: row.service_names || '',
-        paidAmount: fromCents(row.paid_cents),
-        outstandingAmount: fromCents(row.outstanding_cents),
+        paidAmount: fromCents(paidCents),
+        outstandingAmount: fromCents(outstandingCents),
         organizationId: row.organization_id || null,
         clinicId: row.clinic_id || null,
     };
@@ -2023,7 +2065,8 @@ async function listInventory(env, request, url) {
         SELECT
             id, organization_id, clinic_id, name, category, unit, stock_quantity,
             reorder_threshold, cost_price_cents, sell_price_cents, strips_per_unit,
-            strip_stock_quantity, strip_sell_price_cents, gst_percent, expiry_date, created_at, updated_at
+            tablets_per_strip, strip_stock_quantity, strip_sell_price_cents,
+            individual_sell_price_cents, gst_percent, expiry_date, created_at, updated_at
         FROM inventory_items
         WHERE 1 = 1
     `;
@@ -2090,10 +2133,13 @@ async function listInventory(env, request, url) {
         items: rows.map((row) => {
             const packageType = normalizePackageType(row.unit);
             const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(row.strips_per_unit);
+            const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(row.tablets_per_strip);
+            const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
             const batches = batchesByItemId.get(row.id) || [];
             const batchStripStock = batches.reduce((sum, batch) => sum + Number(batch.stripStock || 0), 0);
             const stripStock = batches.length > 0 ? batchStripStock : Number(row.strip_stock_quantity || 0);
-            const stock = packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit);
+            const displayStripStock = packageType === 'single' ? stripStock : Math.floor(stripStock / tabletsPerStrip);
+            const stock = packageType === 'single' ? stripStock : Math.floor(stripStock / tabletsPerBox);
             const activeBatches = batches.filter((batch) => Number(batch.stripStock || 0) > 0);
             const riskBatch = activeBatches.find((batch) => batch.expiryStatus === 'expired')
                 || activeBatches.find((batch) => batch.expiryStatus === 'expiring_soon')
@@ -2130,8 +2176,11 @@ async function listInventory(env, request, url) {
                 costPrice: fromCents(row.cost_price_cents),
                 sellPrice: fromCents(row.sell_price_cents),
                 stripsPerUnit,
-                stripStock,
+                tabletsPerStrip,
+                stripStock: displayStripStock,
+                individualStock: stripStock,
                 stripSellPrice: fromCents(row.strip_sell_price_cents || row.sell_price_cents),
+                individualSellPrice: fromCents(row.individual_sell_price_cents || row.strip_sell_price_cents || row.sell_price_cents),
                 gstPercent: toPercent(row.gst_percent),
                 expiryDate,
                 daysToExpiry: expiryMeta.daysToExpiry,
@@ -2139,7 +2188,9 @@ async function listInventory(env, request, url) {
                 batchCount: activeBatches.length,
                 batches: activeBatches.map((batch) => ({
                     ...batch,
-                    stock: packageType === 'single' ? batch.stripStock : Math.floor(Number(batch.stripStock || 0) / stripsPerUnit),
+                    individualStock: Number(batch.stripStock || 0),
+                    stripStock: packageType === 'single' ? batch.stripStock : Math.floor(Number(batch.stripStock || 0) / tabletsPerStrip),
+                    stock: packageType === 'single' ? batch.stripStock : Math.floor(Number(batch.stripStock || 0) / tabletsPerBox),
                 })),
                 stockStatus,
                 status,
@@ -2175,11 +2226,14 @@ async function createInventoryItem(env, request) {
     const costCents = toCents(body.costPrice);
     const sellCents = toCents(body.sellPrice);
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(body.stripsPerUnit);
-    const stripStock = packageType === 'single'
+    const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(body.tabletsPerStrip);
+    const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
+    const stockUnits = packageType === 'single'
         ? stock
-        : Math.max(0, Number.parseInt(body.stripStock, 10) || (stock * stripsPerUnit));
-    const stripSellCents = toCents(body.stripSellPrice || fromCents(sellCents));
-    const gstPercent = toPercent(body.gstPercent);
+        : Math.max(0, Number.parseInt(body.individualStock, 10) || (stock * tabletsPerBox));
+    const stripSellCents = packageType === 'single' ? sellCents : toCents(body.stripSellPrice || fromCents(sellCents));
+    const individualSellCents = packageType === 'single' ? sellCents : toCents(body.individualSellPrice || fromCents(stripSellCents));
+    const gstPercent = calculateGstPercentFromMrpAndRate(costCents, sellCents);
     const expiryDate = sanitizeOptionalDate(body.expiryDate);
     const batchNumber = normalizeBatchNumber(body.batchNumber);
 
@@ -2188,27 +2242,28 @@ async function createInventoryItem(env, request) {
             INSERT INTO inventory_items (
                 id, organization_id, clinic_id, name, category, unit,
                 stock_quantity, reorder_threshold, cost_price_cents, sell_price_cents,
-                strips_per_unit, strip_stock_quantity, strip_sell_price_cents, gst_percent, expiry_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(id, organizationId, activeClinicId, name, category, unit, packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit), threshold, costCents, sellCents, stripsPerUnit, stripStock, stripSellCents, gstPercent, expiryDate),
+                strips_per_unit, tablets_per_strip, strip_stock_quantity,
+                strip_sell_price_cents, individual_sell_price_cents, gst_percent, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, organizationId, activeClinicId, name, category, unit, packageType === 'single' ? stockUnits : Math.floor(stockUnits / tabletsPerBox), threshold, costCents, sellCents, stripsPerUnit, tabletsPerStrip, stockUnits, stripSellCents, individualSellCents, gstPercent, expiryDate),
     ];
 
-    if (stripStock > 0) {
+    if (stockUnits > 0) {
         statements.push(
             db.prepare(`
                 INSERT INTO inventory_batches (
                     id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, stripStock, costCents, expiryDate),
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, stockUnits, costCents, expiryDate),
             db.prepare(`
                 INSERT INTO inventory_transactions (
                     id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
                 ) VALUES (?, ?, ?, ?, 'purchase', ?, ?, 'inventory_create')
-            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, stripStock, costCents)
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, stockUnits, costCents)
         );
     }
 
-    if (stripStock === 0) {
+    if (stockUnits === 0) {
         statements.push(
             db.prepare(`
                 INSERT INTO inventory_batches (
@@ -2229,13 +2284,16 @@ async function createInventoryItem(env, request) {
             category,
             unit,
             packageType,
-            stock: packageType === 'single' ? stripStock : Math.floor(stripStock / stripsPerUnit),
+            stock: packageType === 'single' ? stockUnits : Math.floor(stockUnits / tabletsPerBox),
             threshold,
             costPrice: fromCents(costCents),
             sellPrice: fromCents(sellCents),
             stripsPerUnit,
-            stripStock,
+            tabletsPerStrip,
+            stripStock: packageType === 'single' ? stockUnits : Math.floor(stockUnits / tabletsPerStrip),
+            individualStock: stockUnits,
             stripSellPrice: fromCents(stripSellCents),
+            individualSellPrice: fromCents(individualSellCents),
             gstPercent,
             expiryDate: expiryDate || '',
             batchNumber,
@@ -2275,14 +2333,17 @@ async function updateInventoryItem(env, request, itemId) {
     const costCents = toCents(body.costPrice);
     const sellCents = toCents(body.sellPrice);
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(body.stripsPerUnit);
+    const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(body.tabletsPerStrip);
+    const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
     const stripSellCents = packageType === 'single' ? sellCents : toCents(body.stripSellPrice || fromCents(sellCents));
-    const gstPercent = toPercent(body.gstPercent);
+    const individualSellCents = packageType === 'single' ? sellCents : toCents(body.individualSellPrice || fromCents(stripSellCents));
+    const gstPercent = calculateGstPercentFromMrpAndRate(costCents, sellCents);
     const expiryDate = Object.prototype.hasOwnProperty.call(body, 'expiryDate')
         ? sanitizeOptionalDate(body.expiryDate)
         : null;
     const stock = packageType === 'single'
         ? Number(item.strip_stock_quantity || 0)
-        : Math.floor(Number(item.strip_stock_quantity || 0) / stripsPerUnit);
+        : Math.floor(Number(item.strip_stock_quantity || 0) / tabletsPerBox);
 
     await db.prepare(`
         UPDATE inventory_items
@@ -2290,11 +2351,13 @@ async function updateInventoryItem(env, request, itemId) {
             category = ?,
             unit = ?,
             strips_per_unit = ?,
+            tablets_per_strip = ?,
             stock_quantity = ?,
             reorder_threshold = ?,
             cost_price_cents = ?,
             sell_price_cents = ?,
             strip_sell_price_cents = ?,
+            individual_sell_price_cents = ?,
             gst_percent = ?,
             expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -2304,11 +2367,13 @@ async function updateInventoryItem(env, request, itemId) {
         category,
         unit,
         stripsPerUnit,
+        tabletsPerStrip,
         stock,
         threshold,
         costCents,
         sellCents,
         stripSellCents,
+        individualSellCents,
         gstPercent,
         Object.prototype.hasOwnProperty.call(body, 'expiryDate') ? 1 : 0,
         expiryDate,
@@ -2354,7 +2419,7 @@ async function restockInventoryItem(env, request, itemId) {
     const item = await db
         .prepare(`
             SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents,
-                unit, strips_per_unit
+                unit, strips_per_unit, tablets_per_strip
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2375,28 +2440,30 @@ async function restockInventoryItem(env, request, itemId) {
     const unitCostCents = toCents(body.costPrice ?? fromCents(item.cost_price_cents || 0));
     const packageType = normalizePackageType(item.unit);
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(item.strips_per_unit);
-    const addedStrips = packageType === 'single' ? quantity : quantity * stripsPerUnit;
+    const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(item.tablets_per_strip);
+    const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
+    const addedUnits = packageType === 'single' ? quantity : quantity * tabletsPerBox;
     const batchNumber = normalizeBatchNumber(body.batchNumber);
     await db.batch([
         db.prepare(`
             INSERT INTO inventory_batches (
                 id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, batchNumber, addedStrips, unitCostCents, expiryDateValue),
+        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, batchNumber, addedUnits, unitCostCents, expiryDateValue),
         db.prepare(`
             UPDATE inventory_items
             SET strip_stock_quantity = strip_stock_quantity + ?,
-                stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity + ? ELSE CAST((strip_stock_quantity + ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
+                stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity + ? ELSE CAST((strip_stock_quantity + ?) / ((CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END) * (CASE WHEN tablets_per_strip > 0 THEN tablets_per_strip ELSE 1 END)) AS INTEGER) END,
                 cost_price_cents = ?,
                 expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
-        `).bind(addedStrips, addedStrips, addedStrips, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
+        `).bind(addedUnits, addedUnits, addedUnits, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
         db.prepare(`
             INSERT INTO inventory_transactions (
                 id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
             ) VALUES (?, ?, ?, ?, 'purchase', ?, ?, 'manual_restock')
-        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, addedStrips, unitCostCents),
+        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, addedUnits, unitCostCents),
     ]);
 
     return jsonResponse({ ok: true });
@@ -2866,6 +2933,7 @@ async function createInvoice(env, request) {
     if (!patientName) throw new HttpError(400, 'Patient name is required.');
 
     const status = normalizeInvoiceStatus(body.status || 'pending');
+    const paymentMethod = normalizePaymentMethod(body.paymentMethod || body.method || 'cash');
     const invoiceId = crypto.randomUUID();
     const invoiceNumber = await resolveUniqueInvoiceNumber(db, body.invoiceNumber);
     const invoiceDate = sanitizeDate(body.date);
@@ -2966,7 +3034,7 @@ async function createInvoice(env, request) {
         }
 
         const inventoryRow = await db.prepare(`
-            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, unit, strips_per_unit, strip_stock_quantity, gst_percent
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, unit, strips_per_unit, tablets_per_strip, strip_stock_quantity, gst_percent
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2980,10 +3048,12 @@ async function createInvoice(env, request) {
         }
         const packageType = normalizePackageType(inventoryRow.unit);
         const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(inventoryRow.strips_per_unit);
-        const stripQuantity = packageType === 'single'
+        const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(inventoryRow.tablets_per_strip);
+        const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
+        const stockUnitQuantity = packageType === 'single'
             ? item.quantity
-            : item.saleUnit === 'strip' ? item.quantity : item.quantity * stripsPerUnit;
-        if (Number(inventoryRow.strip_stock_quantity || 0) < stripQuantity) {
+            : item.saleUnit === 'individual' ? item.quantity : item.saleUnit === 'strip' ? item.quantity * tabletsPerStrip : item.quantity * tabletsPerBox;
+        if (Number(inventoryRow.strip_stock_quantity || 0) < stockUnitQuantity) {
             throw new HttpError(400, `Insufficient stock for ${item.name}.`);
         }
 
@@ -2998,7 +3068,7 @@ async function createInvoice(env, request) {
               expiry_date ASC,
               created_at ASC
         `).bind(item.inventoryItemId).all();
-        let remainingToDeduct = stripQuantity;
+        let remainingToDeduct = stockUnitQuantity;
         for (const batch of (batchRows.results || [])) {
             if (remainingToDeduct <= 0) break;
             const deduction = Math.min(remainingToDeduct, Number(batch.strip_stock_quantity || 0));
@@ -3021,10 +3091,10 @@ async function createInvoice(env, request) {
             db.prepare(`
                 UPDATE inventory_items
                 SET strip_stock_quantity = strip_stock_quantity - ?,
-                    stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity - ? ELSE CAST((strip_stock_quantity - ?) / CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END AS INTEGER) END,
+                    stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity - ? ELSE CAST((strip_stock_quantity - ?) / ((CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END) * (CASE WHEN tablets_per_strip > 0 THEN tablets_per_strip ELSE 1 END)) AS INTEGER) END,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE id = ?
-            `).bind(stripQuantity, stripQuantity, stripQuantity, item.inventoryItemId)
+            `).bind(stockUnitQuantity, stockUnitQuantity, stockUnitQuantity, item.inventoryItemId)
         );
 
         statements.push(
@@ -3037,7 +3107,7 @@ async function createInvoice(env, request) {
                 item.inventoryItemId,
                 organizationId,
                 activeClinicId,
-                stripQuantity,
+                stockUnitQuantity,
                 Number(inventoryRow.cost_price_cents || 0),
                 invoiceId
             )
@@ -3062,7 +3132,7 @@ async function createInvoice(env, request) {
                     invoiceId,
                     totalCents,
                     invoiceDate,
-                    'manual',
+                    paymentMethod,
                     'Auto-created from paid invoice status.'
                 )
         );
@@ -3124,15 +3194,7 @@ async function updateInvoiceStatus(env, request, invoiceId) {
         }
     }
 
-    const statements = [
-        db
-            .prepare(`
-                UPDATE invoices
-                SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-                WHERE id = ?
-            `)
-            .bind(status, invoiceId),
-    ];
+    const statements = [];
 
     if (status === 'paid') {
         const paid = await db
@@ -3140,8 +3202,44 @@ async function updateInvoiceStatus(env, request, invoiceId) {
             .bind(invoiceId)
             .first();
         const outstanding = Math.max(0, Number(invoice.total_cents || 0) - Number(paid.total || 0));
+        const totalCents = Number(invoice.total_cents || 0);
+        const hasExplicitAmount = Object.prototype.hasOwnProperty.call(body, 'paymentAmount');
+        const existingPaidCents = Number(paid.total || 0);
+        const replacingReceived = body.replaceReceivedAmount === true || (hasExplicitAmount && invoice.status === 'paid' && outstanding <= 0 && existingPaidCents >= totalCents);
+        const paymentAmountCents = hasExplicitAmount ? toCents(body.paymentAmount) : (replacingReceived ? existingPaidCents : outstanding);
+        const effectiveOutstanding = replacingReceived ? totalCents : outstanding;
 
-        if (outstanding > 0) {
+        if (effectiveOutstanding > 0 && paymentAmountCents <= 0) {
+            throw new HttpError(400, 'Payment amount must be greater than zero.');
+        }
+        if (paymentAmountCents > effectiveOutstanding) {
+            throw new HttpError(400, 'Payment amount cannot exceed the invoice balance.');
+        }
+
+        const remainingCents = Math.max(0, effectiveOutstanding - paymentAmountCents);
+        const finalStatus = remainingCents > 0
+            ? (invoice.status === 'overdue' ? 'overdue' : 'pending')
+            : 'paid';
+
+        statements.push(
+            db
+                .prepare(`
+                    UPDATE invoices
+                    SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                `)
+                .bind(finalStatus, invoiceId)
+        );
+
+        if (replacingReceived) {
+            statements.push(
+                db
+                    .prepare('DELETE FROM payments WHERE invoice_id = ?')
+                    .bind(invoiceId)
+            );
+        }
+
+        if (paymentAmountCents > 0) {
             statements.push(
                 db
                     .prepare(`
@@ -3157,13 +3255,23 @@ async function updateInvoiceStatus(env, request, invoiceId) {
                     .bind(
                         crypto.randomUUID(),
                         invoiceId,
-                        outstanding,
+                        paymentAmountCents,
                         sanitizeDate(body.paymentDate || invoice.invoice_date),
-                        body.method ? String(body.method) : 'manual',
+                        normalizePaymentMethod(body.method || body.paymentMethod),
                         body.notes ? String(body.notes) : 'Recorded from invoice status change.'
                     )
             );
         }
+    } else {
+        statements.push(
+            db
+                .prepare(`
+                    UPDATE invoices
+                    SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    WHERE id = ?
+                `)
+                .bind(status, invoiceId)
+        );
     }
 
     await db.batch(statements);
@@ -3253,9 +3361,13 @@ async function getAccountingSummary(env, request) {
 
     (invoicesResult.results || []).forEach((invoice) => {
         const outstanding = Math.max(0, Number(invoice.total_cents || 0) - Number(invoice.paid_cents || 0));
+        const paid = Number(invoice.paid_cents || 0);
+        const effectiveStatus = paid > 0 && outstanding > 0
+            ? 'partially_paid'
+            : invoice.status === 'paid' && outstanding > 0 ? 'pending' : invoice.status;
         receivableAmountCents += outstanding;
-        if (invoice.status === 'pending') pendingAmountCents += outstanding;
-        if (invoice.status === 'overdue') overdueAmountCents += outstanding;
+        if (effectiveStatus === 'pending' || effectiveStatus === 'partially_paid') pendingAmountCents += outstanding;
+        if (effectiveStatus === 'overdue') overdueAmountCents += outstanding;
     });
 
     return jsonResponse({

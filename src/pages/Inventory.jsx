@@ -7,6 +7,14 @@ import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
 
 const PAGE_SIZE = 25;
+const INVENTORY_CATEGORIES = ['Skin Care', 'Hair Care', 'General Medicine'];
+
+function calculateGstPercent(mrp, rate) {
+    const mrpValue = Number(mrp || 0);
+    const rateValue = Number(rate || 0);
+    if (mrpValue <= rateValue || rateValue <= 0) return 0;
+    return Number((((mrpValue - rateValue) / rateValue) * 100).toFixed(2));
+}
 
 export function Inventory() {
     const { theme } = useStore();
@@ -21,7 +29,7 @@ export function Inventory() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showRestockModal, setShowRestockModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
-    const initialAddForm = { name: '', category: 'General', packageType: 'box', unit: 'box', stock: '', stripsPerUnit: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' };
+    const initialAddForm = { name: '', category: 'General Medicine', packageType: 'box', unit: 'box', stock: '', stripsPerUnit: '', tabletsPerStrip: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', individualSellPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' };
     const [addForm, setAddForm] = useState(initialAddForm);
     const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', batchNumber: '', expiryDate: '' });
     const [showEditModal, setShowEditModal] = useState(false);
@@ -94,8 +102,8 @@ export function Inventory() {
     };
 
     const getPricingLabel = (item) => {
-        if (item.packageType === 'single') return `Single Rs${item.sellPrice}`;
-        return `Box Rs${item.sellPrice} / Strip Rs${item.stripSellPrice || item.sellPrice}`;
+        if (item.packageType === 'single') return `MRP Rs${item.costPrice} / Single Rate Rs${item.sellPrice}`;
+        return `MRP Rs${item.costPrice} / Box Rate Rs${item.sellPrice} / Strip Rate Rs${item.stripSellPrice || item.sellPrice} / Tablet Rate Rs${item.individualSellPrice || item.stripSellPrice || item.sellPrice}`;
     };
 
     const handleAddItem = async (e) => {
@@ -115,8 +123,10 @@ export function Inventory() {
                 costPrice: Number(addForm.costPrice),
                 sellPrice: Number(addForm.sellPrice),
                 stripsPerUnit: addForm.packageType === 'single' ? 1 : Number(addForm.stripsPerUnit || 1),
+                tabletsPerStrip: addForm.packageType === 'single' ? 1 : Number(addForm.tabletsPerStrip || 1),
                 stripSellPrice: addForm.packageType === 'single' ? Number(addForm.sellPrice) : Number(addForm.stripSellPrice || addForm.sellPrice),
-                gstPercent: Number(addForm.gstPercent || 0),
+                individualSellPrice: addForm.packageType === 'single' ? Number(addForm.sellPrice) : Number(addForm.individualSellPrice || addForm.stripSellPrice || addForm.sellPrice),
+                gstPercent: calculateGstPercent(addForm.costPrice, addForm.sellPrice),
                 batchNumber: addForm.batchNumber || 'OPENING',
                 expiryDate: addForm.expiryDate || null,
             });
@@ -160,10 +170,12 @@ export function Inventory() {
             packageType: item.packageType || 'box',
             unit: item.unit,
             stripsPerUnit: String(item.stripsPerUnit || 1),
+            tabletsPerStrip: String(item.tabletsPerStrip || 1),
             threshold: String(item.threshold || ''),
             costPrice: String(item.costPrice || ''),
             sellPrice: String(item.sellPrice || ''),
             stripSellPrice: String(item.stripSellPrice || item.sellPrice || ''),
+            individualSellPrice: String(item.individualSellPrice || item.stripSellPrice || item.sellPrice || ''),
             gstPercent: String(item.gstPercent || ''),
             expiryDate: item.expiryDate || '',
         });
@@ -187,8 +199,10 @@ export function Inventory() {
                 costPrice: Number(editForm.costPrice),
                 sellPrice: Number(editForm.sellPrice),
                 stripsPerUnit: editForm.packageType === 'single' ? 1 : Number(editForm.stripsPerUnit || 1),
+                tabletsPerStrip: editForm.packageType === 'single' ? 1 : Number(editForm.tabletsPerStrip || 1),
                 stripSellPrice: editForm.packageType === 'single' ? Number(editForm.sellPrice) : Number(editForm.stripSellPrice || editForm.sellPrice),
-                gstPercent: Number(editForm.gstPercent || 0),
+                individualSellPrice: editForm.packageType === 'single' ? Number(editForm.sellPrice) : Number(editForm.individualSellPrice || editForm.stripSellPrice || editForm.sellPrice),
+                gstPercent: calculateGstPercent(editForm.costPrice, editForm.sellPrice),
                 expiryDate: editForm.expiryDate || null,
             });
             setShowEditModal(false);
@@ -308,7 +322,7 @@ export function Inventory() {
                     </div>
                 ) : (
                     <table className="w-full table-fixed text-left text-xs">
-                        <thead className={cn("font-black uppercase tracking-widest text-[9px] sm:text-[10px]", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="w-[15%] p-3">Item</th><th className="w-[8%] p-3">Category</th><th className="w-[10%] p-3">Stock</th><th className="w-[17%] p-3">Batches</th><th className="w-[7%] p-3">Limit</th><th className="w-[9%] p-3">Expiry</th><th className="w-[12%] p-3">Price/GST</th><th className="w-[7%] p-3">Status</th><th className="w-[15%] p-3 text-right">Actions</th></tr></thead>
+                        <thead className={cn("font-black uppercase tracking-widest text-[9px] sm:text-[10px]", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="w-[15%] p-3">Item</th><th className="w-[8%] p-3">Category</th><th className="w-[10%] p-3">Stock</th><th className="w-[17%] p-3">Batches</th><th className="w-[7%] p-3">Limit</th><th className="w-[9%] p-3">Expiry</th><th className="w-[12%] p-3">MRP/Tax</th><th className="w-[7%] p-3">Status</th><th className="w-[15%] p-3 text-right">Actions</th></tr></thead>
                         <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
                             {visibleItems.map((item) => (
                                 <tr key={item.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
@@ -342,7 +356,7 @@ export function Inventory() {
                                     <td className={cn('p-3 font-bold whitespace-normal', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{getExpiryLabel(item)}</td>
                                     <td className={cn('p-3 font-black whitespace-normal', isDark ? 'text-gray-400' : 'text-[#512c31]')}>
                                         <span className="block leading-tight">{getPricingLabel(item)}</span>
-                                        <span className="block text-[10px] uppercase tracking-widest text-emerald-500">{Number(item.gstPercent || 0)}% GST</span>
+                                        <span className="block text-[10px] uppercase tracking-widest text-emerald-500">{Number(item.gstPercent || 0)}% tax auto</span>
                                         <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.packageType === 'single' ? 'Single pricing' : `${item.stripsPerUnit || 1} strips per box`}</span>
                                     </td>
                                     <td className="p-3"><span className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
@@ -404,7 +418,11 @@ export function Inventory() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Category</label>
-                                    <input required value={addForm.category} onChange={(e) => setAddForm({ ...addForm, category: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="General" />
+                                    <select required value={addForm.category} onChange={(e) => setAddForm({ ...addForm, category: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")}>
+                                        {INVENTORY_CATEGORIES.map((category) => (
+                                            <option key={category} value={category}>{category}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Pricing Type</label>
@@ -413,7 +431,7 @@ export function Inventory() {
                                             <button
                                                 key={type}
                                                 type="button"
-                                                onClick={() => setAddForm({ ...addForm, packageType: type, unit: type === 'single' ? 'single' : 'box', stripsPerUnit: type === 'single' ? '1' : addForm.stripsPerUnit })}
+                                                onClick={() => setAddForm({ ...addForm, packageType: type, unit: type === 'single' ? 'single' : 'box', stripsPerUnit: type === 'single' ? '1' : addForm.stripsPerUnit, tabletsPerStrip: type === 'single' ? '1' : addForm.tabletsPerStrip })}
                                                 className={cn("rounded-xl px-3 py-3 text-xs font-black uppercase tracking-widest transition-all", addForm.packageType === type ? "bg-[#512c31] text-white shadow-lg" : isDark ? "text-gray-400 hover:text-white" : "text-[#512c31]/60 hover:text-[#512c31]")}
                                             >
                                                 {type}
@@ -433,28 +451,39 @@ export function Inventory() {
                                 </div>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
+                                {addForm.packageType === 'box' && <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Tablets Per Strip</label>
+                                    <input required type="number" min="1" value={addForm.tabletsPerStrip} onChange={(e) => setAddForm({ ...addForm, tabletsPerStrip: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
+                                </div>}
                                 <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Threshold</label>
                                     <input required type="number" value={addForm.threshold} onChange={(e) => setAddForm({ ...addForm, threshold: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
                                 {addForm.packageType === 'box' && <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Price (Rs)</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Rate (Rs)</label>
                                     <input required type="number" step="0.01" value={addForm.stripSellPrice} onChange={(e) => setAddForm({ ...addForm, stripSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
+                                </div>}
+                                {addForm.packageType === 'box' && <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Tablet Rate (Rs)</label>
+                                    <input required type="number" step="0.01" value={addForm.individualSellPrice} onChange={(e) => setAddForm({ ...addForm, individualSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Cost Price</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>MRP (Rs)</label>
                                     <input required type="number" step="0.01" value={addForm.costPrice} onChange={(e) => setAddForm({ ...addForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{addForm.packageType === 'single' ? 'Single Price (Rs)' : 'Box Price (Rs)'}</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{addForm.packageType === 'single' ? 'Single Rate (Rs)' : 'Box Rate (Rs)'}</label>
                                     <input required type="number" step="0.01" value={addForm.sellPrice} onChange={(e) => setAddForm({ ...addForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0.00" />
                                 </div>
                             </div>
-                            <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>GST Percentage</label>
-                                <input type="number" min="0" max="100" step="0.01" value={addForm.gstPercent} onChange={(e) => setAddForm({ ...addForm, gstPercent: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0" />
+                            <div className={cn("rounded-2xl border-2 p-4", isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-[#fef9f3] border-transparent")}>
+                                <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Auto GST</p>
+                                <p className={cn("mt-2 text-2xl font-black", isDark ? "text-white" : "text-[#512c31]")}>{calculateGstPercent(addForm.costPrice, addForm.sellPrice)}%</p>
+                                <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>Split equally as State Tax and Central Tax on invoices</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -496,8 +525,8 @@ export function Inventory() {
                                 <input value={restockForm.batchNumber} onChange={(e) => setRestockForm({ ...restockForm, batchNumber: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="BATCH-002" />
                             </div>
                             <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Unit Cost</label>
-                                <input required type="number" step="0.01" value={restockForm.costPrice} onChange={(e) => setRestockForm({ ...restockForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="Unit Cost" />
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>MRP (Rs)</label>
+                                <input required type="number" step="0.01" value={restockForm.costPrice} onChange={(e) => setRestockForm({ ...restockForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="MRP" />
                             </div>
                             <div>
                                 <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Expiry Date (optional)</label>
@@ -532,7 +561,11 @@ export function Inventory() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Category</label>
-                                    <input required value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                    <select required value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")}>
+                                        {INVENTORY_CATEGORIES.map((category) => (
+                                            <option key={category} value={category}>{category}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Pricing Type</label>
@@ -541,7 +574,7 @@ export function Inventory() {
                                             <button
                                                 key={type}
                                                 type="button"
-                                                onClick={() => setEditForm({ ...editForm, packageType: type, unit: type === 'single' ? 'single' : 'box', stripsPerUnit: type === 'single' ? '1' : editForm.stripsPerUnit })}
+                                                onClick={() => setEditForm({ ...editForm, packageType: type, unit: type === 'single' ? 'single' : 'box', stripsPerUnit: type === 'single' ? '1' : editForm.stripsPerUnit, tabletsPerStrip: type === 'single' ? '1' : editForm.tabletsPerStrip })}
                                                 className={cn("rounded-xl px-3 py-3 text-xs font-black uppercase tracking-widest transition-all", editForm.packageType === type ? "bg-[#512c31] text-white shadow-lg" : isDark ? "text-gray-400 hover:text-white" : "text-[#512c31]/60 hover:text-[#512c31]")}
                                             >
                                                 {type}
@@ -556,23 +589,34 @@ export function Inventory() {
                                     <input type="number" min="1" value={editForm.stripsPerUnit} onChange={(e) => setEditForm({ ...editForm, stripsPerUnit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>}
                                 {editForm.packageType === 'box' && <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Price (Rs)</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Tablets Per Strip</label>
+                                    <input type="number" min="1" value={editForm.tabletsPerStrip} onChange={(e) => setEditForm({ ...editForm, tabletsPerStrip: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                {editForm.packageType === 'box' && <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strip Rate (Rs)</label>
                                     <input type="number" step="0.01" value={editForm.stripSellPrice} onChange={(e) => setEditForm({ ...editForm, stripSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>}
+                                {editForm.packageType === 'box' && <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Tablet Rate (Rs)</label>
+                                    <input type="number" step="0.01" value={editForm.individualSellPrice} onChange={(e) => setEditForm({ ...editForm, individualSellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Cost Price</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>MRP (Rs)</label>
                                     <input type="number" step="0.01" value={editForm.costPrice} onChange={(e) => setEditForm({ ...editForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
                                 <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{editForm.packageType === 'single' ? 'Single Price (Rs)' : 'Box Price (Rs)'}</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{editForm.packageType === 'single' ? 'Single Rate (Rs)' : 'Box Rate (Rs)'}</label>
                                     <input type="number" step="0.01" value={editForm.sellPrice} onChange={(e) => setEditForm({ ...editForm, sellPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>
                             </div>
-                            <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>GST Percentage</label>
-                                <input type="number" min="0" max="100" step="0.01" value={editForm.gstPercent} onChange={(e) => setEditForm({ ...editForm, gstPercent: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                            <div className={cn("rounded-2xl border-2 p-4", isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-[#fef9f3] border-transparent")}>
+                                <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Auto GST</p>
+                                <p className={cn("mt-2 text-2xl font-black", isDark ? "text-white" : "text-[#512c31]")}>{calculateGstPercent(editForm.costPrice, editForm.sellPrice)}%</p>
+                                <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>Split equally as State Tax and Central Tax on invoices</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>

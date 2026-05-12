@@ -36,6 +36,7 @@ export function CreateInvoice() {
         items: [],
     });
     const [invoiceStatus, setInvoiceStatus] = useState('pending');
+    const [paymentMethod, setPaymentMethod] = useState('cash');
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
 
@@ -80,17 +81,21 @@ export function CreateInvoice() {
         const taxableAmount = Math.max(0, gross - discountAmount);
         const gstPercent = Math.min(100, Math.max(0, Number(item.gstPercent || 0)));
         const gstAmount = Number((taxableAmount * (gstPercent / 100)).toFixed(2));
+        const stateTaxAmount = Number((gstAmount / 2).toFixed(2));
+        const centralTaxAmount = Number((gstAmount - stateTaxAmount).toFixed(2));
         const lineTotal = Math.max(0, taxableAmount + gstAmount);
-        return { gross, discountPercent, discountAmount, taxableAmount, gstPercent, gstAmount, lineTotal };
+        return { gross, discountPercent, discountAmount, taxableAmount, gstPercent, gstAmount, stateTaxAmount, centralTaxAmount, lineTotal };
     };
 
     const calculatedTotals = useMemo(() => {
         const lineItems = formState.items.map((item) => ({ ...item, ...getLineTotals(item) }));
         const subtotal = lineItems.reduce((sum, item) => sum + item.gross, 0);
         const discount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
-        const taxAmount = lineItems.reduce((sum, item) => sum + item.gstAmount, 0);
+        const taxAmount = Number(lineItems.reduce((sum, item) => sum + item.gstAmount, 0).toFixed(2));
+        const stateTaxAmount = Number(lineItems.reduce((sum, item) => sum + item.stateTaxAmount, 0).toFixed(2));
+        const centralTaxAmount = Number((taxAmount - stateTaxAmount).toFixed(2));
         const total = Math.max(0, subtotal - discount + taxAmount);
-        return { subtotal, discount, taxAmount, total, lineItems };
+        return { subtotal, discount, taxAmount, stateTaxAmount, centralTaxAmount, total, lineItems };
     }, [formState.items]);
 
     const getInventoryWarning = (item) => {
@@ -142,11 +147,14 @@ export function CreateInvoice() {
                         packageType: item.packageType || 'box',
                         maxStock: item.packageType === 'single' ? Number(item.stripStock || 0) : item.stock,
                         stripStock: Number(item.stripStock || item.stock || 0),
+                        individualStock: Number(item.individualStock || item.stripStock || item.stock || 0),
                         unit: item.unit,
                         saleUnit: 'unit',
                         unitPrice: Number(item.sellPrice || 0),
                         stripPrice: Number(item.stripSellPrice || item.sellPrice || 0),
+                        individualPrice: Number(item.individualSellPrice || item.stripSellPrice || item.sellPrice || 0),
                         stripsPerUnit: Number(item.stripsPerUnit || 1),
+                        tabletsPerStrip: Number(item.tabletsPerStrip || 1),
                         batches: item.batches || [],
                         expiryStatus: item.expiryStatus,
                         daysToExpiry: item.daysToExpiry,
@@ -178,6 +186,7 @@ export function CreateInvoice() {
                     : `Inventory - ${i.stock} box / ${i.stripStock || 0} strips`,
                 price: Number(i.sellPrice || 0),
                 stripPrice: Number(i.stripSellPrice || i.sellPrice || 0),
+                individualPrice: Number(i.individualSellPrice || i.stripSellPrice || i.sellPrice || 0),
                 gstPercent: Number(i.gstPercent || 0),
                 packageType: i.packageType || 'box',
                 warning: getInventoryWarning({ ...i, itemType: 'inventory' }),
@@ -217,7 +226,7 @@ export function CreateInvoice() {
         const newItems = [...formState.items];
         const value = Math.max(1, parseInt(qty, 10) || 1);
         const maxStock = newItems[index].itemType === 'inventory'
-            ? Number((newItems[index].saleUnit === 'strip' ? newItems[index].stripStock : newItems[index].maxStock) || value)
+            ? Number((newItems[index].saleUnit === 'individual' ? newItems[index].individualStock : newItems[index].saleUnit === 'strip' ? newItems[index].stripStock : newItems[index].maxStock) || value)
             : value;
         newItems[index].quantity = newItems[index].itemType === 'inventory' ? Math.min(value, maxStock) : value;
         setFormState((prev) => ({ ...prev, items: newItems }));
@@ -233,6 +242,8 @@ export function CreateInvoice() {
         if (newItems[index].itemType === 'inventory') {
             if (newItems[index].saleUnit === 'strip') {
                 newItems[index].stripPrice = value;
+            } else if (newItems[index].saleUnit === 'individual') {
+                newItems[index].individualPrice = value;
             } else {
                 newItems[index].unitPrice = value;
             }
@@ -254,12 +265,12 @@ export function CreateInvoice() {
         const newItems = [...formState.items];
         const item = newItems[index];
         if (!item || item.itemType !== 'inventory') return;
-        const nextSaleUnit = item.packageType !== 'single' && saleUnit === 'strip' ? 'strip' : 'unit';
-        const nextMaxStock = nextSaleUnit === 'strip' ? Number(item.stripStock || 0) : Number(item.maxStock || 0);
+        const nextSaleUnit = item.packageType !== 'single' && ['strip', 'individual'].includes(saleUnit) ? saleUnit : 'unit';
+        const nextMaxStock = nextSaleUnit === 'individual' ? Number(item.individualStock || item.stripStock || 0) : nextSaleUnit === 'strip' ? Number(item.stripStock || 0) : Number(item.maxStock || 0);
         newItems[index] = {
             ...item,
             saleUnit: nextSaleUnit,
-            price: nextSaleUnit === 'strip' ? Number(item.stripPrice || item.price || 0) : Number(item.unitPrice || item.price || 0),
+            price: nextSaleUnit === 'individual' ? Number(item.individualPrice || item.price || 0) : nextSaleUnit === 'strip' ? Number(item.stripPrice || item.price || 0) : Number(item.unitPrice || item.price || 0),
             quantity: Math.max(1, Math.min(Number(item.quantity || 1), nextMaxStock || 1)),
         };
         setFormState((prev) => ({ ...prev, items: newItems }));
@@ -293,6 +304,7 @@ export function CreateInvoice() {
                 patientContact: selectedPatient.contact || '',
                 date: formState.date,
                 status: invoiceStatus,
+                paymentMethod,
                 items: formState.items.map((item) => ({
                     name: item.name,
                     price: Number(item.price),
@@ -330,6 +342,8 @@ export function CreateInvoice() {
         items: calculatedTotals.lineItems,
         subtotal: calculatedTotals.subtotal,
         tax: calculatedTotals.taxAmount,
+        stateTax: calculatedTotals.stateTaxAmount,
+        centralTax: calculatedTotals.centralTaxAmount,
         discount: calculatedTotals.discount,
         total: calculatedTotals.total,
     };
@@ -347,7 +361,7 @@ export function CreateInvoice() {
                         </div>
                         <div>
                             <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Invoice Workbench</h1>
-                            <p className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Line discounts, GST, stock, and billing controls</p>
+                            <p className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Line discounts, tax split, stock, and billing controls</p>
                         </div>
                     </div>
                     <button
@@ -445,7 +459,7 @@ export function CreateInvoice() {
                                                     >
                                                         <div className={cn('text-sm font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</div>
                                                         <div className={cn('text-[10px] font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
-                                                            {item.subtitle} - {item.kind === 'inventory' && item.packageType === 'single' ? `Single Rs ${item.price}` : `Box Rs ${item.price}${item.kind === 'inventory' ? ` - Strip Rs ${item.stripPrice}` : ''}`} {item.kind === 'inventory' ? `- GST ${item.gstPercent || 0}%` : ''}
+                                                            {item.subtitle} - {item.kind === 'inventory' && item.packageType === 'single' ? `Single Rate Rs ${item.price}` : `Box Rate Rs ${item.price}${item.kind === 'inventory' ? ` - Strip Rate Rs ${item.stripPrice} - Tablet Rate Rs ${item.individualPrice}` : ''}`} {item.kind === 'inventory' ? `- Tax ${item.gstPercent || 0}% auto` : ''}
                                                         </div>
                                                         {item.warning && (
                                                             <div className={cn('mt-2 flex items-center gap-2 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest', item.warning.level === 'danger' ? 'bg-red-500/10 text-red-400' : 'bg-orange-500/10 text-orange-300')}>
@@ -493,12 +507,12 @@ export function CreateInvoice() {
                                     <p className="mt-2 font-black text-lg text-red-400">- Rs{calculatedTotals.discount.toFixed(2)}</p>
                                 </div>
                                 <div className={cn('rounded-2xl p-4', isDark ? 'bg-[#1e1e1e]' : 'bg-white')}>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">GST</p>
-                                    <p className="mt-2 font-black text-lg text-emerald-400">+ Rs{calculatedTotals.taxAmount.toFixed(2)}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">State Tax</p>
+                                    <p className="mt-2 font-black text-lg text-emerald-400">+ Rs{calculatedTotals.stateTaxAmount.toFixed(2)}</p>
                                 </div>
                                 <div className={cn('rounded-2xl p-4', isDark ? 'bg-[#1e1e1e]' : 'bg-white')}>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Lines</p>
-                                    <p className={cn('mt-2 font-black text-lg', isDark ? 'text-white' : 'text-[#512c31]')}>{formState.items.length}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Central Tax</p>
+                                    <p className="mt-2 font-black text-lg text-sky-400">+ Rs{calculatedTotals.centralTaxAmount.toFixed(2)}</p>
                                 </div>
                             </div>
                             <div className={cn("pt-4 border-t-2 flex justify-between items-center", isDark ? "border-gray-800" : "border-gray-200")}><span className={cn("font-black text-xl tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Total</span><span className={cn('font-black text-3xl tracking-tight text-[#e8919a]')}>Rs{calculatedTotals.total.toFixed(2)}</span></div>
@@ -510,6 +524,14 @@ export function CreateInvoice() {
                                 <option value="pending">Pending</option>
                                 <option value="paid">Paid</option>
                                 <option value="overdue">Overdue</option>
+                            </select>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 p-4 rounded-2xl border-2 dark:border-gray-800">
+                            <label className={cn('text-xs font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Payment Method</label>
+                            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={cn('px-4 py-2 rounded-xl text-sm font-bold outline-none border-2 transition-all cursor-pointer', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}>
+                                <option value="cash">Cash</option>
+                                <option value="gpay">GPay</option>
                             </select>
                         </div>
                     </div>
@@ -524,7 +546,7 @@ export function CreateInvoice() {
                                 <span>Rate</span>
                                 <span>Qty</span>
                                 <span>Disc %</span>
-                                <span>GST %</span>
+                                <span>Tax Split</span>
                                 <span>Action</span>
                             </div>
                         </div>
@@ -536,7 +558,7 @@ export function CreateInvoice() {
                             <div className="min-w-0">
                                 <p className={cn('text-base font-black truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</p>
                                 <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-0.5', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
-                                    Rs{item.price} - {item.itemType === 'inventory' ? `${item.packageType === 'single' ? 'Single' : item.saleUnit === 'strip' ? 'Strip' : 'Box'} sale` : 'Service'}
+                                    Rs{item.price} - {item.itemType === 'inventory' ? `${item.packageType === 'single' ? 'Single' : item.saleUnit === 'individual' ? 'Tablet' : item.saleUnit === 'strip' ? 'Strip' : 'Box'} sale` : 'Service'}
                                 </p>
                                 {getInventoryWarning(item) && (
                                     <div className={cn('mt-2 inline-flex max-w-full items-center gap-2 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest', getInventoryWarning(item).level === 'danger' ? 'bg-red-500/10 text-red-400' : 'bg-orange-500/10 text-orange-300')}>
@@ -544,9 +566,10 @@ export function CreateInvoice() {
                                         <span className="truncate">{getInventoryWarning(item).message}</span>
                                     </div>
                                 )}
-                                <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-black uppercase tracking-widest">
+                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-black uppercase tracking-widest">
                                     <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>Discount Rs{line.discountAmount.toFixed(2)}</span>
-                                    <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>GST Rs{line.gstAmount.toFixed(2)}</span>
+                                    <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>SGST Rs{line.stateTaxAmount.toFixed(2)}</span>
+                                    <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>CGST Rs{line.centralTaxAmount.toFixed(2)}</span>
                                     <span className={cn('rounded-xl px-3 py-2', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>Line Rs{line.lineTotal.toFixed(2)}</span>
                                 </div>
                             </div>
@@ -559,6 +582,7 @@ export function CreateInvoice() {
                                     >
                                         <option value="unit">{item.unit || 'Unit'}</option>
                                         <option value="strip">Strip</option>
+                                        <option value="individual">Tablet</option>
                                     </select>
                                 ) : (
                                     <span className={cn('w-full p-2 rounded-xl text-xs font-black text-center border-2', isDark ? 'bg-[#1e1e1e] border-gray-800 text-gray-400' : 'bg-[#fef9f3] border-transparent text-[#512c31]/60')}>
@@ -579,9 +603,10 @@ export function CreateInvoice() {
                                     <Percent className="absolute left-2 top-2.5 w-3.5 h-3.5 text-red-400" />
                                     <input type="number" min="0" max="100" step="0.01" value={item.discountPercent || 0} onChange={(e) => updateItemPercent(index, 'discountPercent', e.target.value)} className={cn('w-full pl-7 pr-2 py-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')} aria-label="Discount percent" />
                                 </div>
-                                <div className="relative">
-                                    <Percent className="absolute left-2 top-2.5 w-3.5 h-3.5 text-emerald-400" />
-                                    <input type="number" min="0" max="100" step="0.01" value={item.gstPercent || 0} onChange={(e) => updateItemPercent(index, 'gstPercent', e.target.value)} className={cn('w-full pl-7 pr-2 py-2 rounded-xl text-sm font-black text-center outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')} aria-label="GST percent" />
+                                <div className={cn('rounded-xl border-2 px-2 py-1 text-center', isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-[#fef9f3] border-transparent')}>
+                                    <p className={cn('text-[9px] font-black uppercase tracking-widest', isDark ? 'text-gray-500' : 'text-[#512c31]/50')}>{Number(item.gstPercent || 0).toFixed(2)}% tax</p>
+                                    <p className="text-[10px] font-black text-emerald-400">S Rs{line.stateTaxAmount.toFixed(2)}</p>
+                                    <p className="text-[10px] font-black text-sky-400">C Rs{line.centralTaxAmount.toFixed(2)}</p>
                                 </div>
                                 <button onClick={() => removeItem(index)} className={cn("p-2 sm:p-3 rounded-xl transition-all shadow-sm hover:scale-110", isDark ? "bg-red-500/10 text-red-400 hover:bg-red-500/20" : "bg-red-50 text-red-500 hover:bg-red-100")}><Trash2 className="w-4 h-4 sm:w-5 sm:h-5" /></button>
                             </div>
