@@ -19,7 +19,7 @@ function calculateRateFromMrpAndGst(mrp, gstPercent) {
     const mrpValue = Number(mrp || 0);
     const gstValue = normalizePercent(gstPercent);
     if (mrpValue <= 0) return 0;
-    return Number((mrpValue / (1 + (gstValue / 100))).toFixed(2));
+    return Number((mrpValue - (mrpValue * (gstValue / 100))).toFixed(2));
 }
 
 function calculateInventoryPricing(form) {
@@ -508,7 +508,7 @@ export function Inventory() {
                                         Strip Rs {calculateInventoryPricing(addForm).stripRate.toFixed(2)} / Tablet Rs {calculateInventoryPricing(addForm).individualRate.toFixed(2)}
                                     </p>
                                 )}
-                                <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>Invoice uses this rate plus GST to match the MRP</p>
+                                <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>Invoice uses this rate with the entered GST</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -636,7 +636,7 @@ export function Inventory() {
                                         Strip Rs {calculateInventoryPricing(editForm).stripRate.toFixed(2)} / Tablet Rs {calculateInventoryPricing(editForm).individualRate.toFixed(2)}
                                     </p>
                                 )}
-                                <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>Invoice uses this rate plus GST to match the MRP</p>
+                                <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>Invoice uses this rate with the entered GST</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>

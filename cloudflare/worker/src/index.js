@@ -415,7 +415,7 @@ function calculateRateCentsFromMrpAndGst(mrpCents, gstPercent) {
     const mrp = Number(mrpCents || 0);
     const gst = toPercent(gstPercent);
     if (mrp <= 0) return 0;
-    return Math.round(mrp / (1 + (gst / 100)));
+    return Math.round(mrp - (mrp * (gst / 100)));
 }
 
 function sanitizeDate(value) {
