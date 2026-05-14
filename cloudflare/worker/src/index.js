@@ -404,11 +404,18 @@ function toPercent(value) {
     return Number(Math.min(100, Math.max(0, parsed)).toFixed(2));
 }
 
-function calculateGstPercentFromMrpAndRate(mrpCents, rateCents) {
+function calculateGstPercentFromLegacyRate(mrpCents, rateCents) {
     const mrp = Number(mrpCents || 0);
     const rate = Number(rateCents || 0);
     if (mrp <= rate || rate <= 0) return 0;
     return Number((((mrp - rate) / rate) * 100).toFixed(2));
+}
+
+function calculateRateCentsFromMrpAndGst(mrpCents, gstPercent) {
+    const mrp = Number(mrpCents || 0);
+    const gst = toPercent(gstPercent);
+    if (mrp <= 0) return 0;
+    return Math.round(mrp / (1 + (gst / 100)));
 }
 
 function sanitizeDate(value) {
@@ -2224,16 +2231,24 @@ async function createInventoryItem(env, request) {
     const stock = Math.max(0, Number.parseInt(body.stock, 10) || 0);
     const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
     const costCents = toCents(body.costPrice);
-    const sellCents = toCents(body.sellPrice);
+    const gstPercent = Object.prototype.hasOwnProperty.call(body, 'gstPercent')
+        ? toPercent(body.gstPercent)
+        : calculateGstPercentFromLegacyRate(costCents, toCents(body.sellPrice));
+    const sellCents = Object.prototype.hasOwnProperty.call(body, 'gstPercent')
+        ? calculateRateCentsFromMrpAndGst(costCents, gstPercent)
+        : toCents(body.sellPrice);
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(body.stripsPerUnit);
     const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(body.tabletsPerStrip);
     const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
     const stockUnits = packageType === 'single'
         ? stock
         : Math.max(0, Number.parseInt(body.individualStock, 10) || (stock * tabletsPerBox));
-    const stripSellCents = packageType === 'single' ? sellCents : toCents(body.stripSellPrice || fromCents(sellCents));
-    const individualSellCents = packageType === 'single' ? sellCents : toCents(body.individualSellPrice || fromCents(stripSellCents));
-    const gstPercent = calculateGstPercentFromMrpAndRate(costCents, sellCents);
+    const stripSellCents = packageType === 'single'
+        ? sellCents
+        : Object.prototype.hasOwnProperty.call(body, 'stripSellPrice') ? toCents(body.stripSellPrice) : Math.round(sellCents / stripsPerUnit);
+    const individualSellCents = packageType === 'single'
+        ? sellCents
+        : Object.prototype.hasOwnProperty.call(body, 'individualSellPrice') ? toCents(body.individualSellPrice) : Math.round(stripSellCents / tabletsPerStrip);
     const expiryDate = sanitizeOptionalDate(body.expiryDate);
     const batchNumber = normalizeBatchNumber(body.batchNumber);
 
@@ -2331,13 +2346,21 @@ async function updateInventoryItem(env, request, itemId) {
     const unit = packageType === 'single' ? 'single' : 'box';
     const threshold = Math.max(0, Number.parseInt(body.threshold, 10) || 0);
     const costCents = toCents(body.costPrice);
-    const sellCents = toCents(body.sellPrice);
+    const gstPercent = Object.prototype.hasOwnProperty.call(body, 'gstPercent')
+        ? toPercent(body.gstPercent)
+        : calculateGstPercentFromLegacyRate(costCents, toCents(body.sellPrice));
+    const sellCents = Object.prototype.hasOwnProperty.call(body, 'gstPercent')
+        ? calculateRateCentsFromMrpAndGst(costCents, gstPercent)
+        : toCents(body.sellPrice);
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(body.stripsPerUnit);
     const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(body.tabletsPerStrip);
     const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
-    const stripSellCents = packageType === 'single' ? sellCents : toCents(body.stripSellPrice || fromCents(sellCents));
-    const individualSellCents = packageType === 'single' ? sellCents : toCents(body.individualSellPrice || fromCents(stripSellCents));
-    const gstPercent = calculateGstPercentFromMrpAndRate(costCents, sellCents);
+    const stripSellCents = packageType === 'single'
+        ? sellCents
+        : Object.prototype.hasOwnProperty.call(body, 'stripSellPrice') ? toCents(body.stripSellPrice) : Math.round(sellCents / stripsPerUnit);
+    const individualSellCents = packageType === 'single'
+        ? sellCents
+        : Object.prototype.hasOwnProperty.call(body, 'individualSellPrice') ? toCents(body.individualSellPrice) : Math.round(stripSellCents / tabletsPerStrip);
     const expiryDate = Object.prototype.hasOwnProperty.call(body, 'expiryDate')
         ? sanitizeOptionalDate(body.expiryDate)
         : null;
