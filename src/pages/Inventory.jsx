@@ -382,7 +382,7 @@ export function Inventory() {
                 <input type="text" placeholder="Search inventory items..." className={cn('flex-1 py-4 outline-none placeholder-gray-400 bg-transparent text-sm sm:text-base font-medium', isDark ? 'text-white' : 'text-[#512c31]')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
 
-            <div className={cn('rounded-[2rem] overflow-hidden dashboard-reveal reveal-delay-3 border-2 shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5 shadow-black/50' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
+            <div className={cn('rounded-[2rem] overflow-x-auto dashboard-reveal reveal-delay-3 border-2 shadow-2xl', isDark ? 'bg-[#1e1e1e] border-white/5 shadow-black/50' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
                 {loading ? (
                     <div>
                         <div className={cn('px-4 py-3 border-b', isDark ? 'bg-[#0f0f0f] border-gray-800' : 'bg-gray-50 border-gray-200')}>
@@ -409,8 +409,8 @@ export function Inventory() {
                         </div>
                     </div>
                 ) : (
-                    <table className="w-full table-fixed text-left text-xs">
-                        <thead className={cn("font-black uppercase tracking-widest text-[9px] sm:text-[10px]", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="w-[17%] p-3">Item</th><th className="w-[7%] p-3">Category</th><th className="w-[8%] p-3">Stock</th><th className="w-[25%] p-3">Batches</th><th className="w-[6%] p-3">Limit</th><th className="w-[8%] p-3">Expiry</th><th className="w-[11%] p-3">MRP/Tax</th><th className="w-[6%] p-3">Status</th><th className="w-[12%] p-3 text-right">Actions</th></tr></thead>
+                    <table className="w-full min-w-[1180px] table-fixed text-left text-xs">
+                        <thead className={cn("font-black uppercase tracking-widest text-[9px] sm:text-[10px]", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="w-[16%] p-3">Item</th><th className="w-[7%] p-3">Category</th><th className="w-[8%] p-3">Stock</th><th className="w-[25%] p-3">Batches</th><th className="w-[5%] p-3">Limit</th><th className="w-[8%] p-3">Expiry</th><th className="w-[10%] p-3">MRP/Tax</th><th className="w-[7%] p-3">Status</th><th className="w-[14%] p-3 text-right">Actions</th></tr></thead>
                         <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
                             {visibleItems.map((item) => (
                                 <tr key={item.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
@@ -466,21 +466,21 @@ export function Inventory() {
                                         <span className="block text-[10px] uppercase tracking-widest text-emerald-500">{Number(item.gstPercent || 0)}% tax auto</span>
                                         <span className="block text-[10px] uppercase tracking-widest text-gray-500">{item.packageType === 'single' ? 'Single pricing' : `${item.stripsPerUnit || 1} strips per box`}</span>
                                     </td>
-                                    <td className="p-3"><span className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
+                                    <td className="p-3 align-top"><span className={`inline-flex whitespace-nowrap px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider shadow-sm border ${getStatusColor(item.status)}`}>{item.status}</span></td>
                                     <td className="p-3 text-right">
                                         {canEditInventory && (
-                                            <div className="flex items-center justify-end gap-1.5">
+                                            <div className="flex flex-wrap items-center justify-end gap-1.5">
                                                 <button
                                                     onClick={() => openEditModal(item)}
-                                                    className="p-2 text-blue-500 hover:text-white bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                                                    className="shrink-0 p-2 text-blue-500 hover:text-white bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
                                                     title="Edit item"
                                                 >
                                                     <Pencil className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), gstPercent: String(item.gstPercent || ''), batchNumber: '', expiryDate: '' }); setShowRestockModal(true); }} className="px-2.5 py-2 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-[10px] font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
+                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), gstPercent: String(item.gstPercent || ''), batchNumber: '', expiryDate: '' }); setShowRestockModal(true); }} className="shrink-0 px-2.5 py-2 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-[10px] font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
                                                 <button
                                                     onClick={() => handleDeleteItem(item)}
-                                                    className="p-2 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 dark:bg-red-500/10 dark:hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                                                    className="shrink-0 p-2 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 dark:bg-red-500/10 dark:hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
                                                     title="Delete item"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
