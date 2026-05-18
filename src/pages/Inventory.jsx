@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Package, AlertTriangle, CheckCircle, TrendingDown, Box, X, Clock3, Pencil, Trash2, Layers3 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
-import { createInventoryItem, deleteInventoryItem, fetchInventory, restockInventoryItem, updateInventoryItem } from '../lib/clinicApi';
+import { createInventoryItem, deleteInventoryBatch, deleteInventoryItem, fetchInventory, restockInventoryItem, updateInventoryBatch, updateInventoryItem } from '../lib/clinicApi';
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
 
@@ -62,6 +62,9 @@ export function Inventory() {
     const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' });
     const [showEditModal, setShowEditModal] = useState(false);
     const [editForm, setEditForm] = useState(null);
+    const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+    const [selectedBatch, setSelectedBatch] = useState(null);
+    const [batchEditForm, setBatchEditForm] = useState({ quantity: '', costPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' });
 
     const loadInventory = async () => {
         setLoading(true);
@@ -260,6 +263,60 @@ export function Inventory() {
         }
     };
 
+    const openBatchEditModal = (item, batch) => {
+        setSelectedItem(item);
+        setSelectedBatch(batch);
+        setBatchEditForm({
+            quantity: String(item.packageType === 'single' ? batch.stripStock || 0 : batch.stock || 0),
+            costPrice: String(batch.costPrice || item.costPrice || ''),
+            gstPercent: String(batch.gstPercent ?? item.gstPercent ?? ''),
+            batchNumber: batch.batchNumber || '',
+            expiryDate: batch.expiryDate || '',
+        });
+        setShowBatchEditModal(true);
+    };
+
+    const handleEditBatch = async (e) => {
+        e.preventDefault();
+        if (!selectedItem || !selectedBatch) return;
+        setError('');
+        if (!canEditInventory) {
+            setError('You do not have permission to edit inventory.');
+            return;
+        }
+        try {
+            await updateInventoryBatch(selectedItem.id, selectedBatch.id, {
+                quantity: Number(batchEditForm.quantity),
+                costPrice: Number(batchEditForm.costPrice || selectedBatch.costPrice || 0),
+                gstPercent: Number(batchEditForm.gstPercent || 0),
+                batchNumber: batchEditForm.batchNumber || 'BATCH',
+                expiryDate: batchEditForm.expiryDate || null,
+            });
+            setShowBatchEditModal(false);
+            setSelectedBatch(null);
+            setBatchEditForm({ quantity: '', costPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' });
+            await loadInventory();
+        } catch (err) {
+            setError(err.message || 'Failed to update batch.');
+        }
+    };
+
+    const handleDeleteBatch = async (item, batch) => {
+        if (!canEditInventory) {
+            setError('You do not have permission to edit inventory.');
+            return;
+        }
+        const ok = window.confirm(`Delete batch ${batch.batchNumber} from ${item.name}? This cannot be undone.`);
+        if (!ok) return;
+        setError('');
+        try {
+            await deleteInventoryBatch(item.id, batch.id);
+            await loadInventory();
+        } catch (err) {
+            setError(err.message || 'Failed to delete batch.');
+        }
+    };
+
     return (
         <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 dashboard-reveal">
@@ -353,11 +410,11 @@ export function Inventory() {
                     </div>
                 ) : (
                     <table className="w-full table-fixed text-left text-xs">
-                        <thead className={cn("font-black uppercase tracking-widest text-[9px] sm:text-[10px]", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="w-[15%] p-3">Item</th><th className="w-[8%] p-3">Category</th><th className="w-[10%] p-3">Stock</th><th className="w-[17%] p-3">Batches</th><th className="w-[7%] p-3">Limit</th><th className="w-[9%] p-3">Expiry</th><th className="w-[12%] p-3">MRP/Tax</th><th className="w-[7%] p-3">Status</th><th className="w-[15%] p-3 text-right">Actions</th></tr></thead>
+                        <thead className={cn("font-black uppercase tracking-widest text-[9px] sm:text-[10px]", isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}><tr><th className="w-[17%] p-3">Item</th><th className="w-[7%] p-3">Category</th><th className="w-[8%] p-3">Stock</th><th className="w-[25%] p-3">Batches</th><th className="w-[6%] p-3">Limit</th><th className="w-[8%] p-3">Expiry</th><th className="w-[11%] p-3">MRP/Tax</th><th className="w-[6%] p-3">Status</th><th className="w-[12%] p-3 text-right">Actions</th></tr></thead>
                         <tbody className={cn('divide-y', isDark ? 'divide-gray-800' : 'divide-gray-50')}>
                             {visibleItems.map((item) => (
                                 <tr key={item.id} className={cn('transition-all duration-300 group', isDark ? 'hover:bg-[#252525]' : 'hover:bg-[#fef9f3]')}>
-                                    <td className="p-3"><div className="flex items-center gap-2 min-w-0"><div className={cn('w-9 h-9 rounded-xl flex items-center justify-center dashboard-card shadow-sm flex-shrink-0', isDark ? 'bg-[#0f0f0f] border border-gray-800' : 'bg-white border border-[#512c31]/5')}><Package className={cn('w-4 h-4', isDark ? 'text-gray-400' : 'text-[#e8919a]')} /></div><span className={cn('font-bold text-sm truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</span></div></td>
+                                    <td className="p-3"><div className="flex items-center gap-2 min-w-0"><div className={cn('w-9 h-9 rounded-xl flex items-center justify-center dashboard-card shadow-sm flex-shrink-0', isDark ? 'bg-[#0f0f0f] border border-gray-800' : 'bg-white border border-[#512c31]/5')}><Package className={cn('w-4 h-4', isDark ? 'text-gray-400' : 'text-[#e8919a]')} /></div><span className={cn('font-black text-sm leading-snug whitespace-normal break-words', isDark ? 'text-white' : 'text-[#512c31]')}>{item.name}</span></div></td>
                                     <td className={cn('p-3 font-bold truncate', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.category}</td>
                                     <td className={cn('p-3 font-black', isDark ? 'text-white' : 'text-[#512c31]')}>
                                         {item.packageType === 'single' ? item.stripStock : item.stock} <span className="text-gray-500 font-bold ml-1 text-sm">{item.packageType === 'single' ? 'single' : 'box'}</span>
@@ -368,22 +425,38 @@ export function Inventory() {
                                             <Layers3 className="w-4 h-4 text-[#e8919a]" />
                                             <span className="text-xs uppercase tracking-widest">{item.batchCount || 0} active batches</span>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            {(item.batches || []).slice(0, 3).map((batch) => (
-                                                <div key={batch.id} className={cn('rounded-xl px-3 py-2 border text-[11px]', isDark ? 'border-white/5 bg-black/20' : 'border-[#512c31]/10 bg-[#fef9f3]')}>
-                                                    <div className="flex justify-between gap-3">
-                                                        <span className="font-black">{batch.batchNumber}</span>
-                                                        <span>{item.packageType === 'single' ? batch.stripStock : batch.stock} {item.packageType === 'single' ? 'single' : 'box'}</span>
+                                        <div className="space-y-2">
+                                            {(item.batches || []).map((batch, batchIndex) => (
+                                                <div key={batch.id} className={cn('rounded-2xl px-3 py-3 border text-[11px]', isDark ? 'border-white/10 bg-[#121212]' : 'border-[#512c31]/10 bg-[#fef9f3]')}>
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <span className={cn('block font-black', isDark ? 'text-white/90' : 'text-[#512c31]')}>{batch.batchNumber || `Batch ${batchIndex + 1}`}</span>
+                                                            <span className={cn('mt-1 block font-bold uppercase tracking-widest', batch.expiryStatus === 'expired' ? 'text-red-400' : batch.expiryStatus === 'expiring_soon' ? 'text-orange-300' : 'text-gray-500')}>
+                                                                {getBatchExpiryLabel(batch)}
+                                                            </span>
+                                                        </div>
+                                                        <span className={cn('rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest whitespace-nowrap', isDark ? 'bg-white/10 text-white' : 'bg-white text-[#512c31]')}>
+                                                            {item.packageType === 'single' ? batch.stripStock : batch.stock} {item.packageType === 'single' ? 'single' : 'box'}
+                                                        </span>
                                                     </div>
-                                                    <div className={cn('mt-1 font-bold uppercase tracking-widest', batch.expiryStatus === 'expired' ? 'text-red-400' : batch.expiryStatus === 'expiring_soon' ? 'text-orange-300' : 'text-gray-500')}>
-                                                        {getBatchExpiryLabel(batch)}
-                                                    </div>
-                                                    <div className="mt-1 text-[10px] font-black uppercase tracking-widest text-emerald-500">
-                                                        MRP Rs{batch.costPrice} / Rate Rs{batch.sellPrice} / {Number(batch.gstPercent || 0)}% GST
+                                                    <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] font-black uppercase tracking-widest">
+                                                        <span className={cn('rounded-xl px-2 py-1.5', isDark ? 'bg-black/30 text-gray-300' : 'bg-white text-[#512c31]/70')}>MRP Rs{batch.costPrice}</span>
+                                                        <span className={cn('rounded-xl px-2 py-1.5', isDark ? 'bg-black/30 text-emerald-400' : 'bg-white text-emerald-600')}>Rate Rs{batch.sellPrice}</span>
+                                                        <span className={cn('rounded-xl px-2 py-1.5', isDark ? 'bg-black/30 text-sky-300' : 'bg-white text-sky-700')}>{Number(batch.gstPercent || 0)}% GST</span>
+                                                        {canEditInventory && (
+                                                            <span className="flex items-center justify-end gap-1">
+                                                                <button type="button" onClick={() => openBatchEditModal(item, batch)} className="rounded-lg bg-blue-500/15 p-1.5 text-blue-300 hover:bg-blue-500 hover:text-white transition-all" title="Edit batch">
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button type="button" onClick={() => handleDeleteBatch(item, batch)} className="rounded-lg bg-red-500/15 p-1.5 text-red-300 hover:bg-red-500 hover:text-white transition-all" title="Delete batch">
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
-                                            {(item.batches || []).length > 3 && <div className="text-[10px] uppercase tracking-widest text-gray-500">+{item.batches.length - 3} more batches</div>}
+                                            {(item.batches || []).length === 0 && <div className="text-[10px] uppercase tracking-widest text-gray-500">No active batches</div>}
                                         </div>
                                     </td>
                                     <td className={cn('p-3 font-bold', isDark ? 'text-gray-400' : 'text-[#512c31]/80')}>{item.threshold}</td>
@@ -587,6 +660,63 @@ export function Inventory() {
             )}
 
             {/* ── Edit Inventory Modal ── */}
+            {showBatchEditModal && selectedItem && selectedBatch && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className={cn(
+                        "rounded-[2.5rem] p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto border-4 shadow-2xl transition-all",
+                        isDark ? "bg-[#1e1e1e] border-white/5" : "bg-white border-white/50"
+                    )}>
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 className={cn("text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Edit Batch</h2>
+                                <p className={cn("mt-1 text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>{selectedItem.name}</p>
+                            </div>
+                            <button onClick={() => setShowBatchEditModal(false)} className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-all", isDark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-[#fef9f3] text-[#512c31] hover:bg-[#e8919a] hover:text-white")}>
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleEditBatch} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{selectedItem.packageType === 'single' ? 'Single Quantity' : 'Box Quantity'}</label>
+                                    <input required type="number" min="0" value={batchEditForm.quantity} onChange={(e) => setBatchEditForm({ ...batchEditForm, quantity: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Batch Number</label>
+                                    <input value={batchEditForm.batchNumber} onChange={(e) => setBatchEditForm({ ...batchEditForm, batchNumber: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>MRP (Rs)</label>
+                                    <input required type="number" step="0.01" value={batchEditForm.costPrice} onChange={(e) => setBatchEditForm({ ...batchEditForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>GST (%)</label>
+                                    <input required type="number" min="0" max="100" step="0.01" value={batchEditForm.gstPercent} onChange={(e) => setBatchEditForm({ ...batchEditForm, gstPercent: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                                </div>
+                            </div>
+                            <div className={cn("rounded-2xl border-2 p-4", isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-[#fef9f3] border-transparent")}>
+                                <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Updated Batch Rate</p>
+                                <p className={cn("mt-2 text-2xl font-black", isDark ? "text-white" : "text-[#512c31]")}>Rs {calculateInventoryPricing({ ...selectedItem, costPrice: batchEditForm.costPrice, gstPercent: batchEditForm.gstPercent }).unitRate.toFixed(2)}</p>
+                                {selectedItem.packageType === 'box' && (
+                                    <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>
+                                        Strip Rs {calculateInventoryPricing({ ...selectedItem, costPrice: batchEditForm.costPrice, gstPercent: batchEditForm.gstPercent }).stripRate.toFixed(2)} / Tablet Rs {calculateInventoryPricing({ ...selectedItem, costPrice: batchEditForm.costPrice, gstPercent: batchEditForm.gstPercent }).individualRate.toFixed(2)}
+                                    </p>
+                                )}
+                            </div>
+                            <div>
+                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Expiry Date</label>
+                                <input type="date" value={batchEditForm.expiryDate} onChange={(e) => setBatchEditForm({ ...batchEditForm, expiryDate: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
+                            </div>
+                            <button type="submit" className="w-full rounded-2xl bg-[#512c31] py-4 text-white font-bold tracking-widest uppercase text-sm hover:bg-[#e8919a] hover:scale-[1.02] transition-all shadow-xl hover:shadow-2xl mt-4">
+                                Save Batch
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {showEditModal && editForm && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                     <div className={cn(

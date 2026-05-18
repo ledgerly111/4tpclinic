@@ -75,6 +75,19 @@ export async function restockInventoryItem(itemId, payload) {
   });
 }
 
+export async function updateInventoryBatch(itemId, batchId, payload) {
+  return request(`/inventory/${encodeURIComponent(itemId)}/batches/${encodeURIComponent(batchId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteInventoryBatch(itemId, batchId) {
+  return request(`/inventory/${encodeURIComponent(itemId)}/batches/${encodeURIComponent(batchId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function fetchAppointments(params = {}) {
   const query = new URLSearchParams(params).toString();
   return request(`/appointments${query ? `?${query}` : ''}`);

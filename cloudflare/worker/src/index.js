@@ -2597,6 +2597,130 @@ async function restockInventoryItem(env, request, itemId) {
     return jsonResponse({ ok: true });
 }
 
+async function updateInventoryBatch(env, request, itemId, batchId) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_inventory', 'You do not have permission to edit inventory.');
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const row = await db.prepare(`
+        SELECT
+            b.id,
+            b.inventory_item_id,
+            b.organization_id,
+            b.clinic_id,
+            b.strip_stock_quantity,
+            i.unit,
+            i.strips_per_unit,
+            i.tablets_per_strip
+        FROM inventory_batches b
+        JOIN inventory_items i ON i.id = b.inventory_item_id
+        WHERE b.id = ? AND b.inventory_item_id = ?
+        LIMIT 1
+    `).bind(batchId, itemId).first();
+    if (!row) throw new HttpError(404, 'Inventory batch not found.');
+
+    if (user.role === 'admin' && row.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Batch is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (row.organization_id !== user.organizationId || !user.clinicIds.includes(row.clinic_id)) {
+            throw new HttpError(403, 'Batch is outside your scope.');
+        }
+    }
+
+    const packageType = normalizePackageType(row.unit);
+    const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(row.strips_per_unit);
+    const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(row.tablets_per_strip);
+    const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
+    const quantity = Math.max(0, Number.parseInt(body.quantity, 10) || 0);
+    const nextStockUnits = packageType === 'single' ? quantity : quantity * tabletsPerBox;
+    const deltaUnits = nextStockUnits - Number(row.strip_stock_quantity || 0);
+    const costCents = toCents(body.costPrice);
+    const gstPercent = toPercent(body.gstPercent);
+    const sellCents = calculateRateCentsFromMrpAndGst(costCents, gstPercent);
+    const stripSellCents = packageType === 'single' ? sellCents : Math.round(sellCents / stripsPerUnit);
+    const individualSellCents = packageType === 'single' ? sellCents : Math.round(stripSellCents / tabletsPerStrip);
+    const batchNumber = normalizeBatchNumber(body.batchNumber);
+    const expiryDate = sanitizeOptionalDate(body.expiryDate);
+
+    await db.batch([
+        db.prepare(`
+            UPDATE inventory_batches
+            SET batch_number = ?,
+                strip_stock_quantity = ?,
+                cost_price_cents = ?,
+                sell_price_cents = ?,
+                strip_sell_price_cents = ?,
+                individual_sell_price_cents = ?,
+                gst_percent = ?,
+                expiry_date = ?,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+        `).bind(batchNumber, nextStockUnits, costCents, sellCents, stripSellCents, individualSellCents, gstPercent, expiryDate, batchId),
+        db.prepare(`
+            UPDATE inventory_items
+            SET strip_stock_quantity = MAX(0, strip_stock_quantity + ?),
+                stock_quantity = CASE
+                    WHEN unit = 'single' THEN MAX(0, strip_stock_quantity + ?)
+                    ELSE CAST(MAX(0, strip_stock_quantity + ?) / ((CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END) * (CASE WHEN tablets_per_strip > 0 THEN tablets_per_strip ELSE 1 END)) AS INTEGER)
+                END,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+        `).bind(deltaUnits, deltaUnits, deltaUnits, itemId),
+    ]);
+
+    return jsonResponse({ ok: true });
+}
+
+async function deleteInventoryBatch(env, request, itemId, batchId) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_inventory', 'You do not have permission to edit inventory.');
+    const db = requireDb(env);
+
+    const row = await db.prepare(`
+        SELECT
+            b.id,
+            b.inventory_item_id,
+            b.organization_id,
+            b.clinic_id,
+            b.strip_stock_quantity,
+            i.unit,
+            i.strips_per_unit,
+            i.tablets_per_strip
+        FROM inventory_batches b
+        JOIN inventory_items i ON i.id = b.inventory_item_id
+        WHERE b.id = ? AND b.inventory_item_id = ?
+        LIMIT 1
+    `).bind(batchId, itemId).first();
+    if (!row) throw new HttpError(404, 'Inventory batch not found.');
+
+    if (user.role === 'admin' && row.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Batch is outside your organization.');
+    }
+    if (user.role === 'staff') {
+        if (row.organization_id !== user.organizationId || !user.clinicIds.includes(row.clinic_id)) {
+            throw new HttpError(403, 'Batch is outside your scope.');
+        }
+    }
+
+    await db.batch([
+        db.prepare('DELETE FROM inventory_batches WHERE id = ?').bind(batchId),
+        db.prepare(`
+            UPDATE inventory_items
+            SET strip_stock_quantity = MAX(0, strip_stock_quantity - ?),
+                stock_quantity = CASE
+                    WHEN unit = 'single' THEN MAX(0, strip_stock_quantity - ?)
+                    ELSE CAST(MAX(0, strip_stock_quantity - ?) / ((CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END) * (CASE WHEN tablets_per_strip > 0 THEN tablets_per_strip ELSE 1 END)) AS INTEGER)
+                END,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+        `).bind(Number(row.strip_stock_quantity || 0), Number(row.strip_stock_quantity || 0), Number(row.strip_stock_quantity || 0), itemId),
+    ]);
+
+    return jsonResponse({ ok: true });
+}
+
 async function listAppointments(env, request, url) {
     const { user } = await requireAuth(request, env);
     const db = requireDb(env);
@@ -3615,6 +3739,13 @@ export default {
             const restockMatch = pathname.match(/^\/api\/inventory\/([^/]+)\/restock$/);
             if (restockMatch && request.method === 'PATCH') {
                 return await restockInventoryItem(env, request, decodeURIComponent(restockMatch[1]));
+            }
+            const inventoryBatchMatch = pathname.match(/^\/api\/inventory\/([^/]+)\/batches\/([^/]+)$/);
+            if (inventoryBatchMatch && request.method === 'PATCH') {
+                return await updateInventoryBatch(env, request, decodeURIComponent(inventoryBatchMatch[1]), decodeURIComponent(inventoryBatchMatch[2]));
+            }
+            if (inventoryBatchMatch && request.method === 'DELETE') {
+                return await deleteInventoryBatch(env, request, decodeURIComponent(inventoryBatchMatch[1]), decodeURIComponent(inventoryBatchMatch[2]));
             }
 
             if (pathname === '/api/appointments' && request.method === 'GET') return await listAppointments(env, request, url);
