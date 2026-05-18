@@ -408,7 +408,7 @@ function calculateGstPercentFromLegacyRate(mrpCents, rateCents) {
     const mrp = Number(mrpCents || 0);
     const rate = Number(rateCents || 0);
     if (mrp <= rate || rate <= 0) return 0;
-    return Number((((mrp - rate) / rate) * 100).toFixed(2));
+    return Number((((mrp - rate) / mrp) * 100).toFixed(2));
 }
 
 function calculateRateCentsFromMrpAndGst(mrpCents, gstPercent) {
