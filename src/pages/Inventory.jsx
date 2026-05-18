@@ -59,7 +59,7 @@ export function Inventory() {
     const [selectedItem, setSelectedItem] = useState(null);
     const initialAddForm = { name: '', category: 'General Medicine', packageType: 'box', unit: 'box', stock: '', stripsPerUnit: '', tabletsPerStrip: '', threshold: '', costPrice: '', sellPrice: '', stripSellPrice: '', individualSellPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' };
     const [addForm, setAddForm] = useState(initialAddForm);
-    const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', batchNumber: '', expiryDate: '' });
+    const [restockForm, setRestockForm] = useState({ quantity: '', costPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' });
     const [showEditModal, setShowEditModal] = useState(false);
     const [editForm, setEditForm] = useState(null);
 
@@ -179,12 +179,13 @@ export function Inventory() {
             await restockInventoryItem(selectedItem.id, {
                 quantity: Number(restockForm.quantity),
                 costPrice: Number(restockForm.costPrice || selectedItem.costPrice),
+                gstPercent: Number(restockForm.gstPercent || selectedItem.gstPercent || 0),
                 batchNumber: restockForm.batchNumber || 'RESTOCK',
                 expiryDate: restockForm.expiryDate || null,
             });
             setShowRestockModal(false);
             setSelectedItem(null);
-            setRestockForm({ quantity: '', costPrice: '', batchNumber: '', expiryDate: '' });
+            setRestockForm({ quantity: '', costPrice: '', gstPercent: '', batchNumber: '', expiryDate: '' });
             await loadInventory();
         } catch (err) {
             setError(err.message || 'Failed to restock item.');
@@ -377,6 +378,9 @@ export function Inventory() {
                                                     <div className={cn('mt-1 font-bold uppercase tracking-widest', batch.expiryStatus === 'expired' ? 'text-red-400' : batch.expiryStatus === 'expiring_soon' ? 'text-orange-300' : 'text-gray-500')}>
                                                         {getBatchExpiryLabel(batch)}
                                                     </div>
+                                                    <div className="mt-1 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                                                        MRP Rs{batch.costPrice} / Rate Rs{batch.sellPrice} / {Number(batch.gstPercent || 0)}% GST
+                                                    </div>
                                                 </div>
                                             ))}
                                             {(item.batches || []).length > 3 && <div className="text-[10px] uppercase tracking-widest text-gray-500">+{item.batches.length - 3} more batches</div>}
@@ -400,7 +404,7 @@ export function Inventory() {
                                                 >
                                                     <Pencil className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), batchNumber: '', expiryDate: '' }); setShowRestockModal(true); }} className="px-2.5 py-2 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-[10px] font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
+                                                <button onClick={() => { setSelectedItem(item); setRestockForm({ quantity: '', costPrice: String(item.costPrice || ''), gstPercent: String(item.gstPercent || ''), batchNumber: '', expiryDate: '' }); setShowRestockModal(true); }} className="px-2.5 py-2 bg-[#512c31]/10 text-[#512c31] hover:bg-[#512c31] hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white/20 rounded-xl transition-all text-[10px] font-bold uppercase tracking-widest shadow-sm group-hover:scale-105">Restock</button>
                                                 <button
                                                     onClick={() => handleDeleteItem(item)}
                                                     className="p-2 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 dark:bg-red-500/10 dark:hover:bg-red-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
@@ -476,13 +480,13 @@ export function Inventory() {
                                     <input required type="number" value={addForm.stock} onChange={(e) => setAddForm({ ...addForm, stock: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="0" />
                                 </div>
                                 {addForm.packageType === 'box' && <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strips Per Full</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Box Unit</label>
                                     <input required type="number" min="1" value={addForm.stripsPerUnit} onChange={(e) => setAddForm({ ...addForm, stripsPerUnit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
                                 </div>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {addForm.packageType === 'box' && <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Tablets Per Strip</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Sub Units Per Unit</label>
                                     <input required type="number" min="1" value={addForm.tabletsPerStrip} onChange={(e) => setAddForm({ ...addForm, tabletsPerStrip: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="10" />
                                 </div>}
                                 <div>
@@ -531,34 +535,51 @@ export function Inventory() {
             {showRestockModal && selectedItem && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                     <div className={cn(
-                        "rounded-[2.5rem] p-8 w-full max-w-sm border-4 shadow-2xl transition-all",
+                        "rounded-[2.5rem] p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto border-4 shadow-2xl transition-all",
                         isDark ? "bg-[#1e1e1e] border-white/5" : "bg-white border-white/50"
                     )}>
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className={cn("text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Restock Info</h2>
+                            <h2 className={cn("text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Add Batch</h2>
                             <button onClick={() => setShowRestockModal(false)} className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-all", isDark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-[#fef9f3] text-[#512c31] hover:bg-[#e8919a] hover:text-white")}>
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
                         <form onSubmit={handleRestock} className="space-y-4">
-                            <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{selectedItem.packageType === 'single' ? 'Single Quantity' : 'Box Quantity'}</label>
-                                <input required type="number" value={restockForm.quantity} onChange={(e) => setRestockForm({ ...restockForm, quantity: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="Quantity" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{selectedItem.packageType === 'single' ? 'Single Quantity' : 'Box Quantity'}</label>
+                                    <input required type="number" value={restockForm.quantity} onChange={(e) => setRestockForm({ ...restockForm, quantity: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="Quantity" />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Batch Number</label>
+                                    <input value={restockForm.batchNumber} onChange={(e) => setRestockForm({ ...restockForm, batchNumber: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="BATCH-002" />
+                                </div>
                             </div>
-                            <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Batch Number</label>
-                                <input value={restockForm.batchNumber} onChange={(e) => setRestockForm({ ...restockForm, batchNumber: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="BATCH-002" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>MRP (Rs)</label>
+                                    <input required type="number" step="0.01" value={restockForm.costPrice} onChange={(e) => setRestockForm({ ...restockForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="MRP" />
+                                </div>
+                                <div>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>GST (%)</label>
+                                    <input required type="number" min="0" max="100" step="0.01" value={restockForm.gstPercent} onChange={(e) => setRestockForm({ ...restockForm, gstPercent: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="18" />
+                                </div>
                             </div>
-                            <div>
-                                <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>MRP (Rs)</label>
-                                <input required type="number" step="0.01" value={restockForm.costPrice} onChange={(e) => setRestockForm({ ...restockForm, costPrice: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} placeholder="MRP" />
+                            <div className={cn("rounded-2xl border-2 p-4", isDark ? "bg-[#0f0f0f] border-gray-800" : "bg-[#fef9f3] border-transparent")}>
+                                <p className={cn("text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Batch Auto Rate</p>
+                                <p className={cn("mt-2 text-2xl font-black", isDark ? "text-white" : "text-[#512c31]")}>Rs {calculateInventoryPricing({ ...selectedItem, costPrice: restockForm.costPrice, gstPercent: restockForm.gstPercent }).unitRate.toFixed(2)}</p>
+                                {selectedItem.packageType === 'box' && (
+                                    <p className={cn("mt-1 text-[10px] font-bold uppercase tracking-widest", isDark ? "text-gray-500" : "text-[#512c31]/50")}>
+                                        Strip Rs {calculateInventoryPricing({ ...selectedItem, costPrice: restockForm.costPrice, gstPercent: restockForm.gstPercent }).stripRate.toFixed(2)} / Tablet Rs {calculateInventoryPricing({ ...selectedItem, costPrice: restockForm.costPrice, gstPercent: restockForm.gstPercent }).individualRate.toFixed(2)}
+                                    </p>
+                                )}
                             </div>
                             <div>
                                 <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Expiry Date (optional)</label>
                                 <input type="date" value={restockForm.expiryDate} onChange={(e) => setRestockForm({ ...restockForm, expiryDate: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                             </div>
                             <button className="w-full rounded-2xl bg-[#512c31] py-4 text-white font-bold tracking-widest uppercase text-sm hover:bg-[#e8919a] hover:scale-[1.02] transition-all shadow-xl hover:shadow-2xl mt-4">
-                                Update Stock
+                                Add Batch
                             </button>
                         </form>
                     </div>
@@ -610,11 +631,11 @@ export function Inventory() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {editForm.packageType === 'box' && <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Strips Per Full</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Box Unit</label>
                                     <input type="number" min="1" value={editForm.stripsPerUnit} onChange={(e) => setEditForm({ ...editForm, stripsPerUnit: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>}
                                 {editForm.packageType === 'box' && <div>
-                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Tablets Per Strip</label>
+                                    <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Sub Units Per Unit</label>
                                     <input type="number" min="1" value={editForm.tabletsPerStrip} onChange={(e) => setEditForm({ ...editForm, tabletsPerStrip: e.target.value })} className={cn("w-full rounded-2xl border-2 p-4 text-sm font-bold outline-none transition-all focus:border-[#512c31]", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20" : "bg-[#fef9f3] border-transparent text-[#512c31]")} />
                                 </div>}
                             </div>

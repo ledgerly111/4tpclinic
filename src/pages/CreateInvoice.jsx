@@ -119,6 +119,39 @@ export function CreateInvoice() {
         return null;
     };
 
+    const getStockForSaleUnit = (item, saleUnit = item?.saleUnit || 'unit') => {
+        if (!item) return 0;
+        if (saleUnit === 'individual') return Number(item.individualStock || item.stripStock || 0);
+        if (saleUnit === 'strip') return Number(item.stripStock || 0);
+        return Number(item.maxStock || item.stock || item.stripStock || 0);
+    };
+
+    const getPriceForSaleUnit = (item, saleUnit = item?.saleUnit || 'unit') => {
+        if (!item) return 0;
+        if (saleUnit === 'individual') return Number(item.individualPrice || item.price || 0);
+        if (saleUnit === 'strip') return Number(item.stripPrice || item.price || 0);
+        return Number(item.unitPrice || item.price || 0);
+    };
+
+    const buildBatchLineFields = (item, batch) => {
+        const source = batch || item || {};
+        const packageType = item?.packageType || 'box';
+        return {
+            batchId: batch?.id || '',
+            batchNumber: batch?.batchNumber || '',
+            unitPrice: Number(source.sellPrice || item?.sellPrice || 0),
+            stripPrice: Number(source.stripSellPrice || source.sellPrice || item?.stripSellPrice || item?.sellPrice || 0),
+            individualPrice: Number(source.individualSellPrice || source.stripSellPrice || source.sellPrice || item?.individualSellPrice || item?.stripSellPrice || item?.sellPrice || 0),
+            maxStock: packageType === 'single' ? Number(source.stripStock || 0) : Number(source.stock || 0),
+            stripStock: Number(source.stripStock || source.stock || 0),
+            individualStock: Number(source.individualStock || source.stripStock || source.stock || 0),
+            gstPercent: Number(source.gstPercent ?? item?.gstPercent ?? 0),
+            expiryStatus: source.expiryStatus || item?.expiryStatus,
+            daysToExpiry: source.daysToExpiry ?? item?.daysToExpiry,
+            expiryDate: source.expiryDate || item?.expiryDate,
+        };
+    };
+
     const handleAddItem = (kind, id) => {
         if (kind === 'service') {
             const service = services.find((s) => s.id === id);
@@ -133,32 +166,37 @@ export function CreateInvoice() {
         if (kind === 'inventory') {
             const item = inventoryItems.find((inv) => inv.id === id);
             if (item) {
+                const activeBatches = Array.isArray(item.batches) ? item.batches.filter((batch) => Number(batch.individualStock || batch.stripStock || 0) > 0) : [];
+                const selectedBatch = activeBatches[0] || null;
+                const batchFields = buildBatchLineFields(item, selectedBatch);
                 setFormState((prev) => ({
                     ...prev,
                     items: [...prev.items, {
                         id: crypto.randomUUID(),
                         name: item.name,
-                        price: Number(item.sellPrice),
+                        price: batchFields.unitPrice,
                         quantity: 1,
                         discountPercent: 0,
-                        gstPercent: Number(item.gstPercent || 0),
+                        gstPercent: batchFields.gstPercent,
                         itemType: 'inventory',
                         inventoryItemId: item.id,
+                        batchId: batchFields.batchId,
+                        batchNumber: batchFields.batchNumber,
                         packageType: item.packageType || 'box',
-                        maxStock: item.packageType === 'single' ? Number(item.stripStock || 0) : item.stock,
-                        stripStock: Number(item.stripStock || item.stock || 0),
-                        individualStock: Number(item.individualStock || item.stripStock || item.stock || 0),
+                        maxStock: batchFields.maxStock,
+                        stripStock: batchFields.stripStock,
+                        individualStock: batchFields.individualStock,
                         unit: item.unit,
                         saleUnit: 'unit',
-                        unitPrice: Number(item.sellPrice || 0),
-                        stripPrice: Number(item.stripSellPrice || item.sellPrice || 0),
-                        individualPrice: Number(item.individualSellPrice || item.stripSellPrice || item.sellPrice || 0),
+                        unitPrice: batchFields.unitPrice,
+                        stripPrice: batchFields.stripPrice,
+                        individualPrice: batchFields.individualPrice,
                         stripsPerUnit: Number(item.stripsPerUnit || 1),
                         tabletsPerStrip: Number(item.tabletsPerStrip || 1),
-                        batches: item.batches || [],
-                        expiryStatus: item.expiryStatus,
-                        daysToExpiry: item.daysToExpiry,
-                        expiryDate: item.expiryDate,
+                        batches: activeBatches,
+                        expiryStatus: batchFields.expiryStatus,
+                        daysToExpiry: batchFields.daysToExpiry,
+                        expiryDate: batchFields.expiryDate,
                     }],
                 }));
             }
@@ -182,8 +220,8 @@ export function CreateInvoice() {
                 id: i.id,
                 name: i.name,
                 subtitle: i.packageType === 'single'
-                    ? `Inventory - ${i.stripStock || 0} single stock`
-                    : `Inventory - ${i.stock} box / ${i.stripStock || 0} strips`,
+                    ? `Inventory - ${i.batchCount || 0} batches / ${i.stripStock || 0} single stock`
+                    : `Inventory - ${i.batchCount || 0} batches / ${i.stock} box`,
                 price: Number(i.sellPrice || 0),
                 stripPrice: Number(i.stripSellPrice || i.sellPrice || 0),
                 individualPrice: Number(i.individualSellPrice || i.stripSellPrice || i.sellPrice || 0),
@@ -226,7 +264,7 @@ export function CreateInvoice() {
         const newItems = [...formState.items];
         const value = Math.max(1, parseInt(qty, 10) || 1);
         const maxStock = newItems[index].itemType === 'inventory'
-            ? Number((newItems[index].saleUnit === 'individual' ? newItems[index].individualStock : newItems[index].saleUnit === 'strip' ? newItems[index].stripStock : newItems[index].maxStock) || value)
+            ? Number(getStockForSaleUnit(newItems[index]) || value)
             : value;
         newItems[index].quantity = newItems[index].itemType === 'inventory' ? Math.min(value, maxStock) : value;
         setFormState((prev) => ({ ...prev, items: newItems }));
@@ -266,11 +304,30 @@ export function CreateInvoice() {
         const item = newItems[index];
         if (!item || item.itemType !== 'inventory') return;
         const nextSaleUnit = item.packageType !== 'single' && ['strip', 'individual'].includes(saleUnit) ? saleUnit : 'unit';
-        const nextMaxStock = nextSaleUnit === 'individual' ? Number(item.individualStock || item.stripStock || 0) : nextSaleUnit === 'strip' ? Number(item.stripStock || 0) : Number(item.maxStock || 0);
+        const nextMaxStock = getStockForSaleUnit(item, nextSaleUnit);
         newItems[index] = {
             ...item,
             saleUnit: nextSaleUnit,
-            price: nextSaleUnit === 'individual' ? Number(item.individualPrice || item.price || 0) : nextSaleUnit === 'strip' ? Number(item.stripPrice || item.price || 0) : Number(item.unitPrice || item.price || 0),
+            price: getPriceForSaleUnit(item, nextSaleUnit),
+            quantity: Math.max(1, Math.min(Number(item.quantity || 1), nextMaxStock || 1)),
+        };
+        setFormState((prev) => ({ ...prev, items: newItems }));
+    };
+
+    const updateInventoryBatch = (index, batchId) => {
+        const newItems = [...formState.items];
+        const item = newItems[index];
+        if (!item || item.itemType !== 'inventory') return;
+        const batch = (item.batches || []).find((entry) => entry.id === batchId) || null;
+        const batchFields = buildBatchLineFields(item, batch);
+        const nextItem = {
+            ...item,
+            ...batchFields,
+        };
+        const nextMaxStock = getStockForSaleUnit(nextItem, nextItem.saleUnit);
+        newItems[index] = {
+            ...nextItem,
+            price: getPriceForSaleUnit(nextItem, nextItem.saleUnit),
             quantity: Math.max(1, Math.min(Number(item.quantity || 1), nextMaxStock || 1)),
         };
         setFormState((prev) => ({ ...prev, items: newItems }));
@@ -313,6 +370,7 @@ export function CreateInvoice() {
                     gstPercent: Number(item.gstPercent || 0),
                     itemType: item.itemType,
                     inventoryItemId: item.inventoryItemId,
+                    batchId: item.batchId || null,
                     saleUnit: item.saleUnit || 'unit',
                 })),
                 subtotal: calculatedTotals.subtotal,
@@ -560,6 +618,26 @@ export function CreateInvoice() {
                                 <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-0.5', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
                                     Rs{item.price} - {item.itemType === 'inventory' ? `${item.packageType === 'single' ? 'Single' : item.saleUnit === 'individual' ? 'Tablet' : item.saleUnit === 'strip' ? 'Strip' : 'Box'} sale` : 'Service'}
                                 </p>
+                                {item.itemType === 'inventory' && (
+                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                        <select
+                                            value={item.batchId || ''}
+                                            onChange={(e) => updateInventoryBatch(index, e.target.value)}
+                                            className={cn('w-full p-2.5 rounded-xl text-xs font-black outline-none border-2 transition-all', isDark ? 'bg-[#1e1e1e] border-gray-800 text-white focus:border-white/20' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
+                                            aria-label="Select inventory batch"
+                                        >
+                                            {(item.batches || []).length === 0 && <option value="">No active batch</option>}
+                                            {(item.batches || []).map((batch) => (
+                                                <option key={batch.id} value={batch.id}>
+                                                    {batch.batchNumber} - {item.packageType === 'single' ? batch.stripStock : batch.stock} {item.packageType === 'single' ? 'single' : 'box'} - Exp {batch.expiryDate || 'none'}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span className={cn('rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-widest', isDark ? 'bg-white/5 text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/60')}>
+                                            Batch {item.batchNumber || 'not selected'}
+                                        </span>
+                                    </div>
+                                )}
                                 {getInventoryWarning(item) && (
                                     <div className={cn('mt-2 inline-flex max-w-full items-center gap-2 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest', getInventoryWarning(item).level === 'danger' ? 'bg-red-500/10 text-red-400' : 'bg-orange-500/10 text-orange-300')}>
                                         {getInventoryWarning(item).level === 'danger' ? <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> : <Clock3 className="w-3.5 h-3.5 flex-shrink-0" />}

@@ -128,6 +128,8 @@ const SCHEMA_STATEMENTS = [
         gst_percent REAL NOT NULL DEFAULT 0,
         gst_cents INTEGER NOT NULL DEFAULT 0,
         taxable_cents INTEGER NOT NULL DEFAULT 0,
+        batch_id TEXT,
+        batch_number TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         sale_unit TEXT NOT NULL DEFAULT 'unit',
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
@@ -200,6 +202,10 @@ const SCHEMA_STATEMENTS = [
         batch_number TEXT NOT NULL,
         strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
         cost_price_cents INTEGER NOT NULL DEFAULT 0,
+        sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        strip_sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        individual_sell_price_cents INTEGER NOT NULL DEFAULT 0,
+        gst_percent REAL NOT NULL DEFAULT 0,
         expiry_date TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -589,6 +595,12 @@ async function ensureInvoiceItemColumns(db) {
     if (!names.has('taxable_cents')) {
         await db.prepare('ALTER TABLE invoice_items ADD COLUMN taxable_cents INTEGER NOT NULL DEFAULT 0').run();
     }
+    if (!names.has('batch_id')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN batch_id TEXT').run();
+    }
+    if (!names.has('batch_number')) {
+        await db.prepare('ALTER TABLE invoice_items ADD COLUMN batch_number TEXT').run();
+    }
     await db.prepare(`
         UPDATE invoice_items
         SET taxable_cents = CASE
@@ -652,6 +664,10 @@ async function ensureInventoryColumns(db) {
             batch_number TEXT NOT NULL,
             strip_stock_quantity INTEGER NOT NULL DEFAULT 0,
             cost_price_cents INTEGER NOT NULL DEFAULT 0,
+            sell_price_cents INTEGER NOT NULL DEFAULT 0,
+            strip_sell_price_cents INTEGER NOT NULL DEFAULT 0,
+            individual_sell_price_cents INTEGER NOT NULL DEFAULT 0,
+            gst_percent REAL NOT NULL DEFAULT 0,
             expiry_date TEXT,
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -662,6 +678,57 @@ async function ensureInventoryColumns(db) {
     `).run();
     await db.prepare('CREATE INDEX IF NOT EXISTS idx_inventory_batches_item_id ON inventory_batches(inventory_item_id)').run();
     await db.prepare('CREATE INDEX IF NOT EXISTS idx_inventory_batches_expiry ON inventory_batches(expiry_date)').run();
+
+    const batchTableInfo = await db.prepare('PRAGMA table_info(inventory_batches)').all();
+    const batchNames = new Set((batchTableInfo.results || []).map((c) => c.name));
+    if (!batchNames.has('sell_price_cents')) {
+        await db.prepare('ALTER TABLE inventory_batches ADD COLUMN sell_price_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!batchNames.has('strip_sell_price_cents')) {
+        await db.prepare('ALTER TABLE inventory_batches ADD COLUMN strip_sell_price_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!batchNames.has('individual_sell_price_cents')) {
+        await db.prepare('ALTER TABLE inventory_batches ADD COLUMN individual_sell_price_cents INTEGER NOT NULL DEFAULT 0').run();
+    }
+    if (!batchNames.has('gst_percent')) {
+        await db.prepare('ALTER TABLE inventory_batches ADD COLUMN gst_percent REAL NOT NULL DEFAULT 0').run();
+    }
+    await db.prepare(`
+        UPDATE inventory_batches
+        SET sell_price_cents = (
+                SELECT inventory_items.sell_price_cents
+                FROM inventory_items
+                WHERE inventory_items.id = inventory_batches.inventory_item_id
+            )
+        WHERE sell_price_cents IS NULL OR sell_price_cents <= 0
+    `).run();
+    await db.prepare(`
+        UPDATE inventory_batches
+        SET strip_sell_price_cents = (
+                SELECT inventory_items.strip_sell_price_cents
+                FROM inventory_items
+                WHERE inventory_items.id = inventory_batches.inventory_item_id
+            )
+        WHERE strip_sell_price_cents IS NULL OR strip_sell_price_cents <= 0
+    `).run();
+    await db.prepare(`
+        UPDATE inventory_batches
+        SET individual_sell_price_cents = (
+                SELECT inventory_items.individual_sell_price_cents
+                FROM inventory_items
+                WHERE inventory_items.id = inventory_batches.inventory_item_id
+            )
+        WHERE individual_sell_price_cents IS NULL OR individual_sell_price_cents <= 0
+    `).run();
+    await db.prepare(`
+        UPDATE inventory_batches
+        SET gst_percent = (
+                SELECT inventory_items.gst_percent
+                FROM inventory_items
+                WHERE inventory_items.id = inventory_batches.inventory_item_id
+            )
+        WHERE gst_percent IS NULL OR gst_percent <= 0
+    `).run();
     await db.prepare(`
         INSERT INTO inventory_batches (
             id,
@@ -671,6 +738,10 @@ async function ensureInventoryColumns(db) {
             batch_number,
             strip_stock_quantity,
             cost_price_cents,
+            sell_price_cents,
+            strip_sell_price_cents,
+            individual_sell_price_cents,
+            gst_percent,
             expiry_date
         )
         SELECT
@@ -681,6 +752,10 @@ async function ensureInventoryColumns(db) {
             'OPENING',
             strip_stock_quantity,
             cost_price_cents,
+            sell_price_cents,
+            strip_sell_price_cents,
+            individual_sell_price_cents,
+            gst_percent,
             expiry_date
         FROM inventory_items
         WHERE strip_stock_quantity > 0
@@ -2109,7 +2184,10 @@ async function listInventory(env, request, url) {
     if (itemIds.length > 0) {
         const placeholders = itemIds.map(() => '?').join(',');
         const batchResult = await db.prepare(`
-            SELECT id, inventory_item_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date, created_at, updated_at
+            SELECT
+                id, inventory_item_id, batch_number, strip_stock_quantity, cost_price_cents,
+                sell_price_cents, strip_sell_price_cents, individual_sell_price_cents,
+                gst_percent, expiry_date, created_at, updated_at
             FROM inventory_batches
             WHERE inventory_item_id IN (${placeholders})
             ORDER BY
@@ -2126,6 +2204,10 @@ async function listInventory(env, request, url) {
                 batchNumber: batch.batch_number,
                 stripStock: Number(batch.strip_stock_quantity || 0),
                 costPrice: fromCents(batch.cost_price_cents),
+                sellPrice: fromCents(batch.sell_price_cents),
+                stripSellPrice: fromCents(batch.strip_sell_price_cents),
+                individualSellPrice: fromCents(batch.individual_sell_price_cents),
+                gstPercent: toPercent(batch.gst_percent),
                 expiryDate: batch.expiry_date || '',
                 daysToExpiry: expiryMeta.daysToExpiry,
                 expiryStatus: expiryMeta.expiryStatus,
@@ -2267,9 +2349,11 @@ async function createInventoryItem(env, request) {
         statements.push(
             db.prepare(`
                 INSERT INTO inventory_batches (
-                    id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, stockUnits, costCents, expiryDate),
+                    id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity,
+                    cost_price_cents, sell_price_cents, strip_sell_price_cents, individual_sell_price_cents,
+                    gst_percent, expiry_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, stockUnits, costCents, sellCents, stripSellCents, individualSellCents, gstPercent, expiryDate),
             db.prepare(`
                 INSERT INTO inventory_transactions (
                     id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
@@ -2282,9 +2366,11 @@ async function createInventoryItem(env, request) {
         statements.push(
             db.prepare(`
                 INSERT INTO inventory_batches (
-                    id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
-                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)
-            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, costCents, expiryDate)
+                    id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity,
+                    cost_price_cents, sell_price_cents, strip_sell_price_cents, individual_sell_price_cents,
+                    gst_percent, expiry_date
+                ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+            `).bind(crypto.randomUUID(), id, organizationId, activeClinicId, batchNumber, costCents, sellCents, stripSellCents, individualSellCents, gstPercent, expiryDate)
         );
     }
 
@@ -2442,7 +2528,8 @@ async function restockInventoryItem(env, request, itemId) {
     const item = await db
         .prepare(`
             SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents,
-                unit, strips_per_unit, tablets_per_strip
+                sell_price_cents, strip_sell_price_cents, individual_sell_price_cents,
+                gst_percent, unit, strips_per_unit, tablets_per_strip
             FROM inventory_items
             WHERE id = ?
             LIMIT 1
@@ -2465,23 +2552,41 @@ async function restockInventoryItem(env, request, itemId) {
     const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(item.strips_per_unit);
     const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(item.tablets_per_strip);
     const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
+    const gstPercent = Object.prototype.hasOwnProperty.call(body, 'gstPercent')
+        ? toPercent(body.gstPercent)
+        : toPercent(item.gst_percent);
+    const sellCents = Object.prototype.hasOwnProperty.call(body, 'gstPercent') || Object.prototype.hasOwnProperty.call(body, 'costPrice')
+        ? calculateRateCentsFromMrpAndGst(unitCostCents, gstPercent)
+        : Number(item.sell_price_cents || 0);
+    const stripSellCents = packageType === 'single'
+        ? sellCents
+        : Math.round(sellCents / stripsPerUnit);
+    const individualSellCents = packageType === 'single'
+        ? sellCents
+        : Math.round(stripSellCents / tabletsPerStrip);
     const addedUnits = packageType === 'single' ? quantity : quantity * tabletsPerBox;
     const batchNumber = normalizeBatchNumber(body.batchNumber);
     await db.batch([
         db.prepare(`
             INSERT INTO inventory_batches (
-                id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity, cost_price_cents, expiry_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, batchNumber, addedUnits, unitCostCents, expiryDateValue),
+                id, inventory_item_id, organization_id, clinic_id, batch_number, strip_stock_quantity,
+                cost_price_cents, sell_price_cents, strip_sell_price_cents, individual_sell_price_cents,
+                gst_percent, expiry_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(crypto.randomUUID(), itemId, item.organization_id, item.clinic_id, batchNumber, addedUnits, unitCostCents, sellCents, stripSellCents, individualSellCents, gstPercent, expiryDateValue),
         db.prepare(`
             UPDATE inventory_items
             SET strip_stock_quantity = strip_stock_quantity + ?,
                 stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity + ? ELSE CAST((strip_stock_quantity + ?) / ((CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END) * (CASE WHEN tablets_per_strip > 0 THEN tablets_per_strip ELSE 1 END)) AS INTEGER) END,
                 cost_price_cents = ?,
+                sell_price_cents = ?,
+                strip_sell_price_cents = ?,
+                individual_sell_price_cents = ?,
+                gst_percent = ?,
                 expiry_date = CASE WHEN ? = 1 THEN ? ELSE expiry_date END,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
-        `).bind(addedUnits, addedUnits, addedUnits, unitCostCents, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
+        `).bind(addedUnits, addedUnits, addedUnits, unitCostCents, sellCents, stripSellCents, individualSellCents, gstPercent, hasExpiryDateField ? 1 : 0, expiryDateValue, itemId),
         db.prepare(`
             INSERT INTO inventory_transactions (
                 id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type
@@ -2768,7 +2873,7 @@ async function getInvoiceDetails(env, request, invoiceId) {
     }
 
     const itemsResult = await db.prepare(`
-        SELECT id, item_name, unit_price_cents, quantity, line_total_cents, item_type, inventory_item_id, sale_unit,
+        SELECT id, item_name, unit_price_cents, quantity, line_total_cents, item_type, inventory_item_id, batch_id, batch_number, sale_unit,
             discount_percent, discount_cents, gst_percent, gst_cents, taxable_cents
         FROM invoice_items
         WHERE invoice_id = ?
@@ -2809,6 +2914,8 @@ async function getInvoiceDetails(env, request, invoiceId) {
                 taxableAmount: fromCents(item.taxable_cents),
                 itemType: item.item_type || 'service',
                 inventoryItemId: item.inventory_item_id || null,
+                batchId: item.batch_id || null,
+                batchNumber: item.batch_number || '',
                 saleUnit: item.sale_unit || 'unit',
             })),
         },
@@ -2933,6 +3040,9 @@ async function createInvoice(env, request) {
         const inventoryItemId = itemType === 'inventory' && item.inventoryItemId
             ? String(item.inventoryItemId).trim()
             : null;
+        const batchId = itemType === 'inventory' && item.batchId
+            ? String(item.batchId).trim()
+            : null;
         if (!name) throw new HttpError(400, 'Each invoice item must include a name.');
         return {
             id: crypto.randomUUID(),
@@ -2948,6 +3058,8 @@ async function createInvoice(env, request) {
             lineTotalCents: taxableCents + gstCents,
             itemType,
             inventoryItemId,
+            batchId,
+            batchNumber: null,
             saleUnit,
         };
     });
@@ -3010,46 +3122,6 @@ async function createInvoice(env, request) {
             ),
     ];
 
-    normalizedItems.forEach((item) => {
-        statements.push(
-            db
-                .prepare(`
-                    INSERT INTO invoice_items (
-                        id,
-                        invoice_id,
-                        item_name,
-                        unit_price_cents,
-                        quantity,
-                        line_total_cents,
-                        item_type,
-                        inventory_item_id,
-                        sale_unit,
-                        discount_percent,
-                        discount_cents,
-                        gst_percent,
-                        gst_cents,
-                        taxable_cents
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `)
-                .bind(
-                    item.id,
-                    invoiceId,
-                    item.name,
-                    item.unitPriceCents,
-                    item.quantity,
-                    item.lineTotalCents,
-                    item.itemType,
-                    item.inventoryItemId,
-                    item.saleUnit,
-                    item.discountPercent,
-                    item.discountCents,
-                    item.gstPercent,
-                    item.gstCents,
-                    item.taxableCents
-                )
-        );
-    });
-
     const inventoryItems = normalizedItems.filter((item) => item.itemType === 'inventory');
     for (const item of inventoryItems) {
         if (!item.inventoryItemId) {
@@ -3080,23 +3152,29 @@ async function createInvoice(env, request) {
             throw new HttpError(400, `Insufficient stock for ${item.name}.`);
         }
 
+        const batchBindings = item.batchId ? [item.inventoryItemId, item.batchId] : [item.inventoryItemId];
         const batchRows = await db.prepare(`
             SELECT id, batch_number, strip_stock_quantity, expiry_date, cost_price_cents
             FROM inventory_batches
             WHERE inventory_item_id = ?
+              ${item.batchId ? 'AND id = ?' : ''}
               AND strip_stock_quantity > 0
               AND (expiry_date IS NULL OR expiry_date = '' OR expiry_date >= date('now'))
             ORDER BY
               CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END,
               expiry_date ASC,
               created_at ASC
-        `).bind(item.inventoryItemId).all();
+        `).bind(...batchBindings).all();
         let remainingToDeduct = stockUnitQuantity;
+        let selectedBatchNumber = null;
+        let selectedBatchCostCents = Number(inventoryRow.cost_price_cents || 0);
         for (const batch of (batchRows.results || [])) {
             if (remainingToDeduct <= 0) break;
             const deduction = Math.min(remainingToDeduct, Number(batch.strip_stock_quantity || 0));
             if (deduction <= 0) continue;
             remainingToDeduct -= deduction;
+            selectedBatchNumber = selectedBatchNumber || batch.batch_number || null;
+            selectedBatchCostCents = Number(batch.cost_price_cents || selectedBatchCostCents);
             statements.push(
                 db.prepare(`
                     UPDATE inventory_batches
@@ -3107,8 +3185,11 @@ async function createInvoice(env, request) {
             );
         }
         if (remainingToDeduct > 0) {
-            throw new HttpError(400, `${item.name} only has expired or near-missing batches available. Choose a valid batch or restock first.`);
+            throw new HttpError(400, item.batchId
+                ? `${item.name} selected batch does not have enough valid stock. Choose another batch or restock first.`
+                : `${item.name} only has expired or near-missing batches available. Choose a valid batch or restock first.`);
         }
+        item.batchNumber = selectedBatchNumber;
 
         statements.push(
             db.prepare(`
@@ -3131,11 +3212,55 @@ async function createInvoice(env, request) {
                 organizationId,
                 activeClinicId,
                 stockUnitQuantity,
-                Number(inventoryRow.cost_price_cents || 0),
+                selectedBatchCostCents,
                 invoiceId
             )
         );
     }
+
+    normalizedItems.forEach((item) => {
+        statements.push(
+            db
+                .prepare(`
+                    INSERT INTO invoice_items (
+                        id,
+                        invoice_id,
+                        item_name,
+                        unit_price_cents,
+                        quantity,
+                        line_total_cents,
+                        item_type,
+                        inventory_item_id,
+                        batch_id,
+                        batch_number,
+                        sale_unit,
+                        discount_percent,
+                        discount_cents,
+                        gst_percent,
+                        gst_cents,
+                        taxable_cents
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `)
+                .bind(
+                    item.id,
+                    invoiceId,
+                    item.name,
+                    item.unitPriceCents,
+                    item.quantity,
+                    item.lineTotalCents,
+                    item.itemType,
+                    item.inventoryItemId,
+                    item.batchId,
+                    item.batchNumber,
+                    item.saleUnit,
+                    item.discountPercent,
+                    item.discountCents,
+                    item.gstPercent,
+                    item.gstCents,
+                    item.taxableCents
+                )
+        );
+    });
 
     if (status === 'paid' && totalCents > 0) {
         statements.push(
