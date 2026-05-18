@@ -1,10 +1,12 @@
-import { Building2, ChevronDown, Menu, LogOut, Shield, User } from 'lucide-react';
+import { Bell, Building2, CalendarClock, ChevronDown, Menu, LogOut, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
+import { fetchAppointments } from '../lib/clinicApi';
+import { hasPageAccess } from '../lib/permissions';
 
 const pageNames = {
   '/app': 'Overview',
@@ -22,12 +24,6 @@ const pageNames = {
   '/super-admin': 'Admin Panel',
 };
 
-const roleConfig = {
-  admin: { label: 'Admin', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
-  staff: { label: 'Staff', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  super_admin: { label: 'System Admin', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' }
-};
-
 export function Header({ onMenuClick }) {
   const routerLocation = useLocation();
   const navigate = useNavigate();
@@ -35,6 +31,7 @@ export function Header({ onMenuClick }) {
   const {
     selectedOrganization,
     selectedClinic,
+    selectedClinicId,
     selectClinic,
     getClinicsBySelectedOrg,
     organizations
@@ -44,11 +41,14 @@ export function Header({ onMenuClick }) {
   const isDark = theme === 'dark';
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showReminders, setShowReminders] = useState(false);
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const locationRef = useRef(null);
   const userMenuRef = useRef(null);
+  const reminderRef = useRef(null);
 
-  const roleStyle = session ? roleConfig[session.role] : null;
   const accessibleClinics = getClinicsBySelectedOrg();
+  const canSeeAppointments = session ? hasPageAccess(session, 'appointments') : false;
 
   const { section, subtitle } = useMemo(() => {
     const page = pageNames[routerLocation.pathname] || 'Dashboard';
@@ -83,11 +83,46 @@ export function Header({ onMenuClick }) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
       }
+      if (reminderRef.current && !reminderRef.current.contains(event.target)) {
+        setShowReminders(false);
+      }
     };
 
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, []);
+
+  useEffect(() => {
+    if (!session || session.role === 'super_admin' || !selectedClinicId || !canSeeAppointments) {
+      let cancelled = false;
+      Promise.resolve().then(() => {
+        if (!cancelled) setUpcomingAppointments([]);
+      });
+      return () => { cancelled = true; };
+    }
+    let cancelled = false;
+    const loadReminders = async () => {
+      const today = new Date();
+      const end = new Date(today);
+      end.setDate(end.getDate() + 4);
+      const toDate = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      };
+      try {
+        const result = await fetchAppointments({ start: toDate(today), end: toDate(end) });
+        if (!cancelled) {
+          setUpcomingAppointments((result.appointments || []).filter((appointment) => appointment.status !== 'cancelled').slice(0, 8));
+        }
+      } catch {
+        if (!cancelled) setUpcomingAppointments([]);
+      }
+    };
+    loadReminders();
+    return () => { cancelled = true; };
+  }, [session, selectedClinicId, canSeeAppointments]);
 
   const handleLogout = () => {
     logout();
@@ -142,6 +177,65 @@ export function Header({ onMenuClick }) {
 
           <div className="flex items-center gap-3">
 
+
+            {session?.role !== 'super_admin' && canSeeAppointments && (
+              <div className="relative" ref={reminderRef}>
+                <button
+                  onClick={() => setShowReminders((prev) => !prev)}
+                  className={cn(
+                    "relative flex h-10 items-center gap-2 rounded-full px-3 text-sm font-bold transition border",
+                    isDark
+                      ? "bg-slate-800/70 text-slate-100 border-slate-700/50 hover:border-slate-500/45 hover:bg-slate-700/25"
+                      : "bg-white text-[#512c31] border-gray-100 hover:bg-[#fef9f3]"
+                  )}
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>Reminders</span>
+                  {upcomingAppointments.length > 0 && (
+                    <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[#e8919a] px-1.5 py-0.5 text-[10px] font-black text-white">
+                      {upcomingAppointments.length}
+                    </span>
+                  )}
+                </button>
+
+                {showReminders && (
+                  <div className={cn(
+                    "absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl border shadow-2xl",
+                    isDark ? "border-white/10 bg-[#0b0b0b] shadow-black/55" : "border-gray-200 bg-white shadow-xl"
+                  )}>
+                    <div className={cn("px-4 py-3 border-b", isDark ? "border-gray-800" : "border-gray-100")}>
+                      <p className={cn("text-sm font-black", isDark ? "text-white" : "text-[#512c31]")}>Upcoming appointments</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Next 4 days</p>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto p-2">
+                      {upcomingAppointments.length === 0 ? (
+                        <div className="px-3 py-6 text-center text-sm font-bold text-gray-500">No upcoming appointments</div>
+                      ) : upcomingAppointments.map((appointment) => (
+                        <button
+                          key={appointment.id}
+                          onClick={() => {
+                            setShowReminders(false);
+                            navigate('/app/appointments');
+                          }}
+                          className={cn(
+                            "w-full rounded-xl px-3 py-3 text-left transition flex gap-3",
+                            isDark ? "text-slate-300 hover:bg-slate-700/35 hover:text-white" : "text-[#512c31] hover:bg-[#fef9f3]"
+                          )}
+                        >
+                          <CalendarClock className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#e8919a]" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-black">{appointment.patient}</span>
+                            <span className="block truncate text-xs font-bold text-gray-500">
+                              {appointment.date} / {appointment.time} / {appointment.type}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Clinic Switcher */}
             {session?.role !== 'super_admin' && accessibleClinics.length > 0 && (
@@ -322,6 +416,23 @@ export function Header({ onMenuClick }) {
           </div>
 
           <div className="flex items-center gap-2">
+            {session?.role !== 'super_admin' && canSeeAppointments && (
+              <button
+                onClick={() => navigate('/app/appointments')}
+                className={cn(
+                  "relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
+                  isDark ? "bg-[#1f1f1f] text-gray-300 hover:text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                )}
+                title="Appointment reminders"
+              >
+                <Bell className="h-4 w-4" />
+                {upcomingAppointments.length > 0 && (
+                  <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[#e8919a] px-1.5 py-0.5 text-[10px] font-black text-white">
+                    {upcomingAppointments.length}
+                  </span>
+                )}
+              </button>
+            )}
             {/* Mobile Clinic Indicator */}
             {selectedClinic && (
               <div className={cn(

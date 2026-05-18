@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     Plus, Calendar, Clock, User, Stethoscope, CheckCircle,
     Circle, XCircle, X, ChevronLeft, ChevronRight, CalendarDays,
@@ -8,7 +9,7 @@ import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
 import { cn } from '../lib/utils';
-import { createAppointment, createPatient, fetchAppointments, updateAppointment, updateAppointmentStatus } from '../lib/clinicApi';
+import { createAppointment, createPatient, fetchAppointments, fetchPatients, updateAppointment, updateAppointmentStatus } from '../lib/clinicApi';
 import { hasEditAccess } from '../lib/permissions';
 
 const VISIT_TYPES = ['Consultation', 'Follow-up', 'Check-up', 'Emergency', 'Procedure', 'Lab Test', 'Vaccination'];
@@ -31,6 +32,7 @@ function StatusBadge({ status }) {
 }
 
 export function Appointments() {
+    const [searchParams, setSearchParams] = useSearchParams();
     const { theme } = useStore();
     const { session } = useAuth();
     const { selectedOrganizationId, selectedClinicId } = useTenant();
@@ -64,7 +66,11 @@ export function Appointments() {
     // Form — shared fields
     const [sharedForm, setSharedForm] = useState({ type: '', doctor: '', time: '', notes: '' });
     // Existing patient tab
-    const [existingForm, setExistingForm] = useState({ patientName: '' });
+    const [existingForm, setExistingForm] = useState({ patientId: '', patientName: '' });
+    const [patientSearch, setPatientSearch] = useState('');
+    const [patientMatches, setPatientMatches] = useState([]);
+    const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+    const [visiblePatientMatches, setVisiblePatientMatches] = useState(8);
     // New patient tab
     const [newPatientForm, setNewPatientForm] = useState({ name: '', contact: '', age: '', gender: 'Male' });
 
@@ -100,6 +106,52 @@ export function Appointments() {
 
     useEffect(() => { loadDayAppointments(dateKey); }, [dateKey, selectedClinicId]);
 
+    useEffect(() => {
+        if (!showModal || modalTab !== 'existing') return;
+        let cancelled = false;
+        const loadPatientMatches = async () => {
+            setPatientSearchLoading(true);
+            try {
+                const result = await fetchPatients(patientSearch.trim() ? { q: patientSearch.trim() } : {});
+                if (!cancelled) {
+                    setPatientMatches(result.patients || []);
+                    setVisiblePatientMatches(8);
+                }
+            } catch {
+                if (!cancelled) setPatientMatches([]);
+            } finally {
+                if (!cancelled) setPatientSearchLoading(false);
+            }
+        };
+        loadPatientMatches();
+        return () => { cancelled = true; };
+    }, [showModal, modalTab, patientSearch, selectedClinicId]);
+
+    useEffect(() => {
+        const shouldOpen = searchParams.get('action') === 'new';
+        const patientId = searchParams.get('patientId');
+        if (!shouldOpen || !patientId || !canEditAppointments) return;
+
+        let cancelled = false;
+        const openForPatient = async () => {
+            setModalError('');
+            setSharedForm({ type: '', doctor: '', time: '', notes: '' });
+            setModalTab('existing');
+            try {
+                const result = await fetchPatients();
+                const patient = (result.patients || []).find((item) => item.id === patientId);
+                if (!patient || cancelled) return;
+                setExistingForm({ patientId: patient.id, patientName: patient.name });
+                setPatientSearch(patient.name);
+                setShowModal(true);
+            } finally {
+                if (!cancelled) setSearchParams({}, { replace: true });
+            }
+        };
+        openForPatient();
+        return () => { cancelled = true; };
+    }, [searchParams, setSearchParams, canEditAppointments, selectedClinicId]);
+
     // ─── Handlers ─────────────────────────────────────────────────────────────
     const prevMonth = () => setViewMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
     const nextMonth = () => setViewMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
@@ -116,8 +168,10 @@ export function Appointments() {
         if (!canEditAppointments) return;
         setModalError('');
         setSharedForm({ type: '', doctor: '', time: '', notes: '' });
-        setExistingForm({ patientName: '' });
-        setNewPatientForm({ fullName: '', phone: '', age: '', gender: 'male' });
+        setExistingForm({ patientId: '', patientName: '' });
+        setPatientSearch('');
+        setPatientMatches([]);
+        setNewPatientForm({ name: '', contact: '', age: '', gender: 'Male' });
         setModalTab('existing');
         setShowModal(true);
     };
@@ -130,6 +184,11 @@ export function Appointments() {
             return;
         }
 
+        if (modalTab === 'existing' && !existingForm.patientId) {
+            setModalError('Select an existing patient from the list.');
+            return;
+        }
+
         if (modalTab === 'new' && !selectedClinicId) {
             setModalError('Please select a clinic first before creating a new patient.');
             return;
@@ -138,10 +197,11 @@ export function Appointments() {
         setSubmitting(true);
         try {
             let patientName = existingForm.patientName;
+            let patientId = existingForm.patientId;
 
             if (modalTab === 'new') {
                 // Create patient first — use same schema as Patients.jsx
-                await createPatient({
+                const created = await createPatient({
                     name: newPatientForm.name,
                     contact: newPatientForm.contact,
                     age: newPatientForm.age || '',
@@ -151,10 +211,12 @@ export function Appointments() {
                     organizationId: session?.role === 'super_admin' ? selectedOrganizationId : undefined,
                     lastVisit: dateKey,
                 });
-                patientName = newPatientForm.name;
+                patientId = created.patient?.id || '';
+                patientName = created.patient?.name || newPatientForm.name;
             }
 
             await createAppointment({
+                patientId,
                 patientName,
                 type: sharedForm.type,
                 doctor: sharedForm.doctor,
@@ -412,7 +474,14 @@ export function Appointments() {
 
                                     {/* Patient info */}
                                     <div className="flex-1 min-w-0">
-                                        <p className={cn('font-black text-base truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{apt.patient}</p>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className={cn('font-black text-base truncate', isDark ? 'text-white' : 'text-[#512c31]')}>{apt.patient}</p>
+                                            {apt.appointmentNumber && (
+                                                <span className={cn('px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest', isDark ? 'bg-[#0f0f0f] text-gray-300' : 'bg-white text-[#512c31]')}>
+                                                    Appointment {apt.appointmentNumber}
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className={cn('text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 mt-1', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>
                                             <Stethoscope className="w-3.5 h-3.5" /> {apt.type}
                                             {apt.doctor && <> · <User className="w-3.5 h-3.5" /> {apt.doctor}</>}
@@ -521,17 +590,70 @@ export function Appointments() {
 
                                 {/* ── Existing patient tab ── */}
                                 {modalTab === 'existing' && (
-                                    <div>
+                                    <div className="space-y-3">
                                         <label className={labelCls}>Patient Name</label>
                                         <div className="relative">
                                             <Search className={cn('absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4', isDark ? 'text-gray-600' : 'text-gray-400')} />
                                             <input
                                                 required
-                                                value={existingForm.patientName}
-                                                onChange={e => setExistingForm({ patientName: e.target.value })}
+                                                value={patientSearch}
+                                                onChange={e => {
+                                                    setPatientSearch(e.target.value);
+                                                    setExistingForm({ patientId: '', patientName: '' });
+                                                }}
                                                 className={cn(inputCls, 'pl-9')}
                                                 placeholder="Type patient name…"
                                             />
+                                        </div>
+                                        {existingForm.patientId && (
+                                            <div className={cn('rounded-2xl border px-4 py-3 text-sm font-bold', isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-emerald-50 border-emerald-100 text-emerald-700')}>
+                                                Selected: {existingForm.patientName}
+                                            </div>
+                                        )}
+                                        <div className={cn('rounded-2xl border overflow-hidden', isDark ? 'border-gray-800 bg-[#0f0f0f]' : 'border-gray-100 bg-[#fef9f3]')}>
+                                            {patientSearchLoading ? (
+                                                <div className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">Searching patients...</div>
+                                            ) : patientMatches.length === 0 ? (
+                                                <div className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-gray-500">No existing patients found</div>
+                                            ) : (
+                                                <>
+                                                    <div className="max-h-56 overflow-y-auto divide-y divide-gray-800/60">
+                                                        {patientMatches.slice(0, visiblePatientMatches).map((patient) => (
+                                                            <button
+                                                                key={patient.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setExistingForm({ patientId: patient.id, patientName: patient.name });
+                                                                    setPatientSearch(patient.name);
+                                                                }}
+                                                                className={cn(
+                                                                    'w-full px-4 py-3 text-left flex items-center justify-between gap-3 transition-all',
+                                                                    existingForm.patientId === patient.id
+                                                                        ? 'bg-[#512c31] text-white'
+                                                                        : isDark ? 'text-gray-300 hover:bg-white/5' : 'text-[#512c31] hover:bg-white'
+                                                                )}
+                                                            >
+                                                                <span className="min-w-0">
+                                                                    <span className="block font-black truncate">{patient.name}</span>
+                                                                    <span className={cn('block text-xs font-bold mt-0.5 truncate', existingForm.patientId === patient.id ? 'text-white/70' : 'text-gray-500')}>
+                                                                        {patient.contact || 'No phone'} {patient.lastVisit ? `/ Last visit ${patient.lastVisit}` : ''}
+                                                                    </span>
+                                                                </span>
+                                                                <span className="text-[10px] font-black uppercase tracking-widest">Select</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    {visiblePatientMatches < patientMatches.length && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setVisiblePatientMatches((count) => count + 8)}
+                                                            className={cn('w-full px-4 py-3 text-xs font-black uppercase tracking-widest border-t', isDark ? 'border-gray-800 text-gray-300 hover:bg-white/5' : 'border-gray-100 text-[#512c31] hover:bg-white')}
+                                                        >
+                                                            Load more patients
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 )}

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Trash2, User, Phone, Calendar, X, Pencil } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, Plus, Trash2, User, Phone, Calendar, X, Pencil, History, CalendarPlus, Clock, Stethoscope } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { createPatient, deletePatient, fetchPatients, updatePatient } from '../lib/clinicApi';
+import { createPatient, deletePatient, fetchPatientAppointments, fetchPatients, updatePatient } from '../lib/clinicApi';
 import { useStore } from '../context/StoreContext';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
@@ -11,11 +11,13 @@ import { hasEditAccess } from '../lib/permissions';
 const PAGE_SIZE = 25;
 
 export function Patients() {
+  const navigate = useNavigate();
   const { theme } = useStore();
   const { session } = useAuth();
   const { selectedOrganizationId, selectedClinicId } = useTenant();
   const isDark = theme === 'dark';
   const canEditPatients = hasEditAccess(session, 'edit_patients');
+  const canEditAppointments = hasEditAccess(session, 'edit_appointments');
   const [patients, setPatients] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -31,6 +33,10 @@ export function Patients() {
   });
   const [editPatient, setEditPatient] = useState(null); // holds patient being edited
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [historyPatient, setHistoryPatient] = useState(null);
+  const [appointmentHistory, setAppointmentHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   const loadPatients = async () => {
     setIsLoading(true);
@@ -126,6 +132,25 @@ export function Patients() {
       medicalHistory: (patient.medicalHistory || []).join(', '),
     });
     setIsEditModalOpen(true);
+  };
+
+  const openAppointmentHistory = async (patient) => {
+    setHistoryPatient(patient);
+    setAppointmentHistory([]);
+    setHistoryError('');
+    setHistoryLoading(true);
+    try {
+      const result = await fetchPatientAppointments(patient.id);
+      setAppointmentHistory(result.appointments || []);
+    } catch (err) {
+      setHistoryError(err.message || 'Failed to load appointment history.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openNewAppointment = (patient) => {
+    navigate(`/app/appointments?action=new&patientId=${encodeURIComponent(patient.id)}`);
   };
 
   const handleEditSubmit = async (e) => {
@@ -264,8 +289,25 @@ export function Patients() {
                     </div>
                   </td>
                   <td className="p-4 sm:p-6 text-right">
-                    {canEditPatients && (
-                      <div className="flex items-center justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        onClick={() => openAppointmentHistory(patient)}
+                        className="text-violet-500 hover:text-white p-2 sm:p-3 bg-violet-50 hover:bg-violet-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                        title="Appointment history"
+                      >
+                        <History className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                      {canEditAppointments && (
+                        <button
+                          onClick={() => openNewAppointment(patient)}
+                          className="text-emerald-500 hover:text-white p-2 sm:p-3 bg-emerald-50 hover:bg-emerald-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                          title="New appointment"
+                        >
+                          <CalendarPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                      )}
+                      {canEditPatients && (
+                        <>
                         <button
                           onClick={() => openEditModal(patient)}
                           className="text-blue-500 hover:text-white p-2 sm:p-3 bg-blue-50 hover:bg-blue-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
@@ -280,8 +322,9 @@ export function Patients() {
                         >
                           <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
-                      </div>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -345,6 +388,75 @@ export function Patients() {
                 <button type="submit" className="px-8 py-3 bg-[#512c31] text-white rounded-2xl font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl transition-all">Save Patient</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {historyPatient && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className={cn(
+            "rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto border-4 shadow-2xl",
+            isDark ? "bg-[#1e1e1e] border-white/5" : "bg-white border-white/50"
+          )}>
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <h2 className={cn("text-2xl font-black tracking-tight", isDark ? "text-white" : "text-[#512c31]")}>Appointment History</h2>
+                <p className={cn("text-xs font-bold uppercase tracking-widest mt-1", isDark ? "text-gray-500" : "text-[#512c31]/60")}>
+                  {historyPatient.name} / {appointmentHistory.length} appointment{appointmentHistory.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <button onClick={() => setHistoryPatient(null)} className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-colors bg-gray-50 hover:bg-[#e8919a] hover:text-white", isDark ? "text-gray-400" : "text-[#512c31]")}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {historyError && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300 mb-4">{historyError}</div>
+            )}
+
+            {historyLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((item) => <div key={item} className="skeleton-shimmer h-20 rounded-2xl" />)}
+              </div>
+            ) : appointmentHistory.length === 0 ? (
+              <div className={cn("rounded-3xl p-8 text-center", isDark ? "bg-[#0f0f0f] text-gray-400" : "bg-[#fef9f3] text-[#512c31]/60")}>
+                No appointments saved for this patient yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {appointmentHistory.map((appointment) => (
+                  <div key={appointment.id} className={cn("rounded-3xl p-4 border flex flex-col sm:flex-row sm:items-center gap-4", isDark ? "bg-[#0f0f0f] border-white/5" : "bg-[#fef9f3] border-[#512c31]/5")}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-3 py-1 rounded-full bg-[#512c31] text-white text-[10px] font-black uppercase tracking-widest">
+                          Appointment {appointment.appointmentNumber || '-'}
+                        </span>
+                        <span className={cn("text-xs font-bold uppercase tracking-widest", isDark ? "text-gray-400" : "text-[#512c31]/60")}>{appointment.status}</span>
+                      </div>
+                      <p className={cn("mt-2 font-black text-lg", isDark ? "text-white" : "text-[#512c31]")}>{appointment.type}</p>
+                      <div className={cn("mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold", isDark ? "text-gray-400" : "text-[#512c31]/70")}>
+                        <span className="inline-flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{appointment.date}</span>
+                        <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{appointment.time}</span>
+                        {appointment.doctor && <span className="inline-flex items-center gap-1"><Stethoscope className="w-3.5 h-3.5" />{appointment.doctor}</span>}
+                      </div>
+                      {appointment.notes && <p className={cn("mt-2 text-sm", isDark ? "text-gray-500" : "text-[#512c31]/60")}>{appointment.notes}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canEditAppointments && (
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => openNewAppointment(historyPatient)}
+                  className="px-6 py-3 bg-[#512c31] text-white rounded-2xl font-bold tracking-wide hover:bg-[#e8919a] hover:scale-105 shadow-xl transition-all inline-flex items-center gap-2"
+                >
+                  <CalendarPlus className="w-4 h-4" />
+                  New Appointment
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

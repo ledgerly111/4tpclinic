@@ -93,6 +93,10 @@ export async function fetchAppointments(params = {}) {
   return request(`/appointments${query ? `?${query}` : ''}`);
 }
 
+export async function fetchPatientAppointments(patientId) {
+  return fetchAppointments({ patientId });
+}
+
 export async function fetchAttendance(params = {}) {
   const query = new URLSearchParams(params).toString();
   return request(`/attendance${query ? `?${query}` : ''}`);

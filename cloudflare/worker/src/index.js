@@ -2753,33 +2753,78 @@ async function deleteInventoryBatch(env, request, itemId, batchId) {
 async function listAppointments(env, request, url) {
     const { user } = await requireAuth(request, env);
     const db = requireDb(env);
-    const date = sanitizeDate(url.searchParams.get('date') || new Date().toISOString());
+    const dateParam = sanitizeOptionalDate(url.searchParams.get('date'));
+    const startDate = sanitizeOptionalDate(url.searchParams.get('start'));
+    const endDate = sanitizeOptionalDate(url.searchParams.get('end'));
+    const patientId = String(url.searchParams.get('patientId') || '').trim();
     const activeClinicId = await resolveActiveClinicId(db, request, user, false);
 
     let sql = `
         SELECT
-            id, organization_id, clinic_id, patient_id, patient_name, type, doctor,
-            scheduled_date, scheduled_time, status, notes, created_at
-        FROM appointments
-        WHERE scheduled_date = ?
+            a.id, a.organization_id, a.clinic_id, a.patient_id, a.patient_name, a.type, a.doctor,
+            a.scheduled_date, a.scheduled_time, a.status, a.notes, a.created_at,
+            CASE
+                WHEN a.patient_id IS NOT NULL THEN (
+                    SELECT COUNT(*)
+                    FROM appointments ax
+                    WHERE ax.patient_id = a.patient_id
+                      AND (
+                        ax.created_at < a.created_at
+                        OR (ax.created_at = a.created_at AND ax.id <= a.id)
+                      )
+                )
+                ELSE NULL
+            END AS appointment_number
+        FROM appointments a
+        WHERE 1 = 1
     `;
-    const bindings = [date];
+    const bindings = [];
+
+    if (dateParam) {
+        sql += ' AND a.scheduled_date = ?';
+        bindings.push(dateParam);
+    } else {
+        const fallbackDate = !startDate && !endDate && !patientId
+            ? sanitizeDate(new Date().toISOString())
+            : null;
+        if (fallbackDate) {
+            sql += ' AND a.scheduled_date = ?';
+            bindings.push(fallbackDate);
+        }
+    }
+
+    if (startDate) {
+        sql += ' AND a.scheduled_date >= ?';
+        bindings.push(startDate);
+    }
+
+    if (endDate) {
+        sql += ' AND a.scheduled_date <= ?';
+        bindings.push(endDate);
+    }
+
+    if (patientId) {
+        sql += ' AND a.patient_id = ?';
+        bindings.push(patientId);
+    }
 
     if (user.role === 'admin' || user.role === 'staff') {
-        sql += ' AND organization_id = ?';
+        sql += ' AND a.organization_id = ?';
         bindings.push(user.organizationId);
     }
     if (user.role === 'staff') {
         if (!user.clinicIds?.length) return jsonResponse({ appointments: [] });
         const placeholders = user.clinicIds.map(() => '?').join(',');
-        sql += ` AND clinic_id IN (${placeholders})`;
+        sql += ` AND a.clinic_id IN (${placeholders})`;
         bindings.push(...user.clinicIds);
     }
     if (activeClinicId) {
-        sql += ' AND clinic_id = ?';
+        sql += ' AND a.clinic_id = ?';
         bindings.push(activeClinicId);
     }
-    sql += ' ORDER BY scheduled_time ASC, created_at ASC';
+    sql += patientId
+        ? ' ORDER BY a.scheduled_date ASC, a.scheduled_time ASC, a.created_at ASC'
+        : ' ORDER BY a.scheduled_date ASC, a.scheduled_time ASC, a.created_at ASC';
 
     const result = await db.prepare(sql).bind(...bindings).all();
     return jsonResponse({
@@ -2796,6 +2841,7 @@ async function listAppointments(env, request, url) {
             status: row.status,
             notes: row.notes || '',
             createdAt: row.created_at,
+            appointmentNumber: row.appointment_number ? Number(row.appointment_number) : null,
         })),
     });
 }
@@ -2806,11 +2852,15 @@ async function createAppointment(env, request) {
     const db = requireDb(env);
     const body = await parseJsonRequest(request);
 
-    const patientName = String(body.patientName || '').trim();
+    let patientName = String(body.patientName || '').trim();
     const type = String(body.type || '').trim();
     const scheduledDate = sanitizeDate(body.date || new Date().toISOString());
     const scheduledTime = String(body.time || '').trim();
-    if (!patientName || !type || !scheduledTime) {
+    const patientId = body.patientId ? String(body.patientId).trim() : null;
+    if (!patientName && !patientId) {
+        throw new HttpError(400, 'Patient is required.');
+    }
+    if (!type || !scheduledTime) {
         throw new HttpError(400, 'Patient, type and time are required.');
     }
 
@@ -2820,34 +2870,65 @@ async function createAppointment(env, request) {
         : user.organizationId;
     if (!organizationId || !activeClinicId) throw new HttpError(400, 'Organization and clinic are required.');
 
+    if (patientId) {
+        const patient = await db.prepare(`
+            SELECT id, name, organization_id, clinic_id
+            FROM patients
+            WHERE id = ?
+            LIMIT 1
+        `).bind(patientId).first();
+        if (!patient) throw new HttpError(400, 'Selected patient was not found.');
+        if (patient.organization_id !== organizationId || patient.clinic_id !== activeClinicId) {
+            throw new HttpError(400, 'Selected patient is outside the selected clinic.');
+        }
+        patientName = patient.name;
+    }
+
     const id = crypto.randomUUID();
     const status = normalizeAppointmentStatus(body.status || 'scheduled');
 
-    await db.prepare(`
-        INSERT INTO appointments (
-            id, organization_id, clinic_id, patient_id, patient_name, type, doctor,
-            scheduled_date, scheduled_time, status, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-        id,
-        organizationId,
-        activeClinicId,
-        body.patientId ? String(body.patientId) : null,
-        patientName,
-        type,
-        body.doctor ? String(body.doctor) : null,
-        scheduledDate,
-        scheduledTime,
-        status,
-        body.notes ? String(body.notes) : null
-    ).run();
+    const insertAppointment = db.prepare(`
+            INSERT INTO appointments (
+                id, organization_id, clinic_id, patient_id, patient_name, type, doctor,
+                scheduled_date, scheduled_time, status, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            id,
+            organizationId,
+            activeClinicId,
+            patientId,
+            patientName,
+            type,
+            body.doctor ? String(body.doctor) : null,
+            scheduledDate,
+            scheduledTime,
+            status,
+            body.notes ? String(body.notes) : null
+        );
+
+    if (patientId) {
+        await db.batch([
+            insertAppointment,
+            db.prepare(`
+                UPDATE patients
+                SET last_visit = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+            `).bind(scheduledDate, patientId),
+        ]);
+    } else {
+        await insertAppointment.run();
+    }
+
+    const appointmentNumber = patientId
+        ? await db.prepare('SELECT COUNT(*) AS total FROM appointments WHERE patient_id = ?').bind(patientId).first()
+        : null;
 
     return jsonResponse({
         appointment: {
             id,
             organizationId,
             clinicId: activeClinicId,
-            patientId: body.patientId || null,
+            patientId,
             patient: patientName,
             type,
             doctor: body.doctor || '',
@@ -2855,6 +2936,7 @@ async function createAppointment(env, request) {
             time: scheduledTime,
             status,
             notes: body.notes || '',
+            appointmentNumber: appointmentNumber?.total ? Number(appointmentNumber.total) : null,
         },
     }, 201);
 }
