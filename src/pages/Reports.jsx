@@ -13,6 +13,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Banknote,
+  CreditCard,
   Clock3,
   BarChart3,
   PieChart as PieChartIcon,
@@ -441,6 +442,50 @@ export function Reports() {
       </div>
 
       {/* ── Quick Stats Strip ──────────────────────────────────── */}
+      <div className={cn(
+        'rounded-[2rem] border-4 p-5 sm:p-6 shadow-xl dashboard-reveal reveal-delay-1',
+        isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
+      )}>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-5">
+          <div>
+            <h3 className={cn('font-black text-xl flex items-center gap-3', isDark ? 'text-white' : 'text-[#512c31]')}>
+              <div className="p-2 bg-emerald-500/10 rounded-xl"><Banknote className="w-6 h-6 text-emerald-400" /></div>
+              Received Split
+            </h3>
+            <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
+              Cash and GPay collected in the selected date range
+            </p>
+          </div>
+          <div className={cn('px-4 py-2 rounded-2xl text-right', isDark ? 'bg-[#0f0f0f]' : 'bg-[#fef9f3]')}>
+            <p className={cn('text-[10px] font-bold uppercase tracking-widest', isDark ? 'text-gray-500' : 'text-[#512c31]/60')}>Total Received</p>
+            {loading ? <Skeleton className="h-6 w-24 mt-1" /> : <p className={cn('text-xl font-black', isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(summary.totalReceived)}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            { label: 'Cash Received', value: summary.cashPaymentReceived, icon: Banknote, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+            { label: 'GPay Received', value: summary.gpayReceived, icon: CreditCard, color: 'text-sky-400', bg: 'bg-sky-500/10' },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className={cn(
+                'rounded-3xl p-5 flex items-center justify-between border shadow-inner',
+                isDark ? 'bg-[#0f0f0f] border-white/5' : 'bg-[#fef9f3] border-[#512c31]/5'
+              )}
+            >
+              <div>
+                <p className={cn('text-[10px] font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{item.label}</p>
+                {loading ? <Skeleton className="h-8 w-28 mt-2" /> : <p className={cn('text-3xl font-black mt-1', isDark ? 'text-white' : 'text-[#512c31]')}>{formatCurrency(item.value)}</p>}
+              </div>
+              <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center', item.bg)}>
+                <item.icon className={cn('w-7 h-7', item.color)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className={cn(
         'rounded-3xl border-4 p-5 sm:p-6 flex flex-wrap gap-x-10 gap-y-6 shadow-lg dashboard-reveal reveal-delay-2',
         isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
