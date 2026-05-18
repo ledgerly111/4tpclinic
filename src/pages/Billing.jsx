@@ -24,6 +24,7 @@ import { PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
+import { useTenant } from '../context/TenantContext';
 
 const PAGE_SIZE = 25;
 
@@ -66,6 +67,7 @@ export function Billing() {
     const navigate = useNavigate();
     const { theme, refreshDashboard } = useStore();
     const { session } = useAuth();
+    const { selectedClinicId } = useTenant();
     const isDark = theme === 'dark';
     const canEditBilling = hasEditAccess(session, 'edit_billing');
 
@@ -111,7 +113,7 @@ export function Billing() {
 
     useEffect(() => {
         loadBillingData();
-    }, []);
+    }, [selectedClinicId]);
 
     const filteredInvoices = useMemo(() => (
         invoices.filter((invoice) => {
@@ -130,8 +132,6 @@ export function Billing() {
     const visibleInvoices = useMemo(() => (
         filteredInvoices.slice(0, visibleCount)
     ), [filteredInvoices, visibleCount]);
-
-    const isAdjustingReceipt = Boolean(paymentInvoice && paymentInvoice.status === 'paid' && Number(paymentInvoice.outstandingAmount || 0) <= 0);
 
     const openPaymentModal = (invoice) => {
         if (!canEditBilling) {

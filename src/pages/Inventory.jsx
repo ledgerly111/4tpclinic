@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { createInventoryItem, deleteInventoryBatch, deleteInventoryItem, fetchInventory, restockInventoryItem, updateInventoryBatch, updateInventoryItem } from '../lib/clinicApi';
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
+import { useTenant } from '../context/TenantContext';
 
 const PAGE_SIZE = 25;
 const INVENTORY_CATEGORIES = ['Skin Care', 'Hair Care', 'General Medicine'];
@@ -47,6 +48,7 @@ function calculateInventoryPricing(form) {
 export function Inventory() {
     const { theme } = useStore();
     const { session } = useAuth();
+    const { selectedClinicId } = useTenant();
     const isDark = theme === 'dark';
     const canEditInventory = hasEditAccess(session, 'edit_inventory');
     const [items, setItems] = useState([]);
@@ -80,7 +82,7 @@ export function Inventory() {
 
     useEffect(() => {
         loadInventory();
-    }, []);
+    }, [selectedClinicId]);
 
     const filteredItems = useMemo(() => (
         items.filter((item) =>

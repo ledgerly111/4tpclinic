@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Building2, Users, Plus, Key, X, UserPlus, Stethoscope, ShieldCheck, Shield, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTenant } from '../context/TenantContext';
@@ -33,8 +33,6 @@ const EDIT_PERMISSIONS = [
     { key: 'edit_billing', label: 'Edit Billing', desc: 'Create & manage invoices' },
 ];
 
-const PERMS_STORAGE_KEY = 'clinic_staff_permissions';
-
 export function Staff() {
     const { session } = useAuth();
     const { selectedOrganization, selectedClinic, selectClinic } = useTenant();
@@ -52,7 +50,6 @@ export function Staff() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [formError, setFormError] = useState('');
     const [formSuccess, setFormSuccess] = useState('');
-    const [permissionsMap, setPermissionsMap] = useState({});
     const [permForm, setPermForm] = useState(null); // working copy while modal is open
     const [permSaving, setPermSaving] = useState(false);
 
@@ -66,7 +63,7 @@ export function Staff() {
     });
     const [passwordForm, setPasswordForm] = useState({ newPassword: '' });
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
             if (!session?.organizationId) return;
@@ -77,13 +74,13 @@ export function Staff() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [session?.organizationId]);
 
     useEffect(() => {
         loadData().catch((error) => {
             setFormError(error.message || 'Failed to load supervision data.');
         });
-    }, [session?.organizationId]);
+    }, [loadData]);
 
     const clearMessages = () => {
         setFormError('');
@@ -191,25 +188,12 @@ export function Staff() {
             )));
             setFormSuccess(`Permissions saved for ${selectedUser.fullName}.`);
             setTimeout(() => { setShowPermModal(false); setFormSuccess(''); }, 1000);
-            return;
-            // Try the API first; fall back gracefully if not implemented
-            try {
-                await updateStaffPermissionsApi(selectedUser.id, permForm);
-            } catch {
-                // API may not exist yet — silently fall back to localStorage
-            }
-            const updated = { ...permissionsMap, [selectedUser.id]: permForm };
-            setPermissionsMap(updated);
-            localStorage.setItem(PERMS_STORAGE_KEY, JSON.stringify(updated));
-            setFormSuccess(`Permissions saved for ${selectedUser.fullName}.`);
-            setTimeout(() => { setShowPermModal(false); setFormSuccess(''); }, 1000);
         } catch (err) {
             setFormError(err.message || 'Failed to save permissions.');
         } finally {
             setPermSaving(false);
         }
     };
-
     const togglePage = (key) => setPermForm(f => ({ ...f, pages: { ...f.pages, [key]: !f.pages[key] } }));
     const toggleEdit = (key) => setPermForm(f => ({ ...f, edits: { ...f.edits, [key]: !f.edits[key] } }));
     const grantAll = () => setPermForm({ pages: Object.fromEntries(PAGE_PERMISSIONS.map(p => [p.key, true])), edits: Object.fromEntries(EDIT_PERMISSIONS.map(p => [p.key, true])) });

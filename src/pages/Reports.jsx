@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Calendar,
@@ -34,7 +34,8 @@ import {
   Line,
 } from 'recharts';
 import { useStore } from '../context/StoreContext';
-import { cn } from '../lib/utils';
+import { useTenant } from '../context/TenantContext';
+import { cn, getLocalDateString } from '../lib/utils';
 import { fetchReportsOverview, fetchServices } from '../lib/clinicApi';
 import { fetchInvoices, fetchAccountingSummary } from '../lib/accountingApi';
 
@@ -65,10 +66,57 @@ function monthLabel(iso) {
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
+function chartLabel(value, bucket) {
+  if (!value) return '-';
+  if (bucket === 'day') return fmtDate(value);
+  if (bucket === 'year') return value;
+  if (String(value).includes('-W')) return String(value).replace('-', ' ');
+  return monthLabel(value);
+}
+
 function fmtDate(d) {
   const dt = new Date(d);
   if (Number.isNaN(dt.getTime())) return d || '-';
   return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function getPeriodRange(period, customStart, customEnd) {
+  const now = new Date();
+  if (period === 'daily') {
+    const today = getLocalDateString(now);
+    return { start: today, end: today, bucket: 'day', label: 'Today' };
+  }
+  if (period === 'weekly') {
+    const day = now.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const start = addDays(now, mondayOffset);
+    const end = addDays(start, 6);
+    return { start: getLocalDateString(start), end: getLocalDateString(end), bucket: 'day', label: 'This week' };
+  }
+  if (period === 'yearly') {
+    const year = now.getFullYear();
+    return { start: `${year}-01-01`, end: `${year}-12-31`, bucket: 'month', label: `${year}` };
+  }
+  if (period === 'custom') {
+    return { start: customStart || '', end: customEnd || '', bucket: 'day', label: 'Custom range' };
+  }
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { start: getLocalDateString(start), end: getLocalDateString(end), bucket: 'day', label: 'This month' };
+}
+
+function periodLabel(period) {
+  if (period === 'daily') return 'Daily';
+  if (period === 'weekly') return 'Weekly';
+  if (period === 'yearly') return 'Yearly';
+  if (period === 'custom') return 'Custom';
+  return 'Monthly';
 }
 
 function pctChange(cur, prev) {
@@ -99,6 +147,7 @@ function ChartTooltip({ isDark }) {
    ═══════════════════════════════════════════════════════════════ */
 export function Reports() {
   const { theme } = useStore();
+  const { selectedClinicId, selectedClinic } = useTenant();
   const isDark = theme === 'dark';
   const tip = ChartTooltip({ isDark });
 
@@ -107,18 +156,26 @@ export function Reports() {
   const [error, setError] = useState('');
   const [overview, setOverview] = useState({ monthlyRevenue: [], patientCount: 0, lowStockCount: 0, appointmentCount: 0 });
   const [invoices, setInvoices] = useState([]);
-  const [summary, setSummary] = useState({ cashReceived: 0, pendingAmount: 0, overdueAmount: 0 });
+  const [summary, setSummary] = useState({ cashReceived: 0, totalReceived: 0, cashPaymentReceived: 0, gpayReceived: 0, pendingAmount: 0, overdueAmount: 0, creditAmount: 0 });
   const [services, setServices] = useState([]);
+  const [period, setPeriod] = useState('monthly');
+  const [customStart, setCustomStart] = useState(getLocalDateString(new Date()));
+  const [customEnd, setCustomEnd] = useState(getLocalDateString(new Date()));
+
+  const reportRange = useMemo(
+    () => getPeriodRange(period, customStart, customEnd),
+    [period, customStart, customEnd]
+  );
 
   /* ── data loading ───────────────────────────────────────────── */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const [ov, inv, summ, svc] = await Promise.all([
-        fetchReportsOverview(),
-        fetchInvoices(),
-        fetchAccountingSummary(),
+        fetchReportsOverview(reportRange),
+        fetchInvoices(reportRange),
+        fetchAccountingSummary(reportRange),
         fetchServices(),
       ]);
       setOverview({
@@ -130,8 +187,12 @@ export function Reports() {
       setInvoices(inv.invoices || []);
       setSummary({
         cashReceived: Number(summ.cashReceived || 0),
+        totalReceived: Number(summ.totalReceived ?? summ.cashReceived ?? 0),
+        cashPaymentReceived: Number(summ.cashPaymentReceived || 0),
+        gpayReceived: Number(summ.gpayReceived || 0),
         pendingAmount: Number(summ.pendingAmount || 0),
         overdueAmount: Number(summ.overdueAmount || 0),
+        creditAmount: Number(summ.creditAmount ?? summ.receivables ?? 0),
       });
       setServices((svc.services || []).slice());
     } catch (err) {
@@ -139,19 +200,14 @@ export function Reports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportRange]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData, selectedClinicId]);
 
   /* ── computed ────────────────────────────────────────────────── */
   const totalRevenue = useMemo(
     () => overview.monthlyRevenue.reduce((s, r) => s + Number(r.revenue || 0), 0),
     [overview.monthlyRevenue]
-  );
-
-  const totalInvoiceValue = useMemo(
-    () => invoices.reduce((s, i) => s + Number(i.amount || 0), 0),
-    [invoices]
   );
 
   // Revenue change (compare last two months)
@@ -167,12 +223,15 @@ export function Reports() {
     overview.monthlyRevenue.forEach((r) => revMap.set(String(r.month || ''), Number(r.revenue || 0)));
     const invMap = new Map();
     invoices.forEach((i) => {
-      const m = String(i.date || '').slice(0, 7);
+      const dateValue = String(i.date || '');
+      const m = reportRange.bucket === 'year'
+        ? dateValue.slice(0, 4)
+        : reportRange.bucket === 'day' ? dateValue.slice(0, 10) : dateValue.slice(0, 7);
       if (m) invMap.set(m, (invMap.get(m) || 0) + 1);
     });
     const keys = [...new Set([...revMap.keys(), ...invMap.keys()])].filter(Boolean).sort();
-    return keys.map((k) => ({ month: k, label: monthLabel(k), revenue: revMap.get(k) || 0, invoices: invMap.get(k) || 0 }));
-  }, [overview.monthlyRevenue, invoices]);
+    return keys.map((k) => ({ month: k, label: chartLabel(k, reportRange.bucket), revenue: revMap.get(k) || 0, invoices: invMap.get(k) || 0 }));
+  }, [overview.monthlyRevenue, invoices, reportRange.bucket]);
 
   // Invoice status donut
   const statusDonut = useMemo(() => {
@@ -222,25 +281,25 @@ export function Reports() {
       accent: 'text-emerald-500',
       iconBg: isDark ? 'bg-emerald-500/15' : 'bg-emerald-100',
       change: revenueChange,
-      sub: 'vs previous month',
+      sub: `${periodLabel(period)} billed amount`,
     },
     {
       title: 'Received',
-      value: formatCurrency(summary.cashReceived),
+      value: formatCurrency(summary.totalReceived),
       icon: Banknote,
       gradient: 'from-sky-500/20 to-sky-500/5',
       accent: 'text-sky-500',
       iconBg: isDark ? 'bg-sky-500/15' : 'bg-sky-100',
-      sub: `${invoices.filter((i) => i.status === 'paid').length} paid invoices`,
+      sub: `Cash ${formatCurrency(summary.cashPaymentReceived)} / GPay ${formatCurrency(summary.gpayReceived)}`,
     },
     {
-      title: 'Pending Amount',
+      title: 'Credit / Pending',
       value: formatCurrency(summary.pendingAmount),
       icon: Clock3,
       gradient: 'from-amber-500/20 to-amber-500/5',
       accent: 'text-amber-500',
       iconBg: isDark ? 'bg-amber-500/15' : 'bg-amber-100',
-      sub: `${invoices.filter((i) => i.status === 'pending' || i.status === 'partially_paid').length} pending invoices`,
+      sub: `${invoices.filter((i) => i.status === 'pending' || i.status === 'partially_paid').length} invoices with balance`,
     },
     {
       title: 'Overdue',
@@ -276,7 +335,7 @@ export function Reports() {
         <div>
           <h1 className={cn("text-2xl sm:text-4xl font-black tracking-tight", isDark ? 'text-white' : 'text-[#512c31]')}>Reports & Analytics</h1>
           <p className={cn("text-sm sm:text-base font-bold uppercase tracking-widest mt-1", isDark ? 'text-white/40' : 'text-[#512c31]/60')}>
-            Real-time financial and operational insights
+            {selectedClinic?.name ? `${selectedClinic.name} insights` : 'Real-time financial and operational insights'}
           </p>
         </div>
         <button
@@ -293,6 +352,50 @@ export function Reports() {
           <RefreshCw className={cn('w-4 h-4 sm:w-5 sm:h-5', loading && 'animate-spin')} />
           <span className="text-sm sm:text-base">Refresh</span>
         </button>
+      </div>
+
+      <div className={cn(
+        'rounded-3xl border-4 p-4 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 dashboard-reveal reveal-delay-1',
+        isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-gray-50'
+      )}>
+        <div className="flex flex-wrap gap-2">
+          {['daily', 'weekly', 'monthly', 'yearly', 'custom'].map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setPeriod(option)}
+              className={cn(
+                'px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all border',
+                period === option
+                  ? 'bg-[#512c31] text-white border-[#512c31] shadow-lg'
+                  : isDark ? 'bg-[#0f0f0f] text-gray-300 border-white/5 hover:border-[#e8919a]/50' : 'bg-[#fef9f3] text-[#512c31] border-[#512c31]/10 hover:border-[#512c31]/30'
+              )}
+            >
+              {periodLabel(option)}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {period === 'custom' && (
+            <>
+              <input
+                type="date"
+                value={customStart}
+                onChange={(event) => setCustomStart(event.target.value)}
+                className={cn('px-4 py-3 rounded-2xl border text-sm font-bold outline-none', isDark ? 'bg-[#0f0f0f] border-white/10 text-white' : 'bg-[#fef9f3] border-[#512c31]/10 text-[#512c31]')}
+              />
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(event) => setCustomEnd(event.target.value)}
+                className={cn('px-4 py-3 rounded-2xl border text-sm font-bold outline-none', isDark ? 'bg-[#0f0f0f] border-white/10 text-white' : 'bg-[#fef9f3] border-[#512c31]/10 text-[#512c31]')}
+              />
+            </>
+          )}
+          <div className={cn('px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest', isDark ? 'bg-[#0f0f0f] text-gray-400' : 'bg-[#fef9f3] text-[#512c31]/70')}>
+            {reportRange.start || 'All'} to {reportRange.end || 'All'}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -371,7 +474,7 @@ export function Reports() {
                 Revenue Trend
               </h3>
               <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
-                Monthly revenue from invoices
+                Filtered revenue from invoices
               </p>
             </div>
             {!loading && (
@@ -499,7 +602,7 @@ export function Reports() {
                 Revenue vs Invoices
               </h3>
               <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
-                Monthly comparison
+                Filtered comparison
               </p>
             </div>
             <div className="flex items-center gap-4 bg-gray-50 dark:bg-[#0f0f0f] px-3 py-2 rounded-xl border dark:border-white/5">
@@ -555,7 +658,7 @@ export function Reports() {
             <div className="h-48 flex items-center justify-center text-sm font-bold text-gray-400">No service data from invoices</div>
           ) : (
             <div className="space-y-5">
-              {topServices.map((svc, idx) => {
+              {topServices.map((svc) => {
                 const pct = topServicesTotal > 0 ? (svc.value / topServicesTotal) * 100 : 0;
                 return (
                   <div key={svc.name} className="group">

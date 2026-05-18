@@ -436,6 +436,35 @@ function sanitizeOptionalDate(value) {
     return raw.split('T')[0];
 }
 
+function getReportDateRange(url) {
+    const start = sanitizeOptionalDate(url.searchParams.get('start'));
+    const end = sanitizeOptionalDate(url.searchParams.get('end'));
+    if (start && end && start > end) {
+        throw new HttpError(400, 'Report start date cannot be after end date.');
+    }
+    return { start, end };
+}
+
+function getReportBucket(url) {
+    const bucket = String(url.searchParams.get('bucket') || 'month').trim().toLowerCase();
+    if (['day', 'week', 'month', 'year'].includes(bucket)) return bucket;
+    return 'month';
+}
+
+function getInvoicePeriodExpression(bucket) {
+    switch (bucket) {
+        case 'day':
+            return 'i.invoice_date';
+        case 'week':
+            return "strftime('%Y-W%W', i.invoice_date)";
+        case 'year':
+            return "substr(i.invoice_date, 1, 4)";
+        case 'month':
+        default:
+            return "substr(i.invoice_date, 1, 7)";
+    }
+}
+
 function getExpiryMeta(expiryDate) {
     if (!expiryDate) {
         return { expiryStatus: 'not_set', daysToExpiry: null };
@@ -2924,43 +2953,90 @@ async function updateAppointmentStatus(env, request, appointmentId) {
 async function getReportsOverview(env, request) {
     const { user } = await requireAuth(request, env);
     const db = requireDb(env);
+    const url = new URL(request.url);
+    const { start, end } = getReportDateRange(url);
+    const bucket = getReportBucket(url);
+    const periodExpression = getInvoicePeriodExpression(bucket);
     const activeClinicId = await resolveActiveClinicId(db, request, user, false);
 
-    let scopeSql = '';
-    const scopeBindings = [];
-    if (user.role === 'admin' || user.role === 'staff') {
-        scopeSql += ' AND organization_id = ?';
-        scopeBindings.push(user.organizationId);
-    }
-    if (user.role === 'staff') {
-        if (!user.clinicIds?.length) {
-            return jsonResponse({ monthlyRevenue: [], patientCount: 0, lowStockCount: 0, appointmentCount: 0 });
-        }
-        const placeholders = user.clinicIds.map(() => '?').join(',');
-        scopeSql += ` AND clinic_id IN (${placeholders})`;
-        scopeBindings.push(...user.clinicIds);
-    }
-    if (activeClinicId) {
-        scopeSql += ' AND clinic_id = ?';
-        scopeBindings.push(activeClinicId);
+    if (user.role === 'staff' && !user.clinicIds?.length) {
+        return jsonResponse({ monthlyRevenue: [], patientCount: 0, lowStockCount: 0, appointmentCount: 0 });
     }
 
-    const patients = await db.prepare(`SELECT COUNT(*) AS total FROM patients WHERE 1=1 ${scopeSql}`).bind(...scopeBindings).first();
-    const lowStock = await db.prepare(`SELECT COUNT(*) AS total FROM inventory_items WHERE stock_quantity <= reorder_threshold ${scopeSql}`).bind(...scopeBindings).first();
-    const appointments = await db.prepare(`SELECT COUNT(*) AS total FROM appointments WHERE 1=1 ${scopeSql}`).bind(...scopeBindings).first();
+    const buildScope = (alias = '') => {
+        const prefix = alias ? `${alias}.` : '';
+        let sql = '';
+        const bindings = [];
+        if (user.role === 'admin' || user.role === 'staff') {
+            sql += ` AND ${prefix}organization_id = ?`;
+            bindings.push(user.organizationId);
+        }
+        if (user.role === 'staff') {
+            const placeholders = user.clinicIds.map(() => '?').join(',');
+            sql += ` AND ${prefix}clinic_id IN (${placeholders})`;
+            bindings.push(...user.clinicIds);
+        }
+        if (activeClinicId) {
+            sql += ` AND ${prefix}clinic_id = ?`;
+            bindings.push(activeClinicId);
+        }
+        return { sql, bindings };
+    };
+
+    const patientScope = buildScope();
+    let patientSql = `SELECT COUNT(*) AS total FROM patients WHERE 1=1 ${patientScope.sql}`;
+    const patientBindings = [...patientScope.bindings];
+    if (start) {
+        patientSql += ' AND date(created_at) >= ?';
+        patientBindings.push(start);
+    }
+    if (end) {
+        patientSql += ' AND date(created_at) <= ?';
+        patientBindings.push(end);
+    }
+
+    const appointmentScope = buildScope();
+    let appointmentSql = `SELECT COUNT(*) AS total FROM appointments WHERE 1=1 ${appointmentScope.sql}`;
+    const appointmentBindings = [...appointmentScope.bindings];
+    if (start) {
+        appointmentSql += ' AND scheduled_date >= ?';
+        appointmentBindings.push(start);
+    }
+    if (end) {
+        appointmentSql += ' AND scheduled_date <= ?';
+        appointmentBindings.push(end);
+    }
+
+    const lowStockScope = buildScope();
+    const patients = await db.prepare(patientSql).bind(...patientBindings).first();
+    const lowStock = await db.prepare(`SELECT COUNT(*) AS total FROM inventory_items WHERE stock_quantity <= reorder_threshold ${lowStockScope.sql}`).bind(...lowStockScope.bindings).first();
+    const appointments = await db.prepare(appointmentSql).bind(...appointmentBindings).first();
+
+    const revenueScope = buildScope('i');
+    const revenueBindings = [...revenueScope.bindings];
+    let revenueDateSql = '';
+    if (start) {
+        revenueDateSql += ' AND i.invoice_date >= ?';
+        revenueBindings.push(start);
+    }
+    if (end) {
+        revenueDateSql += ' AND i.invoice_date <= ?';
+        revenueBindings.push(end);
+    }
 
     const revenueRows = await db.prepare(`
-        SELECT substr(invoice_date, 1, 7) AS month, COALESCE(SUM(total_cents), 0) AS total
-        FROM invoices
-        WHERE status != 'void' ${scopeSql}
-        GROUP BY substr(invoice_date, 1, 7)
-        ORDER BY month ASC
-        LIMIT 12
-    `).bind(...scopeBindings).all();
+        SELECT ${periodExpression} AS period, COALESCE(SUM(i.total_cents), 0) AS total
+        FROM invoices i
+        WHERE i.status != 'void' ${revenueScope.sql} ${revenueDateSql}
+        GROUP BY ${periodExpression}
+        ORDER BY period ASC
+        LIMIT 366
+    `).bind(...revenueBindings).all();
 
     return jsonResponse({
         monthlyRevenue: (revenueRows.results || []).map((row) => ({
-            month: row.month,
+            month: row.period,
+            period: row.period,
             revenue: fromCents(row.total),
         })),
         patientCount: Number(patients?.total || 0),
@@ -3051,6 +3127,7 @@ async function listInvoices(env, request, url) {
     const db = requireDb(env);
     const q = (url.searchParams.get('q') || '').trim().toLowerCase();
     const status = (url.searchParams.get('status') || '').trim().toLowerCase();
+    const { start, end } = getReportDateRange(url);
     const activeClinicId = await resolveActiveClinicId(db, request, user, false);
 
     let sql = `
@@ -3118,6 +3195,16 @@ async function listInvoices(env, request, url) {
         bindings.push(status);
     }
 
+    if (start) {
+        sql += ' AND i.invoice_date >= ?';
+        bindings.push(start);
+    }
+
+    if (end) {
+        sql += ' AND i.invoice_date <= ?';
+        bindings.push(end);
+    }
+
     if (q) {
         sql += ' AND (LOWER(i.invoice_number) LIKE ? OR LOWER(i.patient_name) LIKE ?)';
         bindings.push(`%${q}%`, `%${q}%`);
@@ -3130,9 +3217,34 @@ async function listInvoices(env, request, url) {
         ? await statement.bind(...bindings).all()
         : await statement.all();
 
-    return jsonResponse({
-        invoices: (result.results || []).map(mapInvoiceRow),
-    });
+    const invoiceRows = result.results || [];
+    const invoices = invoiceRows.map(mapInvoiceRow);
+    if (invoices.length > 0) {
+        const invoiceIds = invoices.map((invoice) => invoice.id);
+        const placeholders = invoiceIds.map(() => '?').join(',');
+        const itemsResult = await db.prepare(`
+            SELECT invoice_id, item_name, unit_price_cents, quantity, line_total_cents, item_type
+            FROM invoice_items
+            WHERE invoice_id IN (${placeholders})
+            ORDER BY created_at ASC
+        `).bind(...invoiceIds).all();
+        const itemsByInvoice = new Map();
+        (itemsResult.results || []).forEach((item) => {
+            if (!itemsByInvoice.has(item.invoice_id)) itemsByInvoice.set(item.invoice_id, []);
+            itemsByInvoice.get(item.invoice_id).push({
+                name: item.item_name,
+                price: fromCents(item.unit_price_cents),
+                quantity: item.quantity,
+                total: fromCents(item.line_total_cents),
+                itemType: item.item_type || 'service',
+            });
+        });
+        invoices.forEach((invoice) => {
+            invoice.items = itemsByInvoice.get(invoice.id) || [];
+        });
+    }
+
+    return jsonResponse({ invoices });
 }
 async function createInvoice(env, request) {
     const { user } = await requireAuth(request, env);
@@ -3553,6 +3665,8 @@ async function updateInvoiceStatus(env, request, invoiceId) {
 async function getAccountingSummary(env, request) {
     const { user } = await requireAuth(request, env);
     const db = requireDb(env);
+    const url = new URL(request.url);
+    const { start, end } = getReportDateRange(url);
     const activeClinicId = await resolveActiveClinicId(db, request, user, false);
 
     let sql = `
@@ -3579,8 +3693,12 @@ async function getAccountingSummary(env, request) {
         if (!user.clinicIds || user.clinicIds.length === 0) {
             return jsonResponse({
                 cashReceived: 0,
+                totalReceived: 0,
+                cashPaymentReceived: 0,
+                gpayReceived: 0,
                 pendingAmount: 0,
                 overdueAmount: 0,
+                creditAmount: 0,
                 receivables: 0,
                 invoiceCount: 0,
             });
@@ -3595,12 +3713,25 @@ async function getAccountingSummary(env, request) {
         bindings.push(activeClinicId);
     }
 
+    if (start) {
+        sql += ' AND i.invoice_date >= ?';
+        bindings.push(start);
+    }
+
+    if (end) {
+        sql += ' AND i.invoice_date <= ?';
+        bindings.push(end);
+    }
+
     const invoicesResult = bindings.length > 0
         ? await db.prepare(sql).bind(...bindings).all()
         : await db.prepare(sql).all();
 
     let paymentSql = `
-        SELECT COALESCE(SUM(p.amount_cents), 0) AS total
+        SELECT
+            COALESCE(SUM(p.amount_cents), 0) AS total,
+            COALESCE(SUM(CASE WHEN p.method = 'cash' THEN p.amount_cents ELSE 0 END), 0) AS cash_total,
+            COALESCE(SUM(CASE WHEN p.method = 'gpay' THEN p.amount_cents ELSE 0 END), 0) AS gpay_total
         FROM payments p
         JOIN invoices i ON i.id = p.invoice_id
         WHERE 1 = 1
@@ -3621,6 +3752,16 @@ async function getAccountingSummary(env, request) {
     if (activeClinicId) {
         paymentSql += ' AND i.clinic_id = ?';
         paymentBindings.push(activeClinicId);
+    }
+
+    if (start) {
+        paymentSql += ' AND p.payment_date >= ?';
+        paymentBindings.push(start);
+    }
+
+    if (end) {
+        paymentSql += ' AND p.payment_date <= ?';
+        paymentBindings.push(end);
     }
 
     const payments = paymentBindings.length > 0
@@ -3644,8 +3785,12 @@ async function getAccountingSummary(env, request) {
 
     return jsonResponse({
         cashReceived: fromCents(payments?.total || 0),
+        totalReceived: fromCents(payments?.total || 0),
+        cashPaymentReceived: fromCents(payments?.cash_total || 0),
+        gpayReceived: fromCents(payments?.gpay_total || 0),
         pendingAmount: fromCents(pendingAmountCents),
         overdueAmount: fromCents(overdueAmountCents),
+        creditAmount: fromCents(receivableAmountCents),
         receivables: fromCents(receivableAmountCents),
         invoiceCount: (invoicesResult.results || []).length,
     });

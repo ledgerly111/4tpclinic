@@ -1,15 +1,26 @@
 import { request } from './authApi';
 
-export async function fetchInvoices() {
-    return request('/invoices');
+function buildQuery(params = {}) {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            search.set(key, String(value));
+        }
+    });
+    const query = search.toString();
+    return query ? `?${query}` : '';
+}
+
+export async function fetchInvoices(params = {}) {
+    return request(`/invoices${buildQuery(params)}`);
 }
 
 export async function fetchInvoiceById(invoiceId) {
     return request(`/invoices/${encodeURIComponent(invoiceId)}`);
 }
 
-export async function fetchAccountingSummary() {
-    return request('/accounting/summary');
+export async function fetchAccountingSummary(params = {}) {
+    return request(`/accounting/summary${buildQuery(params)}`);
 }
 
 export async function fetchBillingSettings() {

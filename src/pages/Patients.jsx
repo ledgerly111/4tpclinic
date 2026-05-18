@@ -56,7 +56,7 @@ export function Patients() {
       // Clean up URL without reloading
       setSearchParams({}, { replace: true });
     }
-  }, []);
+  }, [selectedClinicId, canEditPatients, searchParams, setSearchParams]);
 
   const filteredPatients = useMemo(() => (
     patients.filter((patient) =>

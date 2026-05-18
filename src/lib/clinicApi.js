@@ -132,6 +132,17 @@ export async function updateAppointmentStatus(appointmentId, status) {
   });
 }
 
-export async function fetchReportsOverview() {
-  return request('/reports/overview');
+function buildQuery(params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value));
+    }
+  });
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
+export async function fetchReportsOverview(params = {}) {
+  return request(`/reports/overview${buildQuery(params)}`);
 }

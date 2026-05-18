@@ -70,12 +70,6 @@ export function Appointments() {
 
     // ─── Derived ─────────────────────────────────────────────────────────────
     const dateKey = useMemo(() => selectedDate.toISOString().split('T')[0], [selectedDate]);
-    const monthKey = useMemo(() => {
-        const y = viewMonth.getFullYear();
-        const m = String(viewMonth.getMonth() + 1).padStart(2, '0');
-        return `${y}-${m}`;
-    }, [viewMonth]);
-
     // Calendar grid
     const calendarDays = useMemo(() => {
         const year = viewMonth.getFullYear();
@@ -104,7 +98,7 @@ export function Appointments() {
         }
     };
 
-    useEffect(() => { loadDayAppointments(dateKey); }, [dateKey]);
+    useEffect(() => { loadDayAppointments(dateKey); }, [dateKey, selectedClinicId]);
 
     // ─── Handlers ─────────────────────────────────────────────────────────────
     const prevMonth = () => setViewMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
@@ -495,7 +489,9 @@ export function Appointments() {
                             {[
                                 { key: 'existing', label: 'Existing Patient', icon: Search },
                                 { key: 'new', label: 'New Patient', icon: UserPlus },
-                            ].map(({ key, label, icon: Icon }) => (
+                            ].map(({ key, label, icon }) => {
+                                const TabIcon = icon;
+                                return (
                                 <button
                                     key={key}
                                     onClick={() => setModalTab(key)}
@@ -508,9 +504,10 @@ export function Appointments() {
                                                 : 'text-[#512c31]/60 bg-[#fef9f3] hover:bg-[#ffe3e0] hover:text-[#512c31]'
                                     )}
                                 >
-                                    <Icon className="w-4 h-4" /> {label}
+                                    <TabIcon className="w-4 h-4" /> {label}
                                 </button>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Form */}

@@ -14,7 +14,7 @@ const PAGE_SIZE = 25;
 export function CreateInvoice() {
     const navigate = useNavigate();
     const { theme, refreshDashboard } = useStore();
-    const { selectedClinic } = useTenant();
+    const { selectedClinic, selectedClinicId } = useTenant();
     const isDark = theme === 'dark';
 
     const [patients, setPatients] = useState([]);
@@ -62,7 +62,7 @@ export function CreateInvoice() {
 
     useEffect(() => {
         loadFormData();
-    }, []);
+    }, [selectedClinicId]);
 
     const selectedPatient = patients.find((p) => p.id === formState.patientId) || {};
 

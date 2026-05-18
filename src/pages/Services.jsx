@@ -5,12 +5,14 @@ import { cn } from '../lib/utils';
 import { createService, deleteService, fetchServices } from '../lib/clinicApi';
 import { useAuth } from '../context/AuthContext';
 import { hasEditAccess } from '../lib/permissions';
+import { useTenant } from '../context/TenantContext';
 
 const PAGE_SIZE = 25;
 
 export function Services() {
     const { theme } = useStore();
     const { session } = useAuth();
+    const { selectedClinicId } = useTenant();
     const isDark = theme === 'dark';
     const canEditServices = hasEditAccess(session, 'edit_services');
     const [services, setServices] = useState([]);
@@ -39,7 +41,7 @@ export function Services() {
 
     useEffect(() => {
         loadServices();
-    }, []);
+    }, [selectedClinicId]);
 
     const filteredServices = useMemo(() => (
         services.filter((service) => service.name.toLowerCase().includes(searchTerm.toLowerCase()))
