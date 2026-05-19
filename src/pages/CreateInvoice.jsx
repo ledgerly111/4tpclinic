@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PDFViewer } from '@react-pdf/renderer';
 import { AlertTriangle, ArrowLeft, Calculator, Clock3, Eye, Percent, Plus, ReceiptText, Save, Search, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -38,13 +38,13 @@ export function CreateInvoice() {
     const [itemQuery, setItemQuery] = useState('');
     const [showItemPicker, setShowItemPicker] = useState(false);
     const [visibleItemCount, setVisibleItemCount] = useState(PAGE_SIZE);
-    const hasLoadedDraftRef = useRef(false);
 
     const [formState, setFormState] = useState(() => createEmptyInvoiceForm());
     const [invoiceStatus, setInvoiceStatus] = useState('pending');
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
+    const [hydratedDraftKey, setHydratedDraftKey] = useState('');
 
     const loadFormData = async () => {
         try {
@@ -75,30 +75,37 @@ export function CreateInvoice() {
     ), [selectedClinicId]);
 
     useEffect(() => {
-        hasLoadedDraftRef.current = false;
-        if (!draftKey) return;
+        setHydratedDraftKey('');
+        if (!draftKey) {
+            return;
+        }
+
+        let nextFormState = createEmptyInvoiceForm();
+        let nextInvoiceStatus = 'pending';
+        let nextPaymentMethod = 'cash';
+        let nextPatientQuery = '';
+
         try {
             const raw = localStorage.getItem(draftKey);
             if (raw) {
                 const draft = JSON.parse(raw);
-                setFormState(draft.formState || createEmptyInvoiceForm());
-                setInvoiceStatus(draft.invoiceStatus || 'pending');
-                setPaymentMethod(draft.paymentMethod || 'cash');
-                setPatientQuery(draft.patientQuery || '');
-            } else {
-                setFormState(createEmptyInvoiceForm());
-                setInvoiceStatus('pending');
-                setPaymentMethod('cash');
-                setPatientQuery('');
+                nextFormState = draft.formState || nextFormState;
+                nextInvoiceStatus = draft.invoiceStatus || nextInvoiceStatus;
+                nextPaymentMethod = draft.paymentMethod || nextPaymentMethod;
+                nextPatientQuery = draft.patientQuery || nextPatientQuery;
             }
         } catch {
-            setFormState(createEmptyInvoiceForm());
-            setInvoiceStatus('pending');
-            setPaymentMethod('cash');
-            setPatientQuery('');
-        } finally {
-            hasLoadedDraftRef.current = true;
+            nextFormState = createEmptyInvoiceForm();
+            nextInvoiceStatus = 'pending';
+            nextPaymentMethod = 'cash';
+            nextPatientQuery = '';
         }
+
+        setFormState(nextFormState);
+        setInvoiceStatus(nextInvoiceStatus);
+        setPaymentMethod(nextPaymentMethod);
+        setPatientQuery(nextPatientQuery);
+        setHydratedDraftKey(draftKey);
     }, [draftKey]);
 
     const selectedPatient = patients.find((p) => p.id === formState.patientId) || {};
@@ -110,7 +117,7 @@ export function CreateInvoice() {
     }, [selectedPatient.name]);
 
     useEffect(() => {
-        if (!draftKey || !hasLoadedDraftRef.current) return;
+        if (!draftKey || hydratedDraftKey !== draftKey) return;
         try {
             localStorage.setItem(draftKey, JSON.stringify({
                 formState,
@@ -122,7 +129,7 @@ export function CreateInvoice() {
         } catch {
             // Draft persistence is best-effort and should never block billing.
         }
-    }, [draftKey, formState, invoiceStatus, paymentMethod, patientQuery]);
+    }, [draftKey, hydratedDraftKey, formState, invoiceStatus, paymentMethod, patientQuery]);
 
     useEffect(() => {
         setVisiblePatientCount(PAGE_SIZE);
