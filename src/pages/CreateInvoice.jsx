@@ -80,7 +80,13 @@ export function CreateInvoice() {
         const discountAmount = Number((gross * (discountPercent / 100)).toFixed(2));
         const taxableAmount = Math.max(0, gross - discountAmount);
         const gstPercent = Math.min(100, Math.max(0, Number(item.gstPercent || 0)));
-        const gstAmount = Number((taxableAmount * (gstPercent / 100)).toFixed(2));
+        const mrpPrice = Number(item.mrpPrice || 0);
+        const mrpTotal = mrpPrice > 0 ? Number((mrpPrice * Number(item.quantity || 0)).toFixed(2)) : 0;
+        const targetTotal = Math.max(0, mrpTotal - discountAmount);
+        const inventoryTaxAmount = item.itemType === 'inventory' && mrpTotal > 0 && targetTotal >= taxableAmount
+            ? targetTotal - taxableAmount
+            : null;
+        const gstAmount = Number((inventoryTaxAmount ?? (taxableAmount * (gstPercent / 100))).toFixed(2));
         const stateTaxAmount = Number((gstAmount / 2).toFixed(2));
         const centralTaxAmount = Number((gstAmount - stateTaxAmount).toFixed(2));
         const lineTotal = Math.max(0, taxableAmount + gstAmount);
@@ -133,15 +139,30 @@ export function CreateInvoice() {
         return Number(item.unitPrice || item.price || 0);
     };
 
+    const getMrpForSaleUnit = (item, saleUnit = item?.saleUnit || 'unit') => {
+        if (!item) return 0;
+        if (saleUnit === 'individual') return Number(item.individualMrp || item.mrpPrice || 0);
+        if (saleUnit === 'strip') return Number(item.stripMrp || item.mrpPrice || 0);
+        return Number(item.unitMrp || item.mrpPrice || 0);
+    };
+
     const buildBatchLineFields = (item, batch) => {
         const source = batch || item || {};
         const packageType = item?.packageType || 'box';
+        const stripsPerUnit = Math.max(1, Number(item?.stripsPerUnit || 1));
+        const tabletsPerStrip = Math.max(1, Number(item?.tabletsPerStrip || 1));
+        const unitMrp = Number(source.costPrice || item?.costPrice || 0);
+        const stripMrp = packageType === 'single' ? unitMrp : Number((unitMrp / stripsPerUnit).toFixed(2));
+        const individualMrp = packageType === 'single' ? unitMrp : Number((stripMrp / tabletsPerStrip).toFixed(2));
         return {
             batchId: batch?.id || '',
             batchNumber: batch?.batchNumber || '',
             unitPrice: Number(source.sellPrice || item?.sellPrice || 0),
             stripPrice: Number(source.stripSellPrice || source.sellPrice || item?.stripSellPrice || item?.sellPrice || 0),
             individualPrice: Number(source.individualSellPrice || source.stripSellPrice || source.sellPrice || item?.individualSellPrice || item?.stripSellPrice || item?.sellPrice || 0),
+            unitMrp,
+            stripMrp,
+            individualMrp,
             maxStock: packageType === 'single' ? Number(source.stripStock || 0) : Number(source.stock || 0),
             stripStock: Number(source.stripStock || source.stock || 0),
             individualStock: Number(source.individualStock || source.stripStock || source.stock || 0),
@@ -186,6 +207,10 @@ export function CreateInvoice() {
                         maxStock: batchFields.maxStock,
                         stripStock: batchFields.stripStock,
                         individualStock: batchFields.individualStock,
+                        mrpPrice: batchFields.unitMrp,
+                        unitMrp: batchFields.unitMrp,
+                        stripMrp: batchFields.stripMrp,
+                        individualMrp: batchFields.individualMrp,
                         unit: item.unit,
                         saleUnit: 'unit',
                         unitPrice: batchFields.unitPrice,
@@ -309,6 +334,7 @@ export function CreateInvoice() {
             ...item,
             saleUnit: nextSaleUnit,
             price: getPriceForSaleUnit(item, nextSaleUnit),
+            mrpPrice: getMrpForSaleUnit(item, nextSaleUnit),
             quantity: Math.max(1, Math.min(Number(item.quantity || 1), nextMaxStock || 1)),
         };
         setFormState((prev) => ({ ...prev, items: newItems }));
@@ -328,6 +354,7 @@ export function CreateInvoice() {
         newItems[index] = {
             ...nextItem,
             price: getPriceForSaleUnit(nextItem, nextItem.saleUnit),
+            mrpPrice: getMrpForSaleUnit(nextItem, nextItem.saleUnit),
             quantity: Math.max(1, Math.min(Number(item.quantity || 1), nextMaxStock || 1)),
         };
         setFormState((prev) => ({ ...prev, items: newItems }));
@@ -368,6 +395,7 @@ export function CreateInvoice() {
                     quantity: Number(item.quantity),
                     discountPercent: Number(item.discountPercent || 0),
                     gstPercent: Number(item.gstPercent || 0),
+                    mrpPrice: Number(item.mrpPrice || 0),
                     itemType: item.itemType,
                     inventoryItemId: item.inventoryItemId,
                     batchId: item.batchId || null,

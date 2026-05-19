@@ -3343,6 +3343,7 @@ async function createInvoice(env, request) {
         const unitPriceCents = toCents(item.price);
         const grossCents = quantity * unitPriceCents;
         const discountPercent = toPercent(item.discountPercent);
+        const itemType = String(item.itemType || 'service').toLowerCase() === 'inventory' ? 'inventory' : 'service';
         const explicitDiscountCents = Object.prototype.hasOwnProperty.call(item, 'discountAmount')
             ? toCents(item.discountAmount)
             : null;
@@ -3352,8 +3353,13 @@ async function createInvoice(env, request) {
         );
         const taxableCents = Math.max(0, grossCents - discountCents);
         const gstPercent = toPercent(item.gstPercent);
-        const gstCents = Math.round(taxableCents * (gstPercent / 100));
-        const itemType = String(item.itemType || 'service').toLowerCase() === 'inventory' ? 'inventory' : 'service';
+        const mrpPriceCents = itemType === 'inventory' ? toCents(item.mrpPrice) : 0;
+        const mrpTotalCents = mrpPriceCents > 0 ? mrpPriceCents * quantity : 0;
+        const targetTotalCents = Math.max(0, mrpTotalCents - discountCents);
+        const inventoryGstCents = itemType === 'inventory' && mrpTotalCents > 0 && targetTotalCents >= taxableCents
+            ? targetTotalCents - taxableCents
+            : null;
+        const gstCents = inventoryGstCents ?? Math.round(taxableCents * (gstPercent / 100));
         const saleUnit = itemType === 'inventory' ? normalizeSaleUnit(item.saleUnit) : 'unit';
         const inventoryItemId = itemType === 'inventory' && item.inventoryItemId
             ? String(item.inventoryItemId).trim()
