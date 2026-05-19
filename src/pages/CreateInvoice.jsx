@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PDFViewer } from '@react-pdf/renderer';
 import { AlertTriangle, ArrowLeft, Calculator, Clock3, Eye, Percent, Plus, ReceiptText, Save, Search, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,16 @@ import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
 import { useTenant } from '../context/TenantContext';
 
 const PAGE_SIZE = 25;
+const INVOICE_DRAFT_PREFIX = 'clinic_invoice_draft_v1';
+
+function createEmptyInvoiceForm() {
+    return {
+        patientId: '',
+        invoiceNumber: `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        date: getLocalDateString(),
+        items: [],
+    };
+}
 
 export function CreateInvoice() {
     const navigate = useNavigate();
@@ -28,13 +38,9 @@ export function CreateInvoice() {
     const [itemQuery, setItemQuery] = useState('');
     const [showItemPicker, setShowItemPicker] = useState(false);
     const [visibleItemCount, setVisibleItemCount] = useState(PAGE_SIZE);
+    const hasLoadedDraftRef = useRef(false);
 
-    const [formState, setFormState] = useState({
-        patientId: '',
-        invoiceNumber: `INV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        date: getLocalDateString(),
-        items: [],
-    });
+    const [formState, setFormState] = useState(() => createEmptyInvoiceForm());
     const [invoiceStatus, setInvoiceStatus] = useState('pending');
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [submitting, setSubmitting] = useState(false);
@@ -64,7 +70,59 @@ export function CreateInvoice() {
         loadFormData();
     }, [selectedClinicId]);
 
+    const draftKey = useMemo(() => (
+        selectedClinicId ? `${INVOICE_DRAFT_PREFIX}:${selectedClinicId}` : ''
+    ), [selectedClinicId]);
+
+    useEffect(() => {
+        hasLoadedDraftRef.current = false;
+        if (!draftKey) return;
+        try {
+            const raw = localStorage.getItem(draftKey);
+            if (raw) {
+                const draft = JSON.parse(raw);
+                setFormState(draft.formState || createEmptyInvoiceForm());
+                setInvoiceStatus(draft.invoiceStatus || 'pending');
+                setPaymentMethod(draft.paymentMethod || 'cash');
+                setPatientQuery(draft.patientQuery || '');
+            } else {
+                setFormState(createEmptyInvoiceForm());
+                setInvoiceStatus('pending');
+                setPaymentMethod('cash');
+                setPatientQuery('');
+            }
+        } catch {
+            setFormState(createEmptyInvoiceForm());
+            setInvoiceStatus('pending');
+            setPaymentMethod('cash');
+            setPatientQuery('');
+        } finally {
+            hasLoadedDraftRef.current = true;
+        }
+    }, [draftKey]);
+
     const selectedPatient = patients.find((p) => p.id === formState.patientId) || {};
+
+    useEffect(() => {
+        if (selectedPatient.name) {
+            setPatientQuery(selectedPatient.name);
+        }
+    }, [selectedPatient.name]);
+
+    useEffect(() => {
+        if (!draftKey || !hasLoadedDraftRef.current) return;
+        try {
+            localStorage.setItem(draftKey, JSON.stringify({
+                formState,
+                invoiceStatus,
+                paymentMethod,
+                patientQuery,
+                updatedAt: new Date().toISOString(),
+            }));
+        } catch {
+            // Draft persistence is best-effort and should never block billing.
+        }
+    }, [draftKey, formState, invoiceStatus, paymentMethod, patientQuery]);
 
     useEffect(() => {
         setVisiblePatientCount(PAGE_SIZE);
@@ -407,6 +465,9 @@ export function CreateInvoice() {
                 total: calculatedTotals.total,
             });
             await refreshDashboard();
+            if (draftKey) {
+                localStorage.removeItem(draftKey);
+            }
             // In a real app, this would be an API call
             navigate('/app/billing');
         } catch (err) {

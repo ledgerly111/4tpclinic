@@ -1,17 +1,9 @@
-import { useState } from 'react';
-import { CreditCard, ChevronDown, ArrowUpRight } from 'lucide-react';
+import { CreditCard, ArrowUpRight } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { cn } from '../../lib/utils';
 
-const CURRENCIES = ['INR, Rs', 'USD, $', 'EUR, EUR'];
-
 export function RevenueCard() {
-    const { weeklyRevenue = [], stats = {}, theme } = useStore();
-    const isDark = theme === 'dark';
-    const [timeRange, setTimeRange] = useState('this week');
-    const [currency, setCurrency] = useState('INR, Rs');
-    const [showTimeDropdown, setShowTimeDropdown] = useState(false);
-    const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
+    const { weeklyRevenue = [], stats = {} } = useStore();
 
     const totalRevenue = Number(stats.totalRevenue || 0);
     const avgRevenue = Number(stats.avgRevenue || 0);
@@ -30,72 +22,9 @@ export function RevenueCard() {
                     </div>
                     <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight">Revenue</h2>
                 </div>
-                <div className="flex items-center gap-1 sm:gap-2">
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowTimeDropdown(!showTimeDropdown)}
-                            className="flex items-center gap-1 sm:gap-2 bg-white/20 backdrop-blur-sm rounded-full px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm text-white hover:bg-white/30 transition-colors"
-                        >
-                            <span className="hidden sm:inline">{timeRange}</span>
-                            <span className="sm:hidden">{timeRange.split(' ')[0]}</span>
-                            <ChevronDown className="w-3 h-3" />
-                        </button>
-                        {showTimeDropdown && (
-                            <div className={cn(
-                                'absolute top-full right-0 mt-2 w-28 sm:w-32 rounded-xl border shadow-xl z-50 overflow-hidden',
-                                isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
-                            )}>
-                                {['this week', 'last week', 'this month'].map((range) => (
-                                    <button
-                                        key={range}
-                                        onClick={() => {
-                                            setTimeRange(range);
-                                            setShowTimeDropdown(false);
-                                        }}
-                                        className={cn(
-                                            'w-full text-left px-3 py-2 text-xs sm:text-sm transition-colors',
-                                            isDark ? 'text-gray-300 hover:bg-[#2a2a2a] hover:text-white' : 'text-gray-700 hover:bg-gray-100'
-                                        )}
-                                    >
-                                        {range}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="relative hidden sm:block">
-                        <button
-                            onClick={() => setShowCurrencyDropdown(!showCurrencyDropdown)}
-                            className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 text-sm text-white hover:bg-white/30 transition-colors"
-                        >
-                            {currency}
-                            <ChevronDown className="w-3 h-3" />
-                        </button>
-                        {showCurrencyDropdown && (
-                            <div className={cn(
-                                'absolute top-full right-0 mt-2 w-32 rounded-xl border shadow-xl z-50 overflow-hidden',
-                                isDark ? 'bg-[#1e1e1e] border-gray-800' : 'bg-white border-gray-200'
-                            )}>
-                                {CURRENCIES.map((curr) => (
-                                    <button
-                                        key={curr}
-                                        onClick={() => {
-                                            setCurrency(curr);
-                                            setShowCurrencyDropdown(false);
-                                        }}
-                                        className={cn(
-                                            'w-full text-left px-3 py-2 text-sm transition-colors',
-                                            isDark ? 'text-gray-300 hover:bg-[#2a2a2a] hover:text-white' : 'text-gray-700 hover:bg-gray-100'
-                                        )}
-                                    >
-                                        {curr}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <span className="bg-white/20 backdrop-blur-sm rounded-full px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm text-white">
+                    this week
+                </span>
             </div>
 
             <div className="relative z-10 flex-1 flex flex-col lg:flex-row gap-4 sm:gap-6 min-h-0">
