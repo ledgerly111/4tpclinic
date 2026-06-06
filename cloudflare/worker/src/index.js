@@ -499,6 +499,29 @@ function normalizePaymentMethod(method) {
     throw new HttpError(400, 'Payment method must be cash or gpay.');
 }
 
+function normalizePaymentEntries(body, totalCents, fallbackMethod = 'cash') {
+    const rawPayments = Array.isArray(body.payments) ? body.payments : [];
+    const entries = rawPayments
+        .map((payment) => ({
+            method: normalizePaymentMethod(payment.method),
+            amountCents: toCents(payment.amount),
+        }))
+        .filter((payment) => payment.amountCents > 0);
+
+    if (entries.length === 0 && totalCents > 0) {
+        entries.push({
+            method: normalizePaymentMethod(body.paymentMethod || body.method || fallbackMethod),
+            amountCents: totalCents,
+        });
+    }
+
+    const paidCents = entries.reduce((sum, payment) => sum + payment.amountCents, 0);
+    if (paidCents > totalCents) {
+        throw new HttpError(400, 'Payment amount cannot exceed the invoice total.');
+    }
+    return entries;
+}
+
 function normalizeSaleUnit(value) {
     const normalized = String(value || 'unit').toLowerCase();
     if (normalized === 'strip' || normalized === 'individual') return normalized;
@@ -3161,6 +3184,12 @@ async function getInvoiceDetails(env, request, invoiceId) {
         WHERE invoice_id = ?
         ORDER BY created_at ASC
     `).bind(invoiceId).all();
+    const paymentsResult = await db.prepare(`
+        SELECT id, amount_cents, payment_date, method, notes
+        FROM payments
+        WHERE invoice_id = ?
+        ORDER BY created_at ASC
+    `).bind(invoiceId).all();
 
     return jsonResponse({
         invoice: {
@@ -3182,6 +3211,13 @@ async function getInvoiceDetails(env, request, invoiceId) {
             gstEnabled: Boolean(invoice.gst_enabled),
             gstNumber: invoice.gst_number || '',
             createdAt: invoice.created_at,
+            payments: (paymentsResult.results || []).map((payment) => ({
+                id: payment.id,
+                amount: fromCents(payment.amount_cents),
+                date: payment.payment_date,
+                method: payment.method || 'cash',
+                notes: payment.notes || '',
+            })),
             items: (itemsResult.results || []).map((item) => ({
                 id: item.id,
                 name: item.item_name,
@@ -3328,38 +3364,35 @@ async function listInvoices(env, request, url) {
 
     return jsonResponse({ invoices });
 }
-async function createInvoice(env, request) {
-    const { user } = await requireAuth(request, env);
-    requireStaffEditPermission(user, 'edit_billing', 'You do not have permission to edit billing.');
-    const db = requireDb(env);
-    const body = await parseJsonRequest(request);
 
-    const items = Array.isArray(body.items) ? body.items : [];
-    if (items.length === 0) throw new HttpError(400, 'Invoice must contain at least one item.');
+function normalizeInvoiceItems(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new HttpError(400, 'Invoice must contain at least one item.');
+    }
 
-    const normalizedItems = items.map((item) => {
+    return items.map((item) => {
         const name = String(item.name || '').trim();
         const quantity = Math.max(1, Number.parseInt(item.quantity, 10) || 1);
         const unitPriceCents = toCents(item.price);
         const grossCents = quantity * unitPriceCents;
         const discountPercent = toPercent(item.discountPercent);
         const itemType = String(item.itemType || 'service').toLowerCase() === 'inventory' ? 'inventory' : 'service';
+        const taxableCents = Math.max(0, grossCents);
+        const gstPercent = toPercent(item.gstPercent);
+        const mrpPriceCents = itemType === 'inventory' ? toCents(item.mrpPrice) : 0;
+        const mrpTotalCents = mrpPriceCents > 0 ? mrpPriceCents * quantity : 0;
+        const inventoryGstCents = itemType === 'inventory' && mrpTotalCents > 0 && mrpTotalCents >= taxableCents
+            ? mrpTotalCents - taxableCents
+            : null;
+        const gstCents = inventoryGstCents ?? Math.round(taxableCents * (gstPercent / 100));
+        const taxInclusiveCents = taxableCents + gstCents;
         const explicitDiscountCents = Object.prototype.hasOwnProperty.call(item, 'discountAmount')
             ? toCents(item.discountAmount)
             : null;
         const discountCents = Math.min(
-            grossCents,
-            explicitDiscountCents === null ? Math.round(grossCents * (discountPercent / 100)) : explicitDiscountCents
+            taxInclusiveCents,
+            explicitDiscountCents === null ? Math.round(taxInclusiveCents * (discountPercent / 100)) : explicitDiscountCents
         );
-        const taxableCents = Math.max(0, grossCents - discountCents);
-        const gstPercent = toPercent(item.gstPercent);
-        const mrpPriceCents = itemType === 'inventory' ? toCents(item.mrpPrice) : 0;
-        const mrpTotalCents = mrpPriceCents > 0 ? mrpPriceCents * quantity : 0;
-        const targetTotalCents = Math.max(0, mrpTotalCents - discountCents);
-        const inventoryGstCents = itemType === 'inventory' && mrpTotalCents > 0 && targetTotalCents >= taxableCents
-            ? targetTotalCents - taxableCents
-            : null;
-        const gstCents = inventoryGstCents ?? Math.round(taxableCents * (gstPercent / 100));
         const saleUnit = itemType === 'inventory' ? normalizeSaleUnit(item.saleUnit) : 'unit';
         const inventoryItemId = itemType === 'inventory' && item.inventoryItemId
             ? String(item.inventoryItemId).trim()
@@ -3379,7 +3412,7 @@ async function createInvoice(env, request) {
             gstPercent,
             gstCents,
             taxableCents,
-            lineTotalCents: taxableCents + gstCents,
+            lineTotalCents: Math.max(0, taxInclusiveCents - discountCents),
             itemType,
             inventoryItemId,
             batchId,
@@ -3387,12 +3420,33 @@ async function createInvoice(env, request) {
             saleUnit,
         };
     });
+}
+
+function getInvoiceStockUnitQuantity(item, inventoryRow) {
+    const packageType = normalizePackageType(inventoryRow.unit);
+    const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(inventoryRow.strips_per_unit);
+    const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(inventoryRow.tablets_per_strip);
+    const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
+    return packageType === 'single'
+        ? Number(item.quantity || 0)
+        : item.saleUnit === 'individual' ? Number(item.quantity || 0) : item.saleUnit === 'strip' ? Number(item.quantity || 0) * tabletsPerStrip : Number(item.quantity || 0) * tabletsPerBox;
+}
+
+async function createInvoice(env, request) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_billing', 'You do not have permission to edit billing.');
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const normalizedItems = normalizeInvoiceItems(body.items);
 
     const patientName = String(body.patientName || '').trim();
     if (!patientName) throw new HttpError(400, 'Patient name is required.');
 
     const status = normalizeInvoiceStatus(body.status || 'pending');
-    const paymentMethod = normalizePaymentMethod(body.paymentMethod || body.method || 'cash');
+    const paymentMethod = String(body.paymentMethod || body.method || 'cash').toLowerCase() === 'split'
+        ? 'cash'
+        : normalizePaymentMethod(body.paymentMethod || body.method || 'cash');
     const invoiceId = crypto.randomUUID();
     const invoiceNumber = await resolveUniqueInvoiceNumber(db, body.invoiceNumber);
     const invoiceDate = sanitizeDate(body.date);
@@ -3400,6 +3454,7 @@ async function createInvoice(env, request) {
     const taxCents = normalizedItems.reduce((sum, item) => sum + item.gstCents, 0);
     const discountCents = normalizedItems.reduce((sum, item) => sum + item.discountCents, 0);
     const totalCents = Math.max(0, subtotalCents + taxCents - discountCents);
+    const paymentEntries = status === 'paid' ? normalizePaymentEntries(body, totalCents, paymentMethod) : [];
 
     const activeClinicId = await resolveActiveClinicId(db, request, user, user.role !== 'super_admin');
     const organizationId = user.role === 'super_admin'
@@ -3465,13 +3520,7 @@ async function createInvoice(env, request) {
         if (inventoryRow.organization_id !== organizationId || inventoryRow.clinic_id !== activeClinicId) {
             throw new HttpError(400, `Inventory item is outside selected clinic: ${item.name}`);
         }
-        const packageType = normalizePackageType(inventoryRow.unit);
-        const stripsPerUnit = packageType === 'single' ? 1 : normalizeStripsPerUnit(inventoryRow.strips_per_unit);
-        const tabletsPerStrip = packageType === 'single' ? 1 : normalizeTabletsPerStrip(inventoryRow.tablets_per_strip);
-        const tabletsPerBox = stripsPerUnit * tabletsPerStrip;
-        const stockUnitQuantity = packageType === 'single'
-            ? item.quantity
-            : item.saleUnit === 'individual' ? item.quantity : item.saleUnit === 'strip' ? item.quantity * tabletsPerStrip : item.quantity * tabletsPerBox;
+        const stockUnitQuantity = getInvoiceStockUnitQuantity(item, inventoryRow);
         if (Number(inventoryRow.strip_stock_quantity || 0) < stockUnitQuantity) {
             throw new HttpError(400, `Insufficient stock for ${item.name}.`);
         }
@@ -3587,6 +3636,13 @@ async function createInvoice(env, request) {
     });
 
     if (status === 'paid' && totalCents > 0) {
+        const paidCents = paymentEntries.reduce((sum, payment) => sum + payment.amountCents, 0);
+        if (paidCents !== totalCents) {
+            throw new HttpError(400, 'Paid invoices must have payments matching the invoice total.');
+        }
+    }
+
+    paymentEntries.forEach((payment) => {
         statements.push(
             db
                 .prepare(`
@@ -3602,13 +3658,13 @@ async function createInvoice(env, request) {
                 .bind(
                     crypto.randomUUID(),
                     invoiceId,
-                    totalCents,
+                    payment.amountCents,
                     invoiceDate,
-                    paymentMethod,
+                    payment.method,
                     'Auto-created from paid invoice status.'
                 )
         );
-    }
+    });
 
     try {
         await db.batch(statements);
@@ -3632,6 +3688,220 @@ async function createInvoice(env, request) {
             status,
         },
     }, 201);
+}
+
+async function updateInvoice(env, request, invoiceId) {
+    const { user } = await requireAuth(request, env);
+    requireStaffEditPermission(user, 'edit_billing', 'You do not have permission to edit billing.');
+    const db = requireDb(env);
+    const body = await parseJsonRequest(request);
+
+    const invoice = await db.prepare(`
+        SELECT id, organization_id, clinic_id, invoice_number, invoice_date, status
+        FROM invoices
+        WHERE id = ?
+        LIMIT 1
+    `).bind(invoiceId).first();
+    if (!invoice) throw new HttpError(404, 'Invoice not found.');
+    if (user.role === 'admin' && invoice.organization_id !== user.organizationId) {
+        throw new HttpError(403, 'Invoice is outside your organization.');
+    }
+    if (user.role === 'staff' && (invoice.organization_id !== user.organizationId || !user.clinicIds.includes(invoice.clinic_id))) {
+        throw new HttpError(403, 'Invoice is outside your access scope.');
+    }
+
+    const normalizedItems = normalizeInvoiceItems(body.items);
+    const patientName = String(body.patientName || '').trim();
+    if (!patientName) throw new HttpError(400, 'Patient name is required.');
+
+    const status = normalizeInvoiceStatus(body.status || invoice.status || 'pending');
+    const paymentMethod = String(body.paymentMethod || body.method || 'cash').toLowerCase() === 'split'
+        ? 'cash'
+        : normalizePaymentMethod(body.paymentMethod || body.method || 'cash');
+    const invoiceNumber = String(body.invoiceNumber || invoice.invoice_number).trim();
+    if (!invoiceNumber) throw new HttpError(400, 'Invoice number is required.');
+    const invoiceDate = sanitizeDate(body.date || invoice.invoice_date);
+    const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.grossCents, 0);
+    const taxCents = normalizedItems.reduce((sum, item) => sum + item.gstCents, 0);
+    const discountCents = normalizedItems.reduce((sum, item) => sum + item.discountCents, 0);
+    const totalCents = Math.max(0, subtotalCents + taxCents - discountCents);
+    const paymentEntries = status === 'paid' ? normalizePaymentEntries(body, totalCents, paymentMethod) : [];
+    if (status === 'paid' && totalCents > 0) {
+        const paidCents = paymentEntries.reduce((sum, payment) => sum + payment.amountCents, 0);
+        if (paidCents !== totalCents) {
+            throw new HttpError(400, 'Paid invoices must have payments matching the invoice total.');
+        }
+    }
+
+    const oldItemsResult = await db.prepare(`
+        SELECT inventory_item_id, batch_id, quantity, sale_unit
+        FROM invoice_items
+        WHERE invoice_id = ? AND item_type = 'inventory' AND inventory_item_id IS NOT NULL
+    `).bind(invoiceId).all();
+
+    const statements = [];
+
+    for (const oldItem of (oldItemsResult.results || [])) {
+        const inventoryRow = await db.prepare(`
+            SELECT id, organization_id, clinic_id, unit, strips_per_unit, tablets_per_strip
+            FROM inventory_items
+            WHERE id = ?
+            LIMIT 1
+        `).bind(oldItem.inventory_item_id).first();
+        if (!inventoryRow) continue;
+        const restoreQuantity = getInvoiceStockUnitQuantity({
+            quantity: oldItem.quantity,
+            saleUnit: oldItem.sale_unit || 'unit',
+        }, inventoryRow);
+        if (restoreQuantity <= 0) continue;
+        if (oldItem.batch_id) {
+            statements.push(db.prepare(`
+                UPDATE inventory_batches
+                SET strip_stock_quantity = strip_stock_quantity + ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+            `).bind(restoreQuantity, oldItem.batch_id));
+        }
+        statements.push(db.prepare(`
+            UPDATE inventory_items
+            SET strip_stock_quantity = strip_stock_quantity + ?,
+                stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity + ? ELSE CAST((strip_stock_quantity + ?) / ((CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END) * (CASE WHEN tablets_per_strip > 0 THEN tablets_per_strip ELSE 1 END)) AS INTEGER) END,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+        `).bind(restoreQuantity, restoreQuantity, restoreQuantity, oldItem.inventory_item_id));
+        statements.push(db.prepare(`
+            INSERT INTO inventory_transactions (
+                id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type, reference_id
+            ) VALUES (?, ?, ?, ?, 'adjustment', ?, 0, 'invoice_edit_restore', ?)
+        `).bind(crypto.randomUUID(), oldItem.inventory_item_id, invoice.organization_id, invoice.clinic_id, restoreQuantity, invoiceId));
+    }
+
+    const inventoryItems = normalizedItems.filter((item) => item.itemType === 'inventory');
+    for (const item of inventoryItems) {
+        if (!item.inventoryItemId) throw new HttpError(400, 'Inventory item is missing inventoryItemId.');
+        const inventoryRow = await db.prepare(`
+            SELECT id, organization_id, clinic_id, stock_quantity, cost_price_cents, unit, strips_per_unit, tablets_per_strip, strip_stock_quantity
+            FROM inventory_items
+            WHERE id = ?
+            LIMIT 1
+        `).bind(item.inventoryItemId).first();
+        if (!inventoryRow) throw new HttpError(400, `Inventory item not found: ${item.name}`);
+        if (inventoryRow.organization_id !== invoice.organization_id || inventoryRow.clinic_id !== invoice.clinic_id) {
+            throw new HttpError(400, `Inventory item is outside invoice clinic: ${item.name}`);
+        }
+        const stockUnitQuantity = getInvoiceStockUnitQuantity(item, inventoryRow);
+        if (Number(inventoryRow.strip_stock_quantity || 0) < stockUnitQuantity) {
+            throw new HttpError(400, `Insufficient stock for ${item.name}.`);
+        }
+        const batchBindings = item.batchId ? [item.inventoryItemId, item.batchId] : [item.inventoryItemId];
+        const batchRows = await db.prepare(`
+            SELECT id, batch_number, strip_stock_quantity, expiry_date, cost_price_cents
+            FROM inventory_batches
+            WHERE inventory_item_id = ?
+              ${item.batchId ? 'AND id = ?' : ''}
+              AND strip_stock_quantity > 0
+              AND (expiry_date IS NULL OR expiry_date = '' OR expiry_date >= date('now'))
+            ORDER BY CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END, expiry_date ASC, created_at ASC
+        `).bind(...batchBindings).all();
+        let remainingToDeduct = stockUnitQuantity;
+        let selectedBatchNumber = null;
+        let selectedBatchCostCents = Number(inventoryRow.cost_price_cents || 0);
+        for (const batch of (batchRows.results || [])) {
+            if (remainingToDeduct <= 0) break;
+            const deduction = Math.min(remainingToDeduct, Number(batch.strip_stock_quantity || 0));
+            if (deduction <= 0) continue;
+            remainingToDeduct -= deduction;
+            selectedBatchNumber = selectedBatchNumber || batch.batch_number || null;
+            selectedBatchCostCents = Number(batch.cost_price_cents || selectedBatchCostCents);
+            statements.push(db.prepare(`
+                UPDATE inventory_batches
+                SET strip_stock_quantity = strip_stock_quantity - ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+            `).bind(deduction, batch.id));
+        }
+        if (remainingToDeduct > 0) {
+            throw new HttpError(400, item.batchId
+                ? `${item.name} selected batch does not have enough valid stock. Choose another batch or restock first.`
+                : `${item.name} only has expired or near-missing batches available. Choose a valid batch or restock first.`);
+        }
+        item.batchNumber = selectedBatchNumber;
+        statements.push(db.prepare(`
+            UPDATE inventory_items
+            SET strip_stock_quantity = strip_stock_quantity - ?,
+                stock_quantity = CASE WHEN unit = 'single' THEN strip_stock_quantity - ? ELSE CAST((strip_stock_quantity - ?) / ((CASE WHEN strips_per_unit > 0 THEN strips_per_unit ELSE 1 END) * (CASE WHEN tablets_per_strip > 0 THEN tablets_per_strip ELSE 1 END)) AS INTEGER) END,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+        `).bind(stockUnitQuantity, stockUnitQuantity, stockUnitQuantity, item.inventoryItemId));
+        statements.push(db.prepare(`
+            INSERT INTO inventory_transactions (
+                id, inventory_item_id, organization_id, clinic_id, type, quantity, unit_cost_cents, reference_type, reference_id
+            ) VALUES (?, ?, ?, ?, 'sale', ?, ?, 'invoice_edit', ?)
+        `).bind(crypto.randomUUID(), item.inventoryItemId, invoice.organization_id, invoice.clinic_id, stockUnitQuantity, selectedBatchCostCents, invoiceId));
+    }
+
+    statements.push(db.prepare(`
+        UPDATE invoices
+        SET invoice_number = ?, patient_id = ?, patient_name = ?, patient_contact = ?, invoice_date = ?,
+            status = ?, subtotal_cents = ?, tax_cents = ?, discount_cents = ?, total_cents = ?,
+            notes = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = ?
+    `).bind(
+        invoiceNumber,
+        body.patientId ? String(body.patientId) : null,
+        patientName,
+        body.patientContact ? String(body.patientContact) : null,
+        invoiceDate,
+        status,
+        subtotalCents,
+        taxCents,
+        discountCents,
+        totalCents,
+        body.notes ? String(body.notes) : null,
+        invoiceId
+    ));
+    statements.push(db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').bind(invoiceId));
+    statements.push(db.prepare('DELETE FROM payments WHERE invoice_id = ?').bind(invoiceId));
+
+    normalizedItems.forEach((item) => {
+        statements.push(db.prepare(`
+            INSERT INTO invoice_items (
+                id, invoice_id, item_name, unit_price_cents, quantity, line_total_cents,
+                item_type, inventory_item_id, batch_id, batch_number, sale_unit,
+                discount_percent, discount_cents, gst_percent, gst_cents, taxable_cents
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            item.id, invoiceId, item.name, item.unitPriceCents, item.quantity, item.lineTotalCents,
+            item.itemType, item.inventoryItemId, item.batchId, item.batchNumber, item.saleUnit,
+            item.discountPercent, item.discountCents, item.gstPercent, item.gstCents, item.taxableCents
+        ));
+    });
+
+    paymentEntries.forEach((payment) => {
+        statements.push(db.prepare(`
+            INSERT INTO payments (id, invoice_id, amount_cents, payment_date, method, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(
+            crypto.randomUUID(),
+            invoiceId,
+            payment.amountCents,
+            invoiceDate,
+            payment.method,
+            'Saved from invoice edit.'
+        ));
+    });
+
+    try {
+        await db.batch(statements);
+    } catch (error) {
+        const message = extractErrorMessage(error);
+        if (message.includes('UNIQUE constraint failed') && message.includes('invoices.invoice_number')) {
+            throw new HttpError(409, 'Invoice number already exists.');
+        }
+        throw new HttpError(500, message || 'Failed to update invoice.');
+    }
+
+    return jsonResponse({ ok: true, invoice: { id: invoiceId, invoiceNumber, amount: fromCents(totalCents), status } });
 }
 
 async function updateInvoiceStatus(env, request, invoiceId) {
@@ -3675,11 +3945,18 @@ async function updateInvoiceStatus(env, request, invoiceId) {
             .first();
         const outstanding = Math.max(0, Number(invoice.total_cents || 0) - Number(paid.total || 0));
         const totalCents = Number(invoice.total_cents || 0);
+        const hasSplitPayments = Array.isArray(body.payments) && body.payments.length > 0;
         const hasExplicitAmount = Object.prototype.hasOwnProperty.call(body, 'paymentAmount');
         const existingPaidCents = Number(paid.total || 0);
         const replacingReceived = body.replaceReceivedAmount === true || (hasExplicitAmount && invoice.status === 'paid' && outstanding <= 0 && existingPaidCents >= totalCents);
-        const paymentAmountCents = hasExplicitAmount ? toCents(body.paymentAmount) : (replacingReceived ? existingPaidCents : outstanding);
         const effectiveOutstanding = replacingReceived ? totalCents : outstanding;
+        const paymentEntries = hasSplitPayments
+            ? normalizePaymentEntries({ payments: body.payments }, effectiveOutstanding, body.method || body.paymentMethod || 'cash')
+            : [{
+                method: normalizePaymentMethod(body.method || body.paymentMethod),
+                amountCents: hasExplicitAmount ? toCents(body.paymentAmount) : (replacingReceived ? existingPaidCents : outstanding),
+            }].filter((payment) => payment.amountCents > 0);
+        const paymentAmountCents = paymentEntries.reduce((sum, payment) => sum + payment.amountCents, 0);
 
         if (effectiveOutstanding > 0 && paymentAmountCents <= 0) {
             throw new HttpError(400, 'Payment amount must be greater than zero.');
@@ -3711,7 +3988,7 @@ async function updateInvoiceStatus(env, request, invoiceId) {
             );
         }
 
-        if (paymentAmountCents > 0) {
+        paymentEntries.forEach((payment) => {
             statements.push(
                 db
                     .prepare(`
@@ -3727,13 +4004,13 @@ async function updateInvoiceStatus(env, request, invoiceId) {
                     .bind(
                         crypto.randomUUID(),
                         invoiceId,
-                        paymentAmountCents,
+                        payment.amountCents,
                         sanitizeDate(body.paymentDate || invoice.invoice_date),
-                        normalizePaymentMethod(body.method || body.paymentMethod),
+                        payment.method,
                         body.notes ? String(body.notes) : 'Recorded from invoice status change.'
                     )
             );
-        }
+        });
     } else {
         statements.push(
             db
@@ -3998,6 +4275,9 @@ export default {
             }
 
             const invoiceMatch = pathname.match(/^\/api\/invoices\/([^/]+)$/);
+            if (invoiceMatch && request.method === 'PATCH') {
+                return await updateInvoice(env, request, decodeURIComponent(invoiceMatch[1]));
+            }
             if (invoiceMatch && request.method === 'GET') {
                 return await getInvoiceDetails(env, request, decodeURIComponent(invoiceMatch[1]));
             }

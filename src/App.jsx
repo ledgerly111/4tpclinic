@@ -85,6 +85,11 @@ function App() {
                     <CreateInvoice />
                   </RoleGuard>
                 } />
+                <Route path="invoices/:invoiceId/edit" element={
+                  <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="billing">
+                    <CreateInvoice />
+                  </RoleGuard>
+                } />
                 <Route path="inventory" element={
                   <RoleGuard allowedRoles={['admin', 'staff']} requiredPage="inventory">
                     <Inventory />

@@ -41,6 +41,13 @@ export async function createInvoice(payload) {
     });
 }
 
+export async function updateInvoice(invoiceId, payload) {
+    return request(`/invoices/${encodeURIComponent(invoiceId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+    });
+}
+
 export async function markInvoicePaid(invoiceId, payload = {}) {
     return request(`/invoices/${invoiceId}/status`, {
         method: 'PATCH',

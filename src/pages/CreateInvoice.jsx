@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PDFViewer } from '@react-pdf/renderer';
 import { AlertTriangle, ArrowLeft, Calculator, Clock3, Eye, Percent, Plus, ReceiptText, Save, Search, Trash2, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { cn, getLocalDateString } from '../lib/utils';
-import { createInvoice, fetchBillingSettings } from '../lib/accountingApi';
+import { createInvoice, fetchBillingSettings, fetchInvoiceById, updateInvoice } from '../lib/accountingApi';
 import { fetchInventory, fetchPatients, fetchServices } from '../lib/clinicApi';
 import { InvoicePdfDocument } from '../components/invoice/InvoicePdfDocument';
 import { useTenant } from '../context/TenantContext';
@@ -23,6 +23,7 @@ function createEmptyInvoiceForm() {
 
 export function CreateInvoice() {
     const navigate = useNavigate();
+    const { invoiceId } = useParams();
     const { theme, refreshDashboard } = useStore();
     const { selectedClinic, selectedClinicId } = useTenant();
     const isDark = theme === 'dark';
@@ -31,6 +32,7 @@ export function CreateInvoice() {
     const [services, setServices] = useState([]);
     const [inventoryItems, setInventoryItems] = useState([]);
     const [billingSettings, setBillingSettings] = useState({ gstEnabled: false, gstNumber: '' });
+    const [formDataLoaded, setFormDataLoaded] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
     const [patientQuery, setPatientQuery] = useState('');
     const [showPatientPicker, setShowPatientPicker] = useState(false);
@@ -42,12 +44,16 @@ export function CreateInvoice() {
     const [formState, setFormState] = useState(() => createEmptyInvoiceForm());
     const [invoiceStatus, setInvoiceStatus] = useState('pending');
     const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [splitPayments, setSplitPayments] = useState({ cash: '', gpay: '' });
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
     const [hydratedDraftKey, setHydratedDraftKey] = useState('');
+    const [editLoading, setEditLoading] = useState(Boolean(invoiceId));
+    const isEditing = Boolean(invoiceId);
 
     const loadFormData = async () => {
         try {
+            setFormDataLoaded(false);
             const [patientsResult, servicesResult, inventoryResult, billingSettingsResult] = await Promise.all([
                 fetchPatients(),
                 fetchServices(),
@@ -63,6 +69,8 @@ export function CreateInvoice() {
             });
         } catch (error) {
             setSubmitError(error.message || 'Failed to load invoice form data.');
+        } finally {
+            setFormDataLoaded(true);
         }
     };
 
@@ -71,8 +79,8 @@ export function CreateInvoice() {
     }, [selectedClinicId]);
 
     const draftKey = useMemo(() => (
-        selectedClinicId ? `${INVOICE_DRAFT_PREFIX}:${selectedClinicId}` : ''
-    ), [selectedClinicId]);
+        !isEditing && selectedClinicId ? `${INVOICE_DRAFT_PREFIX}:${selectedClinicId}` : ''
+    ), [isEditing, selectedClinicId]);
 
     useEffect(() => {
         setHydratedDraftKey('');
@@ -83,6 +91,7 @@ export function CreateInvoice() {
         let nextFormState = createEmptyInvoiceForm();
         let nextInvoiceStatus = 'pending';
         let nextPaymentMethod = 'cash';
+        let nextSplitPayments = { cash: '', gpay: '' };
         let nextPatientQuery = '';
 
         try {
@@ -92,23 +101,30 @@ export function CreateInvoice() {
                 nextFormState = draft.formState || nextFormState;
                 nextInvoiceStatus = draft.invoiceStatus || nextInvoiceStatus;
                 nextPaymentMethod = draft.paymentMethod || nextPaymentMethod;
+                nextSplitPayments = draft.splitPayments || nextSplitPayments;
                 nextPatientQuery = draft.patientQuery || nextPatientQuery;
             }
         } catch {
             nextFormState = createEmptyInvoiceForm();
             nextInvoiceStatus = 'pending';
             nextPaymentMethod = 'cash';
+            nextSplitPayments = { cash: '', gpay: '' };
             nextPatientQuery = '';
         }
 
         setFormState(nextFormState);
         setInvoiceStatus(nextInvoiceStatus);
         setPaymentMethod(nextPaymentMethod);
+        setSplitPayments(nextSplitPayments);
         setPatientQuery(nextPatientQuery);
         setHydratedDraftKey(draftKey);
     }, [draftKey]);
 
-    const selectedPatient = patients.find((p) => p.id === formState.patientId) || {};
+    const selectedPatient = patients.find((p) => p.id === formState.patientId) || {
+        id: formState.patientId,
+        name: patientQuery,
+        contact: '',
+    };
 
     useEffect(() => {
         if (selectedPatient.name) {
@@ -123,13 +139,14 @@ export function CreateInvoice() {
                 formState,
                 invoiceStatus,
                 paymentMethod,
+                splitPayments,
                 patientQuery,
                 updatedAt: new Date().toISOString(),
             }));
         } catch {
             // Draft persistence is best-effort and should never block billing.
         }
-    }, [draftKey, hydratedDraftKey, formState, invoiceStatus, paymentMethod, patientQuery]);
+    }, [draftKey, hydratedDraftKey, formState, invoiceStatus, paymentMethod, splitPayments, patientQuery]);
 
     useEffect(() => {
         setVisiblePatientCount(PAGE_SIZE);
@@ -142,19 +159,19 @@ export function CreateInvoice() {
     const getLineTotals = (item) => {
         const gross = Number(item.price || 0) * Number(item.quantity || 0);
         const discountPercent = Math.min(100, Math.max(0, Number(item.discountPercent || 0)));
-        const discountAmount = Number((gross * (discountPercent / 100)).toFixed(2));
-        const taxableAmount = Math.max(0, gross - discountAmount);
+        const taxableAmount = Math.max(0, gross);
         const gstPercent = Math.min(100, Math.max(0, Number(item.gstPercent || 0)));
         const mrpPrice = Number(item.mrpPrice || 0);
         const mrpTotal = mrpPrice > 0 ? Number((mrpPrice * Number(item.quantity || 0)).toFixed(2)) : 0;
-        const targetTotal = Math.max(0, mrpTotal - discountAmount);
-        const inventoryTaxAmount = item.itemType === 'inventory' && mrpTotal > 0 && targetTotal >= taxableAmount
-            ? targetTotal - taxableAmount
+        const inventoryTaxAmount = item.itemType === 'inventory' && mrpTotal > 0 && mrpTotal >= taxableAmount
+            ? mrpTotal - taxableAmount
             : null;
         const gstAmount = Number((inventoryTaxAmount ?? (taxableAmount * (gstPercent / 100))).toFixed(2));
         const stateTaxAmount = Number((gstAmount / 2).toFixed(2));
         const centralTaxAmount = Number((gstAmount - stateTaxAmount).toFixed(2));
-        const lineTotal = Math.max(0, taxableAmount + gstAmount);
+        const taxInclusiveTotal = Number((taxableAmount + gstAmount).toFixed(2));
+        const discountAmount = Number((taxInclusiveTotal * (discountPercent / 100)).toFixed(2));
+        const lineTotal = Math.max(0, Number((taxInclusiveTotal - discountAmount).toFixed(2)));
         return { gross, discountPercent, discountAmount, taxableAmount, gstPercent, gstAmount, stateTaxAmount, centralTaxAmount, lineTotal };
     };
 
@@ -165,7 +182,7 @@ export function CreateInvoice() {
         const taxAmount = Number(lineItems.reduce((sum, item) => sum + item.gstAmount, 0).toFixed(2));
         const stateTaxAmount = Number(lineItems.reduce((sum, item) => sum + item.stateTaxAmount, 0).toFixed(2));
         const centralTaxAmount = Number((taxAmount - stateTaxAmount).toFixed(2));
-        const total = Math.max(0, subtotal - discount + taxAmount);
+        const total = Math.max(0, Number((subtotal + taxAmount - discount).toFixed(2)));
         return { subtotal, discount, taxAmount, stateTaxAmount, centralTaxAmount, total, lineItems };
     }, [formState.items]);
 
@@ -344,6 +361,127 @@ export function CreateInvoice() {
         patientResults.slice(0, visiblePatientCount)
     ), [patientResults, visiblePatientCount]);
 
+    const paymentEntries = useMemo(() => {
+        if (invoiceStatus !== 'paid') return [];
+        if (paymentMethod === 'split') {
+            return [
+                { method: 'cash', amount: Number(splitPayments.cash || 0) },
+                { method: 'gpay', amount: Number(splitPayments.gpay || 0) },
+            ].filter((payment) => payment.amount > 0);
+        }
+        return calculatedTotals.total > 0 ? [{ method: paymentMethod, amount: calculatedTotals.total }] : [];
+    }, [invoiceStatus, paymentMethod, splitPayments, calculatedTotals.total]);
+
+    const splitPaidTotal = paymentEntries.reduce((sum, payment) => sum + payment.amount, 0);
+
+    const updateSplitPaymentAmount = (method, value) => {
+        setSplitPayments((prev) => ({ ...prev, [method]: value }));
+        if (paymentMethod === 'split' && invoiceStatus !== 'paid') {
+            setInvoiceStatus('paid');
+        }
+    };
+
+    const handlePaymentMethodChange = (method) => {
+        setPaymentMethod(method);
+        if (method === 'split' && invoiceStatus !== 'paid') {
+            setInvoiceStatus('paid');
+        }
+    };
+
+    const hydrateInvoiceItemForEdit = (item) => {
+        if (item.itemType !== 'inventory') {
+            return {
+                id: item.id || crypto.randomUUID(),
+                name: item.name,
+                price: Number(item.price || 0),
+                quantity: Number(item.quantity || 1),
+                discountPercent: Number(item.discountPercent || 0),
+                gstPercent: Number(item.gstPercent || 0),
+                itemType: 'service',
+                inventoryItemId: null,
+            };
+        }
+
+        const inventory = inventoryItems.find((entry) => entry.id === item.inventoryItemId) || {};
+        const activeBatches = Array.isArray(inventory.batches) ? inventory.batches : [];
+        const batch = activeBatches.find((entry) => entry.id === item.batchId) || null;
+        const batchFields = buildBatchLineFields(inventory, batch);
+        const saleUnit = item.saleUnit || 'unit';
+        return {
+            id: item.id || crypto.randomUUID(),
+            name: item.name,
+            price: Number(item.price || 0),
+            quantity: Number(item.quantity || 1),
+            discountPercent: Number(item.discountPercent || 0),
+            gstPercent: Number(item.gstPercent || batchFields.gstPercent || 0),
+            itemType: 'inventory',
+            inventoryItemId: item.inventoryItemId,
+            batchId: item.batchId || batchFields.batchId,
+            batchNumber: item.batchNumber || batchFields.batchNumber,
+            packageType: inventory.packageType || 'box',
+            maxStock: Number(batchFields.maxStock || item.quantity || 1) + Number(item.quantity || 0),
+            stripStock: Number(batchFields.stripStock || item.quantity || 1) + Number(item.quantity || 0),
+            individualStock: Number(batchFields.individualStock || item.quantity || 1) + Number(item.quantity || 0),
+            mrpPrice: Number(item.taxableAmount || 0) > 0 && Number(item.gstAmount || 0) > 0 ? Number(item.price || 0) + (Number(item.gstAmount || 0) / Number(item.quantity || 1)) : Number(item.price || 0),
+            unitMrp: batchFields.unitMrp,
+            stripMrp: batchFields.stripMrp,
+            individualMrp: batchFields.individualMrp,
+            unit: inventory.unit,
+            saleUnit,
+            unitPrice: saleUnit === 'unit' ? Number(item.price || 0) : batchFields.unitPrice,
+            stripPrice: saleUnit === 'strip' ? Number(item.price || 0) : batchFields.stripPrice,
+            individualPrice: saleUnit === 'individual' ? Number(item.price || 0) : batchFields.individualPrice,
+            stripsPerUnit: Number(inventory.stripsPerUnit || 1),
+            tabletsPerStrip: Number(inventory.tabletsPerStrip || 1),
+            batches: activeBatches,
+            expiryStatus: batchFields.expiryStatus,
+            daysToExpiry: batchFields.daysToExpiry,
+            expiryDate: batchFields.expiryDate,
+        };
+    };
+
+    useEffect(() => {
+        if (!isEditing || !invoiceId || !formDataLoaded) return;
+        let cancelled = false;
+        const loadInvoiceForEdit = async () => {
+            setEditLoading(true);
+            setSubmitError('');
+            try {
+                const result = await fetchInvoiceById(invoiceId);
+                if (cancelled) return;
+                const invoice = result.invoice;
+                if (!invoice) throw new Error('Invoice not found.');
+                const cashAmount = (invoice.payments || [])
+                    .filter((payment) => payment.method === 'cash')
+                    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+                const gpayAmount = (invoice.payments || [])
+                    .filter((payment) => payment.method === 'gpay')
+                    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+                setFormState({
+                    patientId: invoice.patientId || '',
+                    invoiceNumber: invoice.invoiceNumber,
+                    date: invoice.date,
+                    items: (invoice.items || []).map(hydrateInvoiceItemForEdit),
+                });
+                setPatientQuery(invoice.patientName || '');
+                setInvoiceStatus(invoice.status === 'partially_paid' ? 'pending' : invoice.status || 'pending');
+                setPaymentMethod(cashAmount > 0 && gpayAmount > 0 ? 'split' : gpayAmount > 0 ? 'gpay' : 'cash');
+                setSplitPayments({
+                    cash: cashAmount > 0 ? cashAmount.toFixed(2) : '',
+                    gpay: gpayAmount > 0 ? gpayAmount.toFixed(2) : '',
+                });
+            } catch (error) {
+                if (!cancelled) setSubmitError(error.message || 'Failed to load invoice for editing.');
+            } finally {
+                if (!cancelled) setEditLoading(false);
+            }
+        };
+        loadInvoiceForEdit();
+        return () => {
+            cancelled = true;
+        };
+    }, [isEditing, invoiceId, formDataLoaded]);
+
     const handleSelectPatient = (patient) => {
         setFormState((prev) => ({ ...prev, patientId: patient.id }));
         setPatientQuery(patient.name);
@@ -443,10 +581,14 @@ export function CreateInvoice() {
             setSubmitError('Add at least one item to create an invoice.');
             return;
         }
+        if (invoiceStatus === 'paid' && paymentMethod === 'split' && Math.abs(splitPaidTotal - calculatedTotals.total) > 0.01) {
+            setSubmitError(`Split payments must equal the invoice total of Rs${calculatedTotals.total.toFixed(2)}.`);
+            return;
+        }
 
         setSubmitting(true);
         try {
-            await createInvoice({
+            const payload = {
                 invoiceNumber: formState.invoiceNumber,
                 patientId: selectedPatient.id || null,
                 patientName: selectedPatient.name || '',
@@ -454,6 +596,7 @@ export function CreateInvoice() {
                 date: formState.date,
                 status: invoiceStatus,
                 paymentMethod,
+                payments: paymentEntries,
                 items: formState.items.map((item) => ({
                     name: item.name,
                     price: Number(item.price),
@@ -470,15 +613,19 @@ export function CreateInvoice() {
                 tax: calculatedTotals.taxAmount,
                 discount: calculatedTotals.discount,
                 total: calculatedTotals.total,
-            });
+            };
+            if (isEditing) {
+                await updateInvoice(invoiceId, payload);
+            } else {
+                await createInvoice(payload);
+            }
             await refreshDashboard();
             if (draftKey) {
                 localStorage.removeItem(draftKey);
             }
-            // In a real app, this would be an API call
             navigate('/app/billing');
         } catch (err) {
-            setSubmitError(err.message || 'Failed to save invoice.');
+            setSubmitError(err.message || `Failed to ${isEditing ? 'update' : 'save'} invoice.`);
         } finally {
             setSubmitting(false);
         }
@@ -504,6 +651,11 @@ export function CreateInvoice() {
 
     return (
         <div className="space-y-6 p-4">
+            {editLoading && (
+                <div className={cn('rounded-2xl border px-4 py-3 text-sm font-bold', isDark ? 'bg-white/5 border-white/10 text-gray-300' : 'bg-[#fef9f3] border-[#512c31]/10 text-[#512c31]')}>
+                    Loading invoice for editing...
+                </div>
+            )}
             <div className={cn('w-full rounded-[2.5rem] p-6 sm:p-8 border-4 shadow-2xl dashboard-reveal transition-all', isDark ? 'bg-[#1e1e1e] border-white/5' : 'bg-white border-white/50 shadow-[#512c31]/5')}>
                 <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-4 sm:gap-6">
@@ -514,8 +666,8 @@ export function CreateInvoice() {
                             <ReceiptText className="w-5 h-5" />
                         </div>
                         <div>
-                            <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>Invoice Workbench</h1>
-                            <p className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Line discounts, tax split, stock, and billing controls</p>
+                            <h1 className={cn('text-2xl sm:text-4xl font-black tracking-tight', isDark ? 'text-white' : 'text-[#512c31]')}>{isEditing ? 'Edit Invoice' : 'Invoice Workbench'}</h1>
+                            <p className={cn('text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>{isEditing ? 'Update billing lines, payment split, and invoice status' : 'Line discounts, tax split, stock, and billing controls'}</p>
                         </div>
                     </div>
                     <button
@@ -681,12 +833,44 @@ export function CreateInvoice() {
                             </select>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 p-4 rounded-2xl border-2 dark:border-gray-800">
-                            <label className={cn('text-xs font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Payment Method</label>
-                            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={cn('px-4 py-2 rounded-xl text-sm font-bold outline-none border-2 transition-all cursor-pointer', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}>
-                                <option value="cash">Cash</option>
-                                <option value="gpay">GPay</option>
-                            </select>
+                        <div className="space-y-3 p-4 rounded-2xl border-2 dark:border-gray-800">
+                            <div className="flex items-center justify-between gap-3">
+                                <label className={cn('text-xs font-bold uppercase tracking-widest', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Payment Method</label>
+                                <select value={paymentMethod} onChange={(e) => handlePaymentMethodChange(e.target.value)} className={cn('px-4 py-2 rounded-xl text-sm font-bold outline-none border-2 transition-all cursor-pointer', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}>
+                                    <option value="cash">Cash</option>
+                                    <option value="gpay">GPay</option>
+                                    <option value="split">Cash + GPay</option>
+                                </select>
+                            </div>
+                            {paymentMethod === 'split' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block mb-1 text-[10px] font-black uppercase tracking-widest text-gray-500">Cash Amount</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={splitPayments.cash}
+                                            onChange={(e) => updateSplitPaymentAmount('cash', e.target.value)}
+                                            className={cn('w-full px-3 py-3 rounded-xl text-sm font-black outline-none border-2 transition-all', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white focus:border-emerald-400/40' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block mb-1 text-[10px] font-black uppercase tracking-widest text-gray-500">GPay Amount</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={splitPayments.gpay}
+                                            onChange={(e) => updateSplitPaymentAmount('gpay', e.target.value)}
+                                            className={cn('w-full px-3 py-3 rounded-xl text-sm font-black outline-none border-2 transition-all', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white focus:border-sky-400/40' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
+                                        />
+                                    </div>
+                                    <p className={cn('sm:col-span-2 text-[10px] font-black uppercase tracking-widest', invoiceStatus !== 'paid' || Math.abs(splitPaidTotal - calculatedTotals.total) <= 0.01 ? 'text-emerald-400' : 'text-amber-400')}>
+                                        Cash + GPay Rs{splitPaidTotal.toFixed(2)} / Invoice Rs{calculatedTotals.total.toFixed(2)}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -798,9 +982,9 @@ export function CreateInvoice() {
                     </div>
                 )}
 
-                <button onClick={handleSaveInvoice} disabled={submitting} className="mt-6 w-full bg-[#512c31] text-white py-4 sm:py-5 rounded-2xl hover:bg-[#e8919a] transition-all flex items-center justify-center gap-2 text-sm sm:text-base font-bold uppercase tracking-widest shadow-xl hover:shadow-2xl hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed">
+                <button onClick={handleSaveInvoice} disabled={submitting || editLoading} className="mt-6 w-full bg-[#512c31] text-white py-4 sm:py-5 rounded-2xl hover:bg-[#e8919a] transition-all flex items-center justify-center gap-2 text-sm sm:text-base font-bold uppercase tracking-widest shadow-xl hover:shadow-2xl hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed">
                     <Save className="w-5 h-5" />
-                    {submitting ? 'Saving...' : 'Save Invoice'}
+                    {submitting ? 'Saving...' : isEditing ? 'Update Invoice' : 'Save Invoice'}
                 </button>
             </div>
 

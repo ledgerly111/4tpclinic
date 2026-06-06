@@ -11,6 +11,7 @@ import {
     X,
     Download,
     Share2,
+    Pencil,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../lib/utils';
@@ -86,6 +87,7 @@ export function Billing() {
     const [paymentInvoice, setPaymentInvoice] = useState(null);
     const [paymentAmount, setPaymentAmount] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [paymentSplit, setPaymentSplit] = useState({ cash: '', gpay: '' });
     const [paymentError, setPaymentError] = useState('');
     const [previewInvoice, setPreviewInvoice] = useState(null);
     const [previewLoading, setPreviewLoading] = useState(false);
@@ -144,6 +146,7 @@ export function Billing() {
         setPaymentInvoice(invoice);
         setPaymentAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
         setPaymentMethod('cash');
+        setPaymentSplit({ cash: '', gpay: '' });
         setPaymentError('');
         setError('');
     };
@@ -152,16 +155,27 @@ export function Billing() {
         if (actionInvoiceId) return;
         setPaymentInvoice(null);
         setPaymentAmount('');
+        setPaymentSplit({ cash: '', gpay: '' });
         setPaymentError('');
     };
 
     const handleRecordPayment = async () => {
         if (!paymentInvoice) return;
-        const amount = Number(paymentAmount);
         const replacingReceived = paymentInvoice.status === 'paid' && Number(paymentInvoice.outstandingAmount || 0) <= 0;
         const outstanding = replacingReceived ? Number(paymentInvoice.amount || 0) : Number(paymentInvoice.outstandingAmount || 0);
+        const splitEntries = [
+            { method: 'cash', amount: Number(paymentSplit.cash || 0) },
+            { method: 'gpay', amount: Number(paymentSplit.gpay || 0) },
+        ].filter((payment) => payment.amount > 0);
+        const amount = paymentMethod === 'split'
+            ? splitEntries.reduce((sum, payment) => sum + payment.amount, 0)
+            : Number(paymentAmount);
         if (!Number.isFinite(amount) || amount <= 0) {
             setPaymentError('Enter a payment amount greater than zero.');
+            return;
+        }
+        if (paymentMethod === 'split' && splitEntries.length < 2) {
+            setPaymentError('Enter both cash and GPay amounts for a split payment.');
             return;
         }
         if (amount > outstanding) {
@@ -175,12 +189,14 @@ export function Billing() {
             await markInvoicePaid(paymentInvoice.id, {
                 paymentAmount: amount,
                 method: paymentMethod,
+                payments: paymentMethod === 'split' ? splitEntries : undefined,
                 replaceReceivedAmount: replacingReceived,
             });
             await refreshDashboard();
             await loadBillingData();
             setPaymentInvoice(null);
             setPaymentAmount('');
+            setPaymentSplit({ cash: '', gpay: '' });
             setPaymentError('');
         } catch (err) {
             setError(err.message || 'Failed to update invoice status.');
@@ -395,6 +411,15 @@ export function Billing() {
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            {canEditBilling && (
+                                                <button
+                                                    onClick={() => navigate(`/app/invoices/${invoice.id}/edit`)}
+                                                    className="text-sky-500 hover:text-white p-3 bg-sky-50 hover:bg-sky-500 rounded-xl transition-all shadow-sm"
+                                                    title="Edit invoice"
+                                                >
+                                                    <Pencil className="w-5 h-5" />
+                                                </button>
+                                            )}
                                             {canEditBilling && (invoice.status !== 'paid' || Number(invoice.paidAmount || 0) > 0) && (
                                                 <button
                                                     onClick={() => openPaymentModal(invoice)}
@@ -457,6 +482,15 @@ export function Billing() {
                                             </td>
                                             <td className="p-5 sm:p-6 text-right">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    {canEditBilling && (
+                                                        <button
+                                                            onClick={() => navigate(`/app/invoices/${invoice.id}/edit`)}
+                                                            className="text-sky-500 hover:text-white p-2 sm:p-3 bg-sky-50 hover:bg-sky-500 rounded-xl transition-all shadow-sm group-hover:scale-105"
+                                                            title="Edit invoice"
+                                                        >
+                                                            <Pencil className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                        </button>
+                                                    )}
                                                     {canEditBilling && (invoice.status !== 'paid' || Number(invoice.paidAmount || 0) > 0) && (
                                                         <button
                                                             onClick={() => openPaymentModal(invoice)}
@@ -526,6 +560,7 @@ export function Billing() {
                                 </div>
                             </div>
 
+                            {paymentMethod !== 'split' && (
                             <div>
                                 <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Amount received</label>
                                 <input
@@ -538,11 +573,12 @@ export function Billing() {
                                     className={cn("w-full px-4 py-4 rounded-2xl text-xl font-black outline-none border-2 transition-all", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-emerald-400/40" : "bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]")}
                                 />
                             </div>
+                            )}
 
                             <div>
                                 <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Payment Method</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {['cash', 'gpay'].map((method) => (
+                                <div className="grid grid-cols-3 gap-3">
+                                    {['cash', 'gpay', 'split'].map((method) => (
                                         <button
                                             key={method}
                                             type="button"
@@ -557,11 +593,38 @@ export function Billing() {
                                             )}
                                         >
                                             <CreditCard className="w-4 h-4" />
-                                            {method === 'gpay' ? 'GPay' : 'Cash'}
+                                            {method === 'gpay' ? 'GPay' : method === 'split' ? 'Split' : 'Cash'}
                                         </button>
                                     ))}
                                 </div>
                             </div>
+
+                            {paymentMethod === 'split' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Cash amount</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={paymentSplit.cash}
+                                            onChange={(e) => setPaymentSplit((prev) => ({ ...prev, cash: e.target.value }))}
+                                            className={cn("w-full px-4 py-4 rounded-2xl text-xl font-black outline-none border-2 transition-all", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-emerald-400/40" : "bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]")}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>GPay amount</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={paymentSplit.gpay}
+                                            onChange={(e) => setPaymentSplit((prev) => ({ ...prev, gpay: e.target.value }))}
+                                            className={cn("w-full px-4 py-4 rounded-2xl text-xl font-black outline-none border-2 transition-all", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-sky-400/40" : "bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]")}
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             {paymentError && (
                                 <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300">
