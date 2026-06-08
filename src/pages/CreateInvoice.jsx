@@ -166,13 +166,25 @@ export function CreateInvoice() {
         const inventoryTaxAmount = item.itemType === 'inventory' && mrpTotal > 0 && mrpTotal >= taxableAmount
             ? mrpTotal - taxableAmount
             : null;
-        const gstAmount = Number((inventoryTaxAmount ?? (taxableAmount * (gstPercent / 100))).toFixed(2));
+        const savedGstAmount = item.preserveSavedTotals && Number.isFinite(Number(item.gstAmount))
+            ? Math.max(0, Number(item.gstAmount))
+            : null;
+        const gstAmount = Number((savedGstAmount ?? inventoryTaxAmount ?? (taxableAmount * (gstPercent / 100))).toFixed(2));
         const stateTaxAmount = Number((gstAmount / 2).toFixed(2));
         const centralTaxAmount = Number((gstAmount - stateTaxAmount).toFixed(2));
         const taxInclusiveTotal = Number((taxableAmount + gstAmount).toFixed(2));
-        const discountAmount = Number((taxInclusiveTotal * (discountPercent / 100)).toFixed(2));
+        const savedDiscountAmount = item.preserveSavedTotals && Number.isFinite(Number(item.discountAmount))
+            ? Math.min(taxInclusiveTotal, Math.max(0, Number(item.discountAmount)))
+            : null;
+        const discountAmount = Number((savedDiscountAmount ?? (taxInclusiveTotal * (discountPercent / 100))).toFixed(2));
         const lineTotal = Math.max(0, Number((taxInclusiveTotal - discountAmount).toFixed(2)));
         return { gross, discountPercent, discountAmount, taxableAmount, gstPercent, gstAmount, stateTaxAmount, centralTaxAmount, lineTotal };
+    };
+
+    const clearSavedLineTotals = (item) => {
+        if (!item?.preserveSavedTotals) return item;
+        const { preserveSavedTotals, discountAmount, gstAmount, ...nextItem } = item;
+        return nextItem;
     };
 
     const calculatedTotals = useMemo(() => {
@@ -397,6 +409,9 @@ export function CreateInvoice() {
                 quantity: Number(item.quantity || 1),
                 discountPercent: Number(item.discountPercent || 0),
                 gstPercent: Number(item.gstPercent || 0),
+                gstAmount: Number(item.gstAmount || 0),
+                discountAmount: Number(item.discountAmount || 0),
+                preserveSavedTotals: true,
                 itemType: 'service',
                 inventoryItemId: null,
             };
@@ -414,6 +429,9 @@ export function CreateInvoice() {
             quantity: Number(item.quantity || 1),
             discountPercent: Number(item.discountPercent || 0),
             gstPercent: Number(item.gstPercent || batchFields.gstPercent || 0),
+            gstAmount: Number(item.gstAmount || 0),
+            discountAmount: Number(item.discountAmount || 0),
+            preserveSavedTotals: true,
             itemType: 'inventory',
             inventoryItemId: item.inventoryItemId,
             batchId: item.batchId || batchFields.batchId,
@@ -494,17 +512,20 @@ export function CreateInvoice() {
         const maxStock = newItems[index].itemType === 'inventory'
             ? Number(getStockForSaleUnit(newItems[index]) || value)
             : value;
-        newItems[index].quantity = newItems[index].itemType === 'inventory' ? Math.min(value, maxStock) : value;
+        newItems[index] = clearSavedLineTotals({
+            ...newItems[index],
+            quantity: newItems[index].itemType === 'inventory' ? Math.min(value, maxStock) : value,
+        });
         setFormState((prev) => ({ ...prev, items: newItems }));
     };
 
     const updateItemPrice = (index, price) => {
         const newItems = [...formState.items];
         const value = Math.max(0, Number(price) || 0);
-        newItems[index] = {
+        newItems[index] = clearSavedLineTotals({
             ...newItems[index],
             price: value,
-        };
+        });
         if (newItems[index].itemType === 'inventory') {
             if (newItems[index].saleUnit === 'strip') {
                 newItems[index].stripPrice = value;
@@ -520,10 +541,10 @@ export function CreateInvoice() {
     const updateItemPercent = (index, key, value) => {
         const newItems = [...formState.items];
         const percent = Math.min(100, Math.max(0, Number(value) || 0));
-        newItems[index] = {
+        newItems[index] = clearSavedLineTotals({
             ...newItems[index],
             [key]: percent,
-        };
+        });
         setFormState((prev) => ({ ...prev, items: newItems }));
     };
 
@@ -533,13 +554,13 @@ export function CreateInvoice() {
         if (!item || item.itemType !== 'inventory') return;
         const nextSaleUnit = item.packageType !== 'single' && ['strip', 'individual'].includes(saleUnit) ? saleUnit : 'unit';
         const nextMaxStock = getStockForSaleUnit(item, nextSaleUnit);
-        newItems[index] = {
+        newItems[index] = clearSavedLineTotals({
             ...item,
             saleUnit: nextSaleUnit,
             price: getPriceForSaleUnit(item, nextSaleUnit),
             mrpPrice: getMrpForSaleUnit(item, nextSaleUnit),
             quantity: Math.max(1, Math.min(Number(item.quantity || 1), nextMaxStock || 1)),
-        };
+        });
         setFormState((prev) => ({ ...prev, items: newItems }));
     };
 
@@ -554,12 +575,12 @@ export function CreateInvoice() {
             ...batchFields,
         };
         const nextMaxStock = getStockForSaleUnit(nextItem, nextItem.saleUnit);
-        newItems[index] = {
+        newItems[index] = clearSavedLineTotals({
             ...nextItem,
             price: getPriceForSaleUnit(nextItem, nextItem.saleUnit),
             mrpPrice: getMrpForSaleUnit(nextItem, nextItem.saleUnit),
             quantity: Math.max(1, Math.min(Number(item.quantity || 1), nextMaxStock || 1)),
-        };
+        });
         setFormState((prev) => ({ ...prev, items: newItems }));
     };
 
@@ -597,18 +618,22 @@ export function CreateInvoice() {
                 status: invoiceStatus,
                 paymentMethod,
                 payments: paymentEntries,
-                items: formState.items.map((item) => ({
-                    name: item.name,
-                    price: Number(item.price),
-                    quantity: Number(item.quantity),
-                    discountPercent: Number(item.discountPercent || 0),
-                    gstPercent: Number(item.gstPercent || 0),
-                    mrpPrice: Number(item.mrpPrice || 0),
-                    itemType: item.itemType,
-                    inventoryItemId: item.inventoryItemId,
-                    batchId: item.batchId || null,
-                    saleUnit: item.saleUnit || 'unit',
-                })),
+                items: formState.items.map((item) => {
+                    const line = getLineTotals(item);
+                    return {
+                        name: item.name,
+                        price: Number(item.price),
+                        quantity: Number(item.quantity),
+                        discountPercent: Number(item.discountPercent || 0),
+                        discountAmount: line.discountAmount,
+                        gstPercent: Number(item.gstPercent || 0),
+                        mrpPrice: Number(item.mrpPrice || 0),
+                        itemType: item.itemType,
+                        inventoryItemId: item.inventoryItemId,
+                        batchId: item.batchId || null,
+                        saleUnit: item.saleUnit || 'unit',
+                    };
+                }),
                 subtotal: calculatedTotals.subtotal,
                 tax: calculatedTotals.taxAmount,
                 discount: calculatedTotals.discount,
