@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PDFViewer } from '@react-pdf/renderer';
-import { AlertTriangle, ArrowLeft, Calculator, Clock3, Eye, Percent, Plus, ReceiptText, Save, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Calculator, CalendarDays, Clock3, Eye, Percent, Plus, ReceiptText, Save, Search, Trash2, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { cn, getLocalDateString } from '../lib/utils';
@@ -19,6 +19,10 @@ function createEmptyInvoiceForm() {
         date: getLocalDateString(),
         items: [],
     };
+}
+
+function normalizeInvoiceDate(value) {
+    return value || getLocalDateString();
 }
 
 export function CreateInvoice() {
@@ -99,6 +103,13 @@ export function CreateInvoice() {
             if (raw) {
                 const draft = JSON.parse(raw);
                 nextFormState = draft.formState || nextFormState;
+                const draftDate = getLocalDateString(draft.updatedAt);
+                if (draftDate && draftDate !== getLocalDateString()) {
+                    nextFormState = {
+                        ...nextFormState,
+                        date: getLocalDateString(),
+                    };
+                }
                 nextInvoiceStatus = draft.invoiceStatus || nextInvoiceStatus;
                 nextPaymentMethod = draft.paymentMethod || nextPaymentMethod;
                 nextSplitPayments = draft.splitPayments || nextSplitPayments;
@@ -478,7 +489,7 @@ export function CreateInvoice() {
                 setFormState({
                     patientId: invoice.patientId || '',
                     invoiceNumber: invoice.invoiceNumber,
-                    date: invoice.date,
+                    date: normalizeInvoiceDate(invoice.date),
                     items: (invoice.items || []).map(hydrateInvoiceItemForEdit),
                 });
                 setPatientQuery(invoice.patientName || '');
@@ -602,6 +613,10 @@ export function CreateInvoice() {
             setSubmitError('Add at least one item to create an invoice.');
             return;
         }
+        if (!formState.date) {
+            setSubmitError('Select an invoice date before saving.');
+            return;
+        }
         if (invoiceStatus === 'paid' && paymentMethod === 'split' && Math.abs(splitPaidTotal - calculatedTotals.total) > 0.01) {
             setSubmitError(`Split payments must equal the invoice total of Rs${calculatedTotals.total.toFixed(2)}.`);
             return;
@@ -614,7 +629,7 @@ export function CreateInvoice() {
                 patientId: selectedPatient.id || null,
                 patientName: selectedPatient.name || '',
                 patientContact: selectedPatient.contact || '',
-                date: formState.date,
+                date: normalizeInvoiceDate(formState.date),
                 status: invoiceStatus,
                 paymentMethod,
                 payments: paymentEntries,
@@ -658,7 +673,7 @@ export function CreateInvoice() {
 
     const previewData = {
         invoiceNumber: formState.invoiceNumber,
-        date: formState.date,
+        date: normalizeInvoiceDate(formState.date),
         status: invoiceStatus,
         clinicName: selectedClinic?.name || '',
         gstEnabled: billingSettings.gstEnabled,
@@ -751,6 +766,19 @@ export function CreateInvoice() {
                                         )}
                                     </div>
                                 )}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className={cn('block text-xs font-bold uppercase tracking-widest mb-2.5', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>Invoice Date</label>
+                            <div className="relative">
+                                <CalendarDays className={cn('absolute left-4 top-4 w-5 h-5 pointer-events-none', isDark ? 'text-gray-500' : 'text-[#512c31]/40')} />
+                                <input
+                                    type="date"
+                                    value={normalizeInvoiceDate(formState.date)}
+                                    onChange={(e) => setFormState((prev) => ({ ...prev, date: normalizeInvoiceDate(e.target.value) }))}
+                                    className={cn('w-full pl-12 pr-4 py-4 rounded-2xl text-sm font-bold outline-none border-2 transition-all focus:border-[#512c31]', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white focus:border-white/20 [color-scheme:dark]' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}
+                                />
                             </div>
                         </div>
 
