@@ -8,6 +8,7 @@ const JSON_HEADERS = {
 const INVOICE_STATUSES = new Set(['pending', 'paid', 'overdue', 'void']);
 const APPOINTMENT_STATUSES = new Set(['scheduled', 'in-progress', 'completed', 'cancelled']);
 const DEFAULT_CLINIC_LIMIT = 3;
+const D1_BATCH_BINDING_LIMIT = 80;
 const PAGE_PERMISSION_KEYS = ['dashboard', 'patients', 'appointments', 'inventory', 'services', 'billing', 'reports', 'attendance'];
 const EDIT_PERMISSION_KEYS = ['edit_patients', 'edit_appointments', 'edit_inventory', 'edit_services', 'edit_billing'];
 const DEFAULT_STAFF_PERMISSIONS = {
@@ -327,6 +328,14 @@ function parsePermissionJson(raw) {
     } catch {
         return {};
     }
+}
+
+function chunkArray(values, size) {
+    const chunks = [];
+    for (let index = 0; index < values.length; index += size) {
+        chunks.push(values.slice(index, index + size));
+    }
+    return chunks;
 }
 
 function normalizePermissions(input) {
@@ -3345,24 +3354,26 @@ async function listInvoices(env, request, url) {
     const invoices = invoiceRows.map(mapInvoiceRow);
     if (invoices.length > 0) {
         const invoiceIds = invoices.map((invoice) => invoice.id);
-        const placeholders = invoiceIds.map(() => '?').join(',');
-        const itemsResult = await db.prepare(`
-            SELECT invoice_id, item_name, unit_price_cents, quantity, line_total_cents, item_type
-            FROM invoice_items
-            WHERE invoice_id IN (${placeholders})
-            ORDER BY created_at ASC
-        `).bind(...invoiceIds).all();
         const itemsByInvoice = new Map();
-        (itemsResult.results || []).forEach((item) => {
-            if (!itemsByInvoice.has(item.invoice_id)) itemsByInvoice.set(item.invoice_id, []);
-            itemsByInvoice.get(item.invoice_id).push({
-                name: item.item_name,
-                price: fromCents(item.unit_price_cents),
-                quantity: item.quantity,
-                total: fromCents(item.line_total_cents),
-                itemType: item.item_type || 'service',
+        for (const invoiceIdBatch of chunkArray(invoiceIds, D1_BATCH_BINDING_LIMIT)) {
+            const placeholders = invoiceIdBatch.map(() => '?').join(',');
+            const itemsResult = await db.prepare(`
+                SELECT invoice_id, item_name, unit_price_cents, quantity, line_total_cents, item_type
+                FROM invoice_items
+                WHERE invoice_id IN (${placeholders})
+                ORDER BY created_at ASC
+            `).bind(...invoiceIdBatch).all();
+            (itemsResult.results || []).forEach((item) => {
+                if (!itemsByInvoice.has(item.invoice_id)) itemsByInvoice.set(item.invoice_id, []);
+                itemsByInvoice.get(item.invoice_id).push({
+                    name: item.item_name,
+                    price: fromCents(item.unit_price_cents),
+                    quantity: item.quantity,
+                    total: fromCents(item.line_total_cents),
+                    itemType: item.item_type || 'service',
+                });
             });
-        });
+        }
         invoices.forEach((invoice) => {
             invoice.items = itemsByInvoice.get(invoice.id) || [];
         });
