@@ -863,6 +863,12 @@ async function ensureSchema(env) {
     schemaReady = true;
 }
 
+async function ensureInvoiceSchema(env) {
+    const db = requireDb(env);
+    await ensureInvoicesTenantColumns(db);
+    await ensureInvoiceItemColumns(db);
+}
+
 function mapSessionUser(baseUser, clinicIds, permissions) {
     return {
         userId: baseUser.id,
@@ -4178,8 +4184,9 @@ export default {
                 });
             }
 
-            // Runtime schema bootstrap can fail unpredictably on remote isolates.
-            // Use explicit migrations for schema changes.
+            if (pathname === '/api/invoices' || pathname.startsWith('/api/invoices/')) {
+                await ensureInvoiceSchema(env);
+            }
 
             if (pathname === '/api/auth/login' && request.method === 'POST') return await login(env, request);
             if (pathname === '/api/auth/session' && request.method === 'GET') return await getSession(env, request);
