@@ -87,7 +87,7 @@ export function Billing() {
     const [paymentInvoice, setPaymentInvoice] = useState(null);
     const [paymentAmount, setPaymentAmount] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('cash');
-    const [paymentSplit, setPaymentSplit] = useState({ cash: '', gpay: '' });
+    const [paymentSplit, setPaymentSplit] = useState({ cash: '', gpay: '', card: '' });
     const [paymentError, setPaymentError] = useState('');
     const [previewInvoice, setPreviewInvoice] = useState(null);
     const [previewLoading, setPreviewLoading] = useState(false);
@@ -146,7 +146,7 @@ export function Billing() {
         setPaymentInvoice(invoice);
         setPaymentAmount(nextAmount > 0 ? nextAmount.toFixed(2) : '');
         setPaymentMethod('cash');
-        setPaymentSplit({ cash: '', gpay: '' });
+        setPaymentSplit({ cash: '', gpay: '', card: '' });
         setPaymentError('');
         setError('');
     };
@@ -155,7 +155,7 @@ export function Billing() {
         if (actionInvoiceId) return;
         setPaymentInvoice(null);
         setPaymentAmount('');
-        setPaymentSplit({ cash: '', gpay: '' });
+        setPaymentSplit({ cash: '', gpay: '', card: '' });
         setPaymentError('');
     };
 
@@ -166,6 +166,7 @@ export function Billing() {
         const splitEntries = [
             { method: 'cash', amount: Number(paymentSplit.cash || 0) },
             { method: 'gpay', amount: Number(paymentSplit.gpay || 0) },
+            { method: 'card', amount: Number(paymentSplit.card || 0) },
         ].filter((payment) => payment.amount > 0);
         const amount = paymentMethod === 'split'
             ? splitEntries.reduce((sum, payment) => sum + payment.amount, 0)
@@ -175,7 +176,7 @@ export function Billing() {
             return;
         }
         if (paymentMethod === 'split' && splitEntries.length < 2) {
-            setPaymentError('Enter both cash and GPay amounts for a split payment.');
+            setPaymentError('Enter amounts for at least two methods (Cash, GPay, Card) for a split payment.');
             return;
         }
         if (amount > outstanding) {
@@ -196,7 +197,7 @@ export function Billing() {
             await loadBillingData();
             setPaymentInvoice(null);
             setPaymentAmount('');
-            setPaymentSplit({ cash: '', gpay: '' });
+            setPaymentSplit({ cash: '', gpay: '', card: '' });
             setPaymentError('');
         } catch (err) {
             setError(err.message || 'Failed to update invoice status.');
@@ -577,8 +578,8 @@ export function Billing() {
 
                             <div>
                                 <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Payment Method</label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {['cash', 'gpay', 'split'].map((method) => (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {['cash', 'gpay', 'card', 'split'].map((method) => (
                                         <button
                                             key={method}
                                             type="button"
@@ -593,14 +594,14 @@ export function Billing() {
                                             )}
                                         >
                                             <CreditCard className="w-4 h-4" />
-                                            {method === 'gpay' ? 'GPay' : method === 'split' ? 'Split' : 'Cash'}
+                                            {method === 'gpay' ? 'GPay' : method === 'card' ? 'Card' : method === 'split' ? 'Split' : 'Cash'}
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
                             {paymentMethod === 'split' && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div>
                                         <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Cash amount</label>
                                         <input
@@ -621,6 +622,17 @@ export function Billing() {
                                             value={paymentSplit.gpay}
                                             onChange={(e) => setPaymentSplit((prev) => ({ ...prev, gpay: e.target.value }))}
                                             className={cn("w-full px-4 py-4 rounded-2xl text-xl font-black outline-none border-2 transition-all", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-sky-400/40" : "bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]")}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={cn("block text-xs font-bold uppercase tracking-widest mb-2", isDark ? "text-gray-400" : "text-[#512c31]/60")}>Card amount</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={paymentSplit.card}
+                                            onChange={(e) => setPaymentSplit((prev) => ({ ...prev, card: e.target.value }))}
+                                            className={cn("w-full px-4 py-4 rounded-2xl text-xl font-black outline-none border-2 transition-all", isDark ? "bg-[#0f0f0f] border-gray-800 text-white focus:border-violet-400/40" : "bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]")}
                                         />
                                     </div>
                                 </div>

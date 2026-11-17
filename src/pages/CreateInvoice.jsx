@@ -48,7 +48,7 @@ export function CreateInvoice() {
     const [formState, setFormState] = useState(() => createEmptyInvoiceForm());
     const [invoiceStatus, setInvoiceStatus] = useState('pending');
     const [paymentMethod, setPaymentMethod] = useState('cash');
-    const [splitPayments, setSplitPayments] = useState({ cash: '', gpay: '' });
+    const [splitPayments, setSplitPayments] = useState({ cash: '', gpay: '', card: '' });
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
     const [hydratedDraftKey, setHydratedDraftKey] = useState('');
@@ -95,7 +95,7 @@ export function CreateInvoice() {
         let nextFormState = createEmptyInvoiceForm();
         let nextInvoiceStatus = 'pending';
         let nextPaymentMethod = 'cash';
-        let nextSplitPayments = { cash: '', gpay: '' };
+        let nextSplitPayments = { cash: '', gpay: '', card: '' };
         let nextPatientQuery = '';
 
         try {
@@ -112,14 +112,14 @@ export function CreateInvoice() {
                 }
                 nextInvoiceStatus = draft.invoiceStatus || nextInvoiceStatus;
                 nextPaymentMethod = draft.paymentMethod || nextPaymentMethod;
-                nextSplitPayments = draft.splitPayments || nextSplitPayments;
+                nextSplitPayments = { ...nextSplitPayments, ...(draft.splitPayments || {}) };
                 nextPatientQuery = draft.patientQuery || nextPatientQuery;
             }
         } catch {
             nextFormState = createEmptyInvoiceForm();
             nextInvoiceStatus = 'pending';
             nextPaymentMethod = 'cash';
-            nextSplitPayments = { cash: '', gpay: '' };
+            nextSplitPayments = { cash: '', gpay: '', card: '' };
             nextPatientQuery = '';
         }
 
@@ -390,6 +390,7 @@ export function CreateInvoice() {
             return [
                 { method: 'cash', amount: Number(splitPayments.cash || 0) },
                 { method: 'gpay', amount: Number(splitPayments.gpay || 0) },
+                { method: 'card', amount: Number(splitPayments.card || 0) },
             ].filter((payment) => payment.amount > 0);
         }
         return calculatedTotals.total > 0 ? [{ method: paymentMethod, amount: calculatedTotals.total }] : [];
@@ -486,6 +487,14 @@ export function CreateInvoice() {
                 const gpayAmount = (invoice.payments || [])
                     .filter((payment) => payment.method === 'gpay')
                     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+                const cardAmount = (invoice.payments || [])
+                    .filter((payment) => payment.method === 'card')
+                    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+                const usedMethods = [
+                    ['cash', cashAmount],
+                    ['gpay', gpayAmount],
+                    ['card', cardAmount],
+                ].filter(([, amount]) => amount > 0).map(([method]) => method);
                 setFormState({
                     patientId: invoice.patientId || '',
                     invoiceNumber: invoice.invoiceNumber,
@@ -494,10 +503,11 @@ export function CreateInvoice() {
                 });
                 setPatientQuery(invoice.patientName || '');
                 setInvoiceStatus(invoice.status === 'partially_paid' ? 'pending' : invoice.status || 'pending');
-                setPaymentMethod(cashAmount > 0 && gpayAmount > 0 ? 'split' : gpayAmount > 0 ? 'gpay' : 'cash');
+                setPaymentMethod(usedMethods.length > 1 ? 'split' : usedMethods[0] || 'cash');
                 setSplitPayments({
                     cash: cashAmount > 0 ? cashAmount.toFixed(2) : '',
                     gpay: gpayAmount > 0 ? gpayAmount.toFixed(2) : '',
+                    card: cardAmount > 0 ? cardAmount.toFixed(2) : '',
                 });
             } catch (error) {
                 if (!cancelled) setSubmitError(error.message || 'Failed to load invoice for editing.');
@@ -892,11 +902,12 @@ export function CreateInvoice() {
                                 <select value={paymentMethod} onChange={(e) => handlePaymentMethodChange(e.target.value)} className={cn('px-4 py-2 rounded-xl text-sm font-bold outline-none border-2 transition-all cursor-pointer', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white' : 'bg-[#fef9f3] border-transparent text-[#512c31]')}>
                                     <option value="cash">Cash</option>
                                     <option value="gpay">GPay</option>
-                                    <option value="split">Cash + GPay</option>
+                                    <option value="card">Card</option>
+                                    <option value="split">Split (Cash / GPay / Card)</option>
                                 </select>
                             </div>
                             {paymentMethod === 'split' && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div>
                                         <label className="block mb-1 text-[10px] font-black uppercase tracking-widest text-gray-500">Cash Amount</label>
                                         <input
@@ -919,8 +930,19 @@ export function CreateInvoice() {
                                             className={cn('w-full px-3 py-3 rounded-xl text-sm font-black outline-none border-2 transition-all', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white focus:border-sky-400/40' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
                                         />
                                     </div>
-                                    <p className={cn('sm:col-span-2 text-[10px] font-black uppercase tracking-widest', invoiceStatus !== 'paid' || Math.abs(splitPaidTotal - calculatedTotals.total) <= 0.01 ? 'text-emerald-400' : 'text-amber-400')}>
-                                        Cash + GPay Rs{splitPaidTotal.toFixed(2)} / Invoice Rs{calculatedTotals.total.toFixed(2)}
+                                    <div>
+                                        <label className="block mb-1 text-[10px] font-black uppercase tracking-widest text-gray-500">Card Amount</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={splitPayments.card || ''}
+                                            onChange={(e) => updateSplitPaymentAmount('card', e.target.value)}
+                                            className={cn('w-full px-3 py-3 rounded-xl text-sm font-black outline-none border-2 transition-all', isDark ? 'bg-[#0f0f0f] border-gray-800 text-white focus:border-violet-400/40' : 'bg-[#fef9f3] border-transparent text-[#512c31] focus:border-[#512c31]')}
+                                        />
+                                    </div>
+                                    <p className={cn('sm:col-span-3 text-[10px] font-black uppercase tracking-widest', invoiceStatus !== 'paid' || Math.abs(splitPaidTotal - calculatedTotals.total) <= 0.01 ? 'text-emerald-400' : 'text-amber-400')}>
+                                        Paid Rs{splitPaidTotal.toFixed(2)} / Invoice Rs{calculatedTotals.total.toFixed(2)}
                                     </p>
                                 </div>
                             )}

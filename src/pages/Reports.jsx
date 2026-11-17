@@ -157,7 +157,7 @@ export function Reports() {
   const [error, setError] = useState('');
   const [overview, setOverview] = useState({ monthlyRevenue: [], patientCount: 0, lowStockCount: 0, appointmentCount: 0 });
   const [invoices, setInvoices] = useState([]);
-  const [summary, setSummary] = useState({ cashReceived: 0, totalReceived: 0, cashPaymentReceived: 0, gpayReceived: 0, pendingAmount: 0, overdueAmount: 0, creditAmount: 0 });
+  const [summary, setSummary] = useState({ cashReceived: 0, totalReceived: 0, cashPaymentReceived: 0, gpayReceived: 0, cardReceived: 0, pendingAmount: 0, overdueAmount: 0, creditAmount: 0 });
   const [services, setServices] = useState([]);
   const [period, setPeriod] = useState('monthly');
   const [customStart, setCustomStart] = useState(getLocalDateString(new Date()));
@@ -191,6 +191,7 @@ export function Reports() {
         totalReceived: Number(summ.totalReceived ?? summ.cashReceived ?? 0),
         cashPaymentReceived: Number(summ.cashPaymentReceived || 0),
         gpayReceived: Number(summ.gpayReceived || 0),
+        cardReceived: Number(summ.cardReceived || 0),
         pendingAmount: Number(summ.pendingAmount || 0),
         overdueAmount: Number(summ.overdueAmount || 0),
         creditAmount: Number(summ.creditAmount ?? summ.receivables ?? 0),
@@ -291,7 +292,7 @@ export function Reports() {
       gradient: 'from-sky-500/20 to-sky-500/5',
       accent: 'text-sky-500',
       iconBg: isDark ? 'bg-sky-500/15' : 'bg-sky-100',
-      sub: `Cash ${formatCurrency(summary.cashPaymentReceived)} / GPay ${formatCurrency(summary.gpayReceived)}`,
+      sub: `Cash ${formatCurrency(summary.cashPaymentReceived)} / GPay ${formatCurrency(summary.gpayReceived)} / Card ${formatCurrency(summary.cardReceived)}`,
     },
     {
       title: 'Credit / Pending',
@@ -453,7 +454,7 @@ export function Reports() {
               Received Split
             </h3>
             <p className={cn('text-[10px] font-bold uppercase tracking-widest mt-2', isDark ? 'text-gray-400' : 'text-[#512c31]/60')}>
-              Cash and GPay collected in the selected date range
+              Cash, GPay and Card collected in the selected date range
             </p>
           </div>
           <div className={cn('px-4 py-2 rounded-2xl text-right', isDark ? 'bg-[#0f0f0f]' : 'bg-[#fef9f3]')}>
@@ -462,10 +463,11 @@ export function Reports() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { label: 'Cash Received', value: summary.cashPaymentReceived, icon: Banknote, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
             { label: 'GPay Received', value: summary.gpayReceived, icon: CreditCard, color: 'text-sky-400', bg: 'bg-sky-500/10' },
+            { label: 'Card Received', value: summary.cardReceived, icon: CreditCard, color: 'text-violet-400', bg: 'bg-violet-500/10' },
           ].map((item) => (
             <div
               key={item.label}

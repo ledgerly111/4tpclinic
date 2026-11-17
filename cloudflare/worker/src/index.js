@@ -513,8 +513,8 @@ function normalizeInvoiceStatus(status) {
 
 function normalizePaymentMethod(method) {
     const normalized = String(method || 'cash').trim().toLowerCase();
-    if (normalized === 'gpay' || normalized === 'cash') return normalized;
-    throw new HttpError(400, 'Payment method must be cash or gpay.');
+    if (normalized === 'gpay' || normalized === 'cash' || normalized === 'card') return normalized;
+    throw new HttpError(400, 'Payment method must be cash, gpay or card.');
 }
 
 function normalizePaymentEntries(body, totalCents, fallbackMethod = 'cash') {
@@ -4164,6 +4164,7 @@ async function getAccountingSummary(env, request) {
                 totalReceived: 0,
                 cashPaymentReceived: 0,
                 gpayReceived: 0,
+                cardReceived: 0,
                 pendingAmount: 0,
                 overdueAmount: 0,
                 creditAmount: 0,
@@ -4199,7 +4200,8 @@ async function getAccountingSummary(env, request) {
         SELECT
             COALESCE(SUM(p.amount_cents), 0) AS total,
             COALESCE(SUM(CASE WHEN p.method = 'cash' THEN p.amount_cents ELSE 0 END), 0) AS cash_total,
-            COALESCE(SUM(CASE WHEN p.method = 'gpay' THEN p.amount_cents ELSE 0 END), 0) AS gpay_total
+            COALESCE(SUM(CASE WHEN p.method = 'gpay' THEN p.amount_cents ELSE 0 END), 0) AS gpay_total,
+            COALESCE(SUM(CASE WHEN p.method = 'card' THEN p.amount_cents ELSE 0 END), 0) AS card_total
         FROM payments p
         JOIN invoices i ON i.id = p.invoice_id
         WHERE 1 = 1
@@ -4256,6 +4258,7 @@ async function getAccountingSummary(env, request) {
         totalReceived: fromCents(payments?.total || 0),
         cashPaymentReceived: fromCents(payments?.cash_total || 0),
         gpayReceived: fromCents(payments?.gpay_total || 0),
+        cardReceived: fromCents(payments?.card_total || 0),
         pendingAmount: fromCents(pendingAmountCents),
         overdueAmount: fromCents(overdueAmountCents),
         creditAmount: fromCents(receivableAmountCents),
