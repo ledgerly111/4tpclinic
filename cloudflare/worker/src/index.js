@@ -330,6 +330,15 @@ function parsePermissionJson(raw) {
     }
 }
 
+const CLIENT_RECORD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Offline clients generate the record id up front so a queued create can be
+// retried safely: a replay finds the existing row instead of inserting twice.
+function resolveClientRecordId(rawId) {
+    const candidate = String(rawId || '').trim();
+    return CLIENT_RECORD_ID_PATTERN.test(candidate) ? candidate.toLowerCase() : null;
+}
+
 function chunkArray(values, size) {
     const chunks = [];
     for (let index = 0; index < values.length; index += size) {
@@ -603,8 +612,14 @@ async function ensureInvoicesTenantColumns(db) {
         await db.prepare('ALTER TABLE invoices ADD COLUMN clinic_id TEXT').run();
     }
 
-    await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_org_id ON invoices(organization_id)').run();
-    await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_clinic_id ON invoices(clinic_id)').run();
+    const indexInfo = await db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'invoices'").all();
+    const indexNames = new Set((indexInfo.results || []).map((row) => row.name));
+    if (!indexNames.has('idx_invoices_org_id')) {
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_org_id ON invoices(organization_id)').run();
+    }
+    if (!indexNames.has('idx_invoices_clinic_id')) {
+        await db.prepare('CREATE INDEX IF NOT EXISTS idx_invoices_clinic_id ON invoices(clinic_id)').run();
+    }
 }
 
 async function ensureOrganizationColumns(db) {
@@ -662,13 +677,18 @@ async function ensureInvoiceItemColumns(db) {
     if (!names.has('batch_number')) {
         await db.prepare('ALTER TABLE invoice_items ADD COLUMN batch_number TEXT').run();
     }
-    await db.prepare(`
-        UPDATE invoice_items
-        SET taxable_cents = CASE
-                WHEN taxable_cents IS NULL OR taxable_cents = 0 THEN MAX(0, line_total_cents - COALESCE(discount_cents, 0))
-                ELSE taxable_cents
-            END
-    `).run();
+    const backfillWhere = `
+        WHERE (taxable_cents IS NULL OR taxable_cents = 0)
+          AND MAX(0, line_total_cents - COALESCE(discount_cents, 0)) <> 0
+    `;
+    const pending = await db.prepare(`SELECT 1 AS needs_backfill FROM invoice_items ${backfillWhere} LIMIT 1`).first();
+    if (pending) {
+        await db.prepare(`
+            UPDATE invoice_items
+            SET taxable_cents = MAX(0, line_total_cents - COALESCE(discount_cents, 0))
+            ${backfillWhere}
+        `).run();
+    }
 }
 
 async function ensureInventoryColumns(db) {
@@ -872,10 +892,16 @@ async function ensureSchema(env) {
     schemaReady = true;
 }
 
+let invoiceSchemaReady = false;
+
+// Read-only when the schema is already current, so invoice reads keep working
+// even when D1's daily write quota is exhausted. Runs once per isolate.
 async function ensureInvoiceSchema(env) {
+    if (invoiceSchemaReady) return;
     const db = requireDb(env);
     await ensureInvoicesTenantColumns(db);
     await ensureInvoiceItemColumns(db);
+    invoiceSchemaReady = true;
 }
 
 function mapSessionUser(baseUser, clinicIds, permissions) {
@@ -2922,7 +2948,40 @@ async function createAppointment(env, request) {
         patientName = patient.name;
     }
 
-    const id = crypto.randomUUID();
+    const clientAppointmentId = resolveClientRecordId(body.id);
+    if (clientAppointmentId) {
+        const existing = await db.prepare(`
+            SELECT id, organization_id, clinic_id, patient_id, patient_name, type, doctor,
+                scheduled_date, scheduled_time, status, notes
+            FROM appointments
+            WHERE id = ?
+            LIMIT 1
+        `).bind(clientAppointmentId).first();
+        if (existing) {
+            if (existing.organization_id !== organizationId) {
+                throw new HttpError(409, 'Appointment id already in use.');
+            }
+            return jsonResponse({
+                appointment: {
+                    id: existing.id,
+                    organizationId: existing.organization_id,
+                    clinicId: existing.clinic_id,
+                    patientId: existing.patient_id,
+                    patient: existing.patient_name,
+                    type: existing.type,
+                    doctor: existing.doctor || '',
+                    date: existing.scheduled_date,
+                    time: existing.scheduled_time,
+                    status: existing.status,
+                    notes: existing.notes || '',
+                    appointmentNumber: null,
+                },
+                alreadyExisted: true,
+            });
+        }
+    }
+
+    const id = clientAppointmentId || crypto.randomUUID();
     const status = normalizeAppointmentStatus(body.status || 'scheduled');
 
     const insertAppointment = db.prepare(`
@@ -3464,7 +3523,34 @@ async function createInvoice(env, request) {
     const paymentMethod = String(body.paymentMethod || body.method || 'cash').toLowerCase() === 'split'
         ? 'cash'
         : normalizePaymentMethod(body.paymentMethod || body.method || 'cash');
-    const invoiceId = crypto.randomUUID();
+    const clientInvoiceId = resolveClientRecordId(body.id);
+    if (clientInvoiceId) {
+        const existing = await db.prepare(`
+            SELECT id, organization_id, clinic_id, invoice_number, invoice_date, patient_name, total_cents, status
+            FROM invoices
+            WHERE id = ?
+            LIMIT 1
+        `).bind(clientInvoiceId).first();
+        if (existing) {
+            if (user.role !== 'super_admin' && existing.organization_id !== user.organizationId) {
+                throw new HttpError(409, 'Invoice id already in use.');
+            }
+            return jsonResponse({
+                invoice: {
+                    id: existing.id,
+                    organizationId: existing.organization_id,
+                    clinicId: existing.clinic_id,
+                    invoiceNumber: existing.invoice_number,
+                    date: existing.invoice_date,
+                    patient: existing.patient_name,
+                    amount: fromCents(existing.total_cents),
+                    status: existing.status,
+                },
+                alreadyExisted: true,
+            });
+        }
+    }
+    const invoiceId = clientInvoiceId || crypto.randomUUID();
     const invoiceNumber = await resolveUniqueInvoiceNumber(db, body.invoiceNumber);
     const invoiceDate = sanitizeDate(body.date);
     const subtotalCents = normalizedItems.reduce((sum, item) => sum + item.grossCents, 0);

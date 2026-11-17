@@ -37,9 +37,15 @@ export function AuthProvider({ children }) {
         const restored = { ...result.user, token: existing.token };
         setSession(restored);
         setStoredSession(restored);
-      } catch {
-        clearStoredSession();
-        setSession(null);
+      } catch (err) {
+        const status = Number(err?.status || 0);
+        if (status === 401 || status === 403) {
+          clearStoredSession();
+          setSession(null);
+        } else {
+          // Offline or server unavailable: keep working with the saved session.
+          setSession(existing);
+        }
       } finally {
         setIsLoading(false);
       }

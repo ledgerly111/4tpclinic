@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { OfflineSyncStatus } from './OfflineSyncStatus';
 import { useStore } from '../context/StoreContext';
 
 export function Layout() {
@@ -45,6 +46,7 @@ export function Layout() {
                     </div>
                 )}
             </main>
+            <OfflineSyncStatus />
         </div>
     );
 }

@@ -1,3 +1,14 @@
+import {
+  cacheReadResponse,
+  configureOffline,
+  emptyListFor,
+  enqueueWrite,
+  hasPendingWrites,
+  isQueueableWrite,
+  overlayPending,
+  readCachedResponse,
+} from './offlineSync';
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const SESSION_KEY = 'clinic_auth_session';
 const LEGACY_TENANT_STORAGE_KEY = 'clinic_selected_tenant';
@@ -65,7 +76,7 @@ function clearSelectedClinic() {
   }
 }
 
-async function request(path, options = {}, hasRetried = false) {
+async function rawRequest(path, options = {}, hasRetried = false) {
   const token = getAuthToken();
   const clinicId = getSelectedClinicId();
   const headers = {
@@ -81,10 +92,15 @@ async function request(path, options = {}, hasRetried = false) {
     headers['X-Clinic-Id'] = clinicId;
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new ApiError('No internet connection.', 0);
+  }
 
   const text = await response.text();
   let data = {};
@@ -104,7 +120,7 @@ async function request(path, options = {}, hasRetried = false) {
     data?.error === 'Selected clinic is not accessible.'
   ) {
     clearSelectedClinic();
-    return request(path, options, true);
+    return rawRequest(path, options, true);
   }
 
   if (!response.ok) {
@@ -113,6 +129,66 @@ async function request(path, options = {}, hasRetried = false) {
 
   return data;
 }
+
+// Network down, server down, or database unavailable (e.g. D1 quota exhausted).
+function isServerUnavailable(error) {
+  const status = Number(error?.status || 0);
+  return !status || status >= 500;
+}
+
+function parseBody(body) {
+  if (!body) return {};
+  if (typeof body === 'object') return body;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return {};
+  }
+}
+
+async function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+
+  if (method === 'GET') {
+    try {
+      const data = await rawRequest(path, options);
+      cacheReadResponse(path, data);
+      return overlayPending(path, data);
+    } catch (error) {
+      if (!isServerUnavailable(error)) throw error;
+      const cached = readCachedResponse(path) ?? emptyListFor(path);
+      if (cached) return overlayPending(path, { ...cached, offline: true });
+      // Nothing cached (e.g. an invoice created offline): build it from the queue.
+      const synthesized = overlayPending(path, {});
+      if (synthesized && Object.keys(synthesized).length > 0) return { ...synthesized, offline: true };
+      throw error;
+    }
+  }
+
+  if (isQueueableWrite(method, path)) {
+    const body = parseBody(options.body);
+    // Creates carry a client-generated id so a retry can never duplicate.
+    if (method === 'POST' && !body.id) body.id = crypto.randomUUID();
+    // Keep strict ordering: once something is queued, later edits queue too.
+    if (hasPendingWrites()) return enqueueWrite(method, path, body);
+    try {
+      return await rawRequest(path, { ...options, body: JSON.stringify(body) });
+    } catch (error) {
+      if (!isServerUnavailable(error)) throw error;
+      return enqueueWrite(method, path, body);
+    }
+  }
+
+  return rawRequest(path, options);
+}
+
+configureOffline({
+  send: (path, options) => rawRequest(path, options),
+  context: () => ({
+    userId: getStoredSession()?.userId || '',
+    clinicId: getSelectedClinicId(),
+  }),
+});
 
 export async function loginApi(username, password) {
   return request('/auth/login', {
